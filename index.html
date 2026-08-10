@@ -124,8 +124,10 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
       <input id="item-costo" type="number" min="0" step="0.01">
       <label for="item-cantidad">Cantidad (u horas)</label>
       <input id="item-cantidad" type="number" min="0.01" step="0.01" value="1">
-      <label for="item-precio-aplicado">Precio que cobras al cliente (opcional — vacío usa el sugerido)</label>
-      <input id="item-precio-aplicado" type="number" min="0" step="0.01">
+      <div id="grupo-precio-manual" class="oculto">
+        <label for="item-precio-aplicado">Precio que cobras al cliente (tarifa fija de mano de obra)</label>
+        <input id="item-precio-aplicado" type="number" min="0" step="0.01">
+      </div>
       <button id="btn-agregar-item">Agregar a la orden</button>
       <div id="item-error" class="mensaje-error"></div>
 
@@ -571,6 +573,10 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
     $("label-item-costo").textContent = esManoObra
       ? "Costo hora interno (punto de equilibrio) — no es lo que cobras"
       : "Costo (lo que te cuesta a ti, no lo que cobras)";
+    $("grupo-precio-manual").classList.toggle("oculto", !esManoObra);
+    if (!esManoObra) {
+      $("item-precio-aplicado").value = "";
+    }
   });
 
   $("btn-agregar-item").addEventListener("click", conManejoDeErrores(function () {
@@ -579,7 +585,9 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
     var nombre = $("item-nombre").value.trim();
     var costo = parseFloat($("item-costo").value);
     var cantidad = parseFloat($("item-cantidad").value);
-    var precioManual = $("item-precio-aplicado").value ? parseFloat($("item-precio-aplicado").value) : null;
+    var precioManual = (tipo === "mano_obra" && $("item-precio-aplicado").value)
+      ? parseFloat($("item-precio-aplicado").value)
+      : null;
 
     if (!nombre || !(costo >= 0) || !(cantidad > 0)) {
       mostrarError("item-error", "Completa nombre, costo y cantidad correctamente.");
