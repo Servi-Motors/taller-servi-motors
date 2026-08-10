@@ -101,7 +101,55 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
 
     <div id="tarjeta-exito" class="tarjeta oculto">
       <div id="texto-exito"></div>
-      <button id="btn-otra-orden">Abrir otra orden</button>
+      <button id="btn-ir-items">Agregar ítems a esta orden</button>
+      <button id="btn-otra-orden" class="secundario">Abrir otra orden</button>
+    </div>
+
+    <div id="tarjeta-items" class="tarjeta oculto">
+      <h1>Ítems de la orden</h1>
+      <h2 id="items-subtitulo"></h2>
+      <div id="lista-items"></div>
+
+      <h3>Agregar ítem</h3>
+      <label for="item-tipo">Tipo</label>
+      <select id="item-tipo">
+        <option value="repuesto">Repuesto</option>
+        <option value="insumo">Insumo</option>
+        <option value="mano_obra">Mano de obra (por hora)</option>
+        <option value="trabajo_externo">Trabajo externo</option>
+      </select>
+      <label for="item-nombre">Nombre / descripción</label>
+      <input id="item-nombre" type="text" placeholder="Ej. Filtro de aceite">
+      <label for="item-costo">Costo</label>
+      <input id="item-costo" type="number" min="0" step="0.01">
+      <label for="item-cantidad">Cantidad (u horas)</label>
+      <input id="item-cantidad" type="number" min="0.01" step="0.01" value="1">
+      <button id="btn-agregar-item">Agregar a la orden</button>
+      <div id="item-error" class="mensaje-error"></div>
+
+      <button id="btn-ir-firma" class="secundario">Solicitar firma de autorización</button>
+    </div>
+
+    <div id="tarjeta-firma" class="tarjeta oculto">
+      <h1>Firma de autorización</h1>
+      <h2>El cliente autoriza el trabajo antes de que el técnico lo ejecute</h2>
+      <div id="firma-resumen" class="info-vehiculo"></div>
+
+      <label for="firma-nombre">Nombre de quien autoriza</label>
+      <input id="firma-nombre" type="text" placeholder="Nombre completo">
+      <label for="firma-documento">Documento de identidad</label>
+      <input id="firma-documento" type="text" placeholder="Cédula (opcional)">
+
+      <label for="firma-canvas">Firma (dibuja con el dedo o el mouse)</label>
+      <canvas id="firma-canvas" style="width:100%;height:150px;border:1px solid var(--borde);border-radius:8px;touch-action:none;background:#fff;display:block;"></canvas>
+      <button id="btn-limpiar-firma" class="secundario">Limpiar firma</button>
+      <button id="btn-confirmar-firma">Confirmar autorización</button>
+      <div id="firma-error" class="mensaje-error"></div>
+    </div>
+
+    <div id="tarjeta-firma-exito" class="tarjeta oculto">
+      <div id="texto-firma-exito"></div>
+      <button id="btn-volver-items">Volver a la orden</button>
     </div>
 
   </section>
@@ -186,6 +234,8 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
   var accessToken = null;
   var usuarioActualId = null;
   var vehiculoSeleccionado = null;
+  var ordenActual = null; // { id_ot, numero_ot }
+  var canvas, ctx, dibujando = false;
 
   function $(id) { return document.getElementById(id); }
 
@@ -437,6 +487,7 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
         }
       });
     }).then(function () {
+      ordenActual = { id_ot: ordenCreada.id_ot, numero_ot: ordenCreada.numero_ot };
       $("tarjeta-asignar").classList.add("oculto");
       $("texto-exito").innerHTML = "✅ Orden <b>OT-" + ordenCreada.numero_ot + "</b> abierta correctamente.";
       $("tarjeta-exito").classList.remove("oculto");
@@ -447,6 +498,7 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
 
   $("btn-otra-orden").addEventListener("click", function () {
     vehiculoSeleccionado = null;
+    ordenActual = null;
     $("buscar-placa").value = "";
     $("tarjeta-exito").classList.add("oculto");
     $("tarjeta-encontrado").classList.add("oculto");
@@ -455,6 +507,173 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
     $("tarjeta-buscar").classList.remove("oculto");
     window.scrollTo({ top: 0, behavior: "smooth" });
   });
+
+  // =====================================================================
+  // ÍTEMS DE LA ORDEN
+  // =====================================================================
+  function formatoMoneda(n) {
+    return "$" + Number(n).toLocaleString("es-CO", { maximumFractionDigits: 0 });
+  }
+
+  function cargarItemsDeOrden() {
+    var query = "select=id_detalle,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
+    return restRequest("GET", "ot_detalle", { query: query }).then(function (filas) {
+      $("items-subtitulo").textContent = "Orden OT-" + ordenActual.numero_ot;
+      var html = "";
+      var hayPendientes = false;
+      (filas || []).forEach(function (f) {
+        var subtotal = f.cantidad * f.precio_aplicado_cliente;
+        if (f.estado_autorizacion === "pendiente") hayPendientes = true;
+        var color = f.estado_autorizacion === "autorizado" ? "var(--verde)" : (f.estado_autorizacion === "rechazado" ? "var(--rojo)" : "#b45309");
+        html += '<div class="info-vehiculo" style="margin-bottom:8px;">' +
+          "<b>" + f.items.nombre + "</b>" +
+          f.cantidad + " x " + formatoMoneda(f.precio_aplicado_cliente) + " = " + formatoMoneda(subtotal) +
+          " — <span style=\"color:" + color + ";font-weight:600;\">" + f.estado_autorizacion + "</span>" +
+          "</div>";
+      });
+      $("lista-items").innerHTML = html || "<p style='font-size:14px;color:var(--gris);'>Todavía no hay ítems agregados.</p>";
+      $("btn-ir-firma").style.display = hayPendientes ? "block" : "none";
+    });
+  }
+
+  $("btn-ir-items").addEventListener("click", conManejoDeErrores(function () {
+    $("tarjeta-exito").classList.add("oculto");
+    $("tarjeta-items").classList.remove("oculto");
+    return cargarItemsDeOrden();
+  }, "item-error"));
+
+  $("btn-agregar-item").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("item-error");
+    var tipo = $("item-tipo").value;
+    var nombre = $("item-nombre").value.trim();
+    var costo = parseFloat($("item-costo").value);
+    var cantidad = parseFloat($("item-cantidad").value);
+
+    if (!nombre || !(costo >= 0) || !(cantidad > 0)) {
+      mostrarError("item-error", "Completa nombre, costo y cantidad correctamente.");
+      return;
+    }
+
+    return restRequest("POST", "items", { body: { tipo: tipo, nombre: nombre, costo: costo } })
+      .then(function (items) {
+        return restRequest("POST", "ot_detalle", {
+          body: { id_ot: ordenActual.id_ot, id_item: items[0].id_item, cantidad: cantidad }
+        });
+      })
+      .then(function () {
+        $("item-nombre").value = "";
+        $("item-costo").value = "";
+        $("item-cantidad").value = "1";
+        return cargarItemsDeOrden();
+      })
+      .catch(function (err) {
+        mostrarError("item-error", "No se pudo agregar: " + err.message);
+      });
+  }, "item-error"));
+
+  // =====================================================================
+  // FIRMA DE AUTORIZACIÓN
+  // =====================================================================
+  function inicializarCanvas() {
+    canvas = $("firma-canvas");
+    var rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+    ctx = canvas.getContext("2d");
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+
+    function posicion(e) {
+      var r = canvas.getBoundingClientRect();
+      var punto = e.touches && e.touches.length ? e.touches[0] : e;
+      return { x: punto.clientX - r.left, y: punto.clientY - r.top };
+    }
+    function empezar(e) { dibujando = true; var p = posicion(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault(); }
+    function mover(e) { if (!dibujando) return; var p = posicion(e); ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault(); }
+    function terminar() { dibujando = false; }
+
+    canvas.addEventListener("mousedown", empezar);
+    canvas.addEventListener("mousemove", mover);
+    window.addEventListener("mouseup", terminar);
+    canvas.addEventListener("touchstart", empezar, { passive: false });
+    canvas.addEventListener("touchmove", mover, { passive: false });
+    canvas.addEventListener("touchend", terminar);
+  }
+
+  $("btn-limpiar-firma").addEventListener("click", function () {
+    if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+  });
+
+  $("btn-ir-firma").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("item-error");
+    var query = "select=cantidad,precio_aplicado_cliente&id_ot=eq." + ordenActual.id_ot + "&estado_autorizacion=eq.pendiente";
+    return restRequest("GET", "ot_detalle", { query: query }).then(function (filas) {
+      var total = (filas || []).reduce(function (acc, f) { return acc + f.cantidad * f.precio_aplicado_cliente; }, 0);
+      if (total <= 0) {
+        mostrarError("item-error", "No hay ítems pendientes de autorización.");
+        return;
+      }
+      $("firma-resumen").innerHTML = "<b>Total a autorizar: " + formatoMoneda(total) + "</b>";
+      $("tarjeta-items").classList.add("oculto");
+      $("tarjeta-firma").classList.remove("oculto");
+      if (!canvas) inicializarCanvas();
+      else ctx.clearRect(0, 0, canvas.width, canvas.height);
+    });
+  }, "item-error"));
+
+  $("btn-confirmar-firma").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("firma-error");
+    var nombreFirmante = $("firma-nombre").value.trim();
+    var documento = $("firma-documento").value.trim();
+    if (!nombreFirmante) {
+      mostrarError("firma-error", "Escribe el nombre de quien autoriza.");
+      return;
+    }
+
+    return new Promise(function (resolve, reject) {
+      canvas.toBlob(function (blob) {
+        if (!blob) { reject(new Error("No se capturó ninguna firma. Dibújala en el recuadro.")); return; }
+        resolve(blob);
+      }, "image/png");
+    }).then(function (blob) {
+      var ruta = ordenActual.id_ot + "/" + Date.now() + ".png";
+      return fetch(SUPABASE_URL + "/storage/v1/object/firmas/" + ruta, {
+        method: "POST",
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Authorization": "Bearer " + accessToken,
+          "Content-Type": "image/png"
+        },
+        body: blob
+      }).then(function (res) {
+        if (!res.ok) return res.text().then(function (t) { throw new Error("No se pudo guardar la firma: " + t); });
+        return ruta;
+      });
+    }).then(function (ruta) {
+      return restRequest("POST", "rpc/registrar_autorizacion", {
+        body: {
+          p_id_ot: ordenActual.id_ot,
+          p_nombre_firmante: nombreFirmante,
+          p_documento_firmante: documento || null,
+          p_firma_imagen: ruta,
+          p_id_usuario_registro: usuarioActualId
+        }
+      });
+    }).then(function () {
+      $("tarjeta-firma").classList.add("oculto");
+      $("texto-firma-exito").innerHTML = "✅ Autorización registrada correctamente.";
+      $("tarjeta-firma-exito").classList.remove("oculto");
+    }).catch(function (err) {
+      mostrarError("firma-error", err.message);
+    });
+  }, "firma-error"));
+
+  $("btn-volver-items").addEventListener("click", conManejoDeErrores(function () {
+    $("tarjeta-firma-exito").classList.add("oculto");
+    $("tarjeta-items").classList.remove("oculto");
+    return cargarItemsDeOrden();
+  }, "item-error"));
 
 })();
 </script>
