@@ -1,0 +1,462 @@
+<!-- design-decisions
+Role: internal operations tool (work-order intake screen) for an auto repair shop, not a marketing document.
+Stance: the person opening this is standing at the counter with a customer waiting — every extra click costs them.
+No animation/atmosphere system needed; clarity and speed carry the whole thing. Single neutral+blue palette,
+blue = action/primary, red = error, green = success. System sans font, no external fonts. Zero external JS —
+all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), per the no-external-deps rule.
+-->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Taller Servi Motors – Abrir Orden de Trabajo</title>
+</head>
+<body>
+
+<div class="contenedor">
+
+  <section id="seccion-error-carga" class="tarjeta oculto" style="background:#fef2f2;border:1px solid #fecaca;">
+    <b style="color:#dc2626;">No se pudo cargar la aplicación</b>
+    <p id="error-carga-detalle" style="font-size:14px;margin-top:8px;"></p>
+  </section>
+
+  <section id="pantalla-login" class="tarjeta">
+    <h1>Taller Servi Motors</h1>
+    <h2>Inicia sesión para continuar</h2>
+    <label for="login-correo">Correo</label>
+    <input id="login-correo" type="email" placeholder="tu@correo.com" autocomplete="username">
+    <label for="login-clave">Contraseña</label>
+    <input id="login-clave" type="password" placeholder="••••••••" autocomplete="current-password">
+    <button id="btn-login">Iniciar sesión</button>
+    <div id="login-error" class="mensaje-error"></div>
+  </section>
+
+  <section id="pantalla-app" class="oculto">
+
+    <div class="barra-superior">
+      <span id="usuario-actual"></span>
+      <button id="btn-logout">Cerrar sesión</button>
+    </div>
+
+    <div id="tarjeta-buscar" class="tarjeta">
+      <h1>Abrir Orden de Trabajo</h1>
+      <h2>Paso 1: busca el vehículo por placa</h2>
+      <label for="buscar-placa">Placa</label>
+      <input id="buscar-placa" type="text" placeholder="Ej. ABC123" style="text-transform:uppercase">
+      <button id="btn-buscar">Buscar vehículo</button>
+      <div id="buscar-error" class="mensaje-error"></div>
+    </div>
+
+    <div id="tarjeta-encontrado" class="tarjeta oculto">
+      <h2>Vehículo encontrado</h2>
+      <div id="info-vehiculo-encontrado" class="info-vehiculo"></div>
+      <button id="btn-usar-encontrado">Continuar con este vehículo</button>
+      <button id="btn-no-es-este" class="secundario">No es este / registrar otro</button>
+    </div>
+
+    <div id="tarjeta-nuevo" class="tarjeta oculto">
+      <h2>Vehículo no registrado — datos del cliente y vehículo</h2>
+
+      <h3>Cliente</h3>
+      <label for="nuevo-cliente-nombre">Nombre</label>
+      <input id="nuevo-cliente-nombre" type="text" placeholder="Nombre completo">
+      <label for="nuevo-cliente-tipo">Tipo</label>
+      <select id="nuevo-cliente-tipo">
+        <option value="particular">Particular</option>
+        <option value="empresa">Empresa</option>
+      </select>
+      <label for="nuevo-cliente-telefono">Teléfono</label>
+      <input id="nuevo-cliente-telefono" type="tel" placeholder="300 000 0000">
+      <label for="nuevo-cliente-correo">Correo</label>
+      <input id="nuevo-cliente-correo" type="email" placeholder="cliente@correo.com">
+
+      <h3>Vehículo</h3>
+      <label for="nuevo-vehiculo-placa">Placa</label>
+      <input id="nuevo-vehiculo-placa" type="text" style="text-transform:uppercase">
+      <label for="nuevo-vehiculo-vin">VIN (opcional, 17 caracteres)</label>
+      <input id="nuevo-vehiculo-vin" type="text" maxlength="17">
+      <label for="nuevo-vehiculo-marca">Marca</label>
+      <input id="nuevo-vehiculo-marca" type="text">
+      <label for="nuevo-vehiculo-modelo">Modelo</label>
+      <input id="nuevo-vehiculo-modelo" type="text">
+      <label for="nuevo-vehiculo-anio">Año</label>
+      <input id="nuevo-vehiculo-anio" type="number" min="1950" max="2100">
+      <label for="nuevo-vehiculo-km">Kilometraje actual</label>
+      <input id="nuevo-vehiculo-km" type="number" min="0">
+
+      <button id="btn-registrar-nuevo">Guardar cliente y vehículo</button>
+      <div id="nuevo-error" class="mensaje-error"></div>
+    </div>
+
+    <div id="tarjeta-asignar" class="tarjeta oculto">
+      <h2>Paso 2: asigna responsables y abre la orden</h2>
+      <label for="select-asesor">Asesor</label>
+      <select id="select-asesor"></select>
+      <label for="select-tecnico">Técnico responsable</label>
+      <select id="select-tecnico"></select>
+      <button id="btn-abrir-orden">Abrir orden de trabajo</button>
+      <div id="orden-error" class="mensaje-error"></div>
+    </div>
+
+    <div id="tarjeta-exito" class="tarjeta oculto">
+      <div id="texto-exito"></div>
+      <button id="btn-otra-orden">Abrir otra orden</button>
+    </div>
+
+  </section>
+</div>
+
+<style>
+  :root {
+    --azul: #2563eb;
+    --azul-oscuro: #1e40af;
+    --gris: #6b7280;
+    --gris-claro: #f3f4f6;
+    --rojo: #dc2626;
+    --verde: #16a34a;
+    --borde: #d1d5db;
+    --texto: #111827;
+    --fondo: #f3f4f6;
+    --tarjeta-bg: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --gris-claro: #1f2937;
+      --texto: #f3f4f6;
+      --fondo: #111827;
+      --tarjeta-bg: #1f2937;
+      --borde: #374151;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--fondo);
+    margin: 0;
+    padding: 12px;
+    color: var(--texto);
+  }
+  .contenedor { max-width: 480px; margin: 0 auto; }
+  .tarjeta {
+    background: var(--tarjeta-bg);
+    border-radius: 12px;
+    padding: 18px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    margin-bottom: 12px;
+  }
+  h1 { font-size: 19px; margin: 0 0 3px; }
+  h2 { font-size: 15px; margin: 0 0 10px; color: var(--gris); }
+  h3 { font-size: 13px; margin: 10px 0 6px; text-transform: uppercase; color: var(--gris); letter-spacing: 0.03em; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 8px 0 3px; }
+  input, select {
+    width: 100%; padding: 10px; font-size: 16px;
+    border: 1px solid var(--borde); border-radius: 8px;
+    background: var(--tarjeta-bg); color: var(--texto);
+  }
+  button {
+    width: 100%; padding: 12px; font-size: 15px; font-weight: 600;
+    border: none; border-radius: 8px; background: var(--azul); color: white;
+    margin-top: 12px; cursor: pointer;
+  }
+  button:hover { background: var(--azul-oscuro); }
+  button.secundario { background: transparent; color: var(--azul); border: 1px solid var(--azul); }
+  .mensaje-error {
+    background: #fef2f2; color: var(--rojo); border: 1px solid #fecaca;
+    padding: 10px 12px; border-radius: 8px; font-size: 14px; margin-top: 12px; display: none;
+  }
+  #tarjeta-exito {
+    background: #f0fdf4; color: var(--verde); border: 1px solid #bbf7d0; text-align: center;
+  }
+  .barra-superior { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .barra-superior span { font-size: 13px; color: var(--gris); }
+  .barra-superior button { width: auto; margin: 0; padding: 8px 14px; font-size: 13px; background: transparent; color: var(--rojo); border: 1px solid var(--rojo); }
+  .oculto { display: none !important; }
+  .info-vehiculo { background: var(--gris-claro); border-radius: 8px; padding: 12px; font-size: 14px; margin-top: 8px; }
+  .info-vehiculo b { display: block; margin-bottom: 4px; }
+</style>
+
+<script>
+(function () {
+  "use strict";
+
+  var SUPABASE_URL = "https://oukashvbuzfydyqctwfj.supabase.co";
+  var SUPABASE_KEY = "sb_publishable__TOW4MHJAFPSsBuBjWNj4w_lh-K20Sm";
+
+  var accessToken = null;
+  var usuarioActualId = null;
+  var vehiculoSeleccionado = null;
+
+  function $(id) { return document.getElementById(id); }
+
+  function mostrarError(elId, mensaje) {
+    var el = $(elId);
+    el.textContent = mensaje;
+    el.style.display = "block";
+  }
+  function ocultarError(elId) { $(elId).style.display = "none"; }
+
+  function mostrarErrorCarga(mensaje) {
+    $("error-carga-detalle").textContent = mensaje;
+    $("seccion-error-carga").classList.remove("oculto");
+  }
+
+  function conManejoDeErrores(fn, elIdError) {
+    return function () {
+      var args = arguments;
+      Promise.resolve()
+        .then(function () { return fn.apply(null, args); })
+        .catch(function (err) {
+          console.error(err);
+          mostrarError(elIdError, "Error inesperado: " + (err && err.message ? err.message : String(err)));
+        });
+    };
+  }
+
+  function authFetch(path, body) {
+    return fetch(SUPABASE_URL + "/auth/v1/" + path, {
+      method: "POST",
+      headers: { "apikey": SUPABASE_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(function (res) {
+      return res.json().then(function (data) {
+        if (!res.ok) {
+          var msg = data.error_description || data.msg || data.error || "Error de autenticación";
+          throw new Error(msg);
+        }
+        return data;
+      });
+    });
+  }
+
+  function restRequest(method, tabla, opts) {
+    opts = opts || {};
+    var url = SUPABASE_URL + "/rest/v1/" + tabla + (opts.query ? "?" + opts.query : "");
+    var headers = {
+      "apikey": SUPABASE_KEY,
+      "Content-Type": "application/json"
+    };
+    if (accessToken) headers["Authorization"] = "Bearer " + accessToken;
+    if (method === "POST") headers["Prefer"] = "return=representation";
+
+    return fetch(url, {
+      method: method,
+      headers: headers,
+      body: opts.body ? JSON.stringify(opts.body) : undefined
+    }).then(function (res) {
+      return res.text().then(function (text) {
+        var data = text ? JSON.parse(text) : null;
+        if (!res.ok) {
+          var msg = (data && (data.message || data.hint || data.details)) || res.statusText;
+          throw new Error(msg);
+        }
+        return data;
+      });
+    });
+  }
+
+  $("btn-login").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("login-error");
+    var correo = $("login-correo").value.trim();
+    var clave = $("login-clave").value;
+    if (!correo || !clave) {
+      mostrarError("login-error", "Ingresa correo y contraseña.");
+      return;
+    }
+    return authFetch("token?grant_type=password", { email: correo, password: clave })
+      .then(function (data) {
+        accessToken = data.access_token;
+        usuarioActualId = data.user.id;
+        entrarAlApp(data.user.email);
+      })
+      .catch(function (err) {
+        mostrarError("login-error", "No se pudo iniciar sesión: " + err.message);
+      });
+  }, "login-error"));
+
+  $("btn-logout").addEventListener("click", function () {
+    accessToken = null;
+    usuarioActualId = null;
+    location.reload();
+  });
+
+  function entrarAlApp(correo) {
+    $("pantalla-login").classList.add("oculto");
+    $("pantalla-app").classList.remove("oculto");
+    $("usuario-actual").textContent = "Sesión: " + correo;
+    return cargarAsesoresYTecnicos();
+  }
+
+  function cargarAsesoresYTecnicos() {
+    return Promise.all([
+      restRequest("GET", "usuarios", { query: "select=id_usuario,nombre&rol=eq.asesor&estado=eq.activo" }),
+      restRequest("GET", "usuarios", { query: "select=id_usuario,nombre&rol=eq.tecnico&estado=eq.activo" })
+    ]).then(function (resultados) {
+      var asesores = resultados[0] || [];
+      var tecnicos = resultados[1] || [];
+      var selA = $("select-asesor");
+      var selT = $("select-tecnico");
+      selA.innerHTML = "";
+      selT.innerHTML = "";
+      asesores.forEach(function (u) {
+        var opt = document.createElement("option");
+        opt.value = u.id_usuario; opt.textContent = u.nombre;
+        selA.appendChild(opt);
+      });
+      tecnicos.forEach(function (u) {
+        var opt = document.createElement("option");
+        opt.value = u.id_usuario; opt.textContent = u.nombre;
+        selT.appendChild(opt);
+      });
+    });
+  }
+
+  $("btn-buscar").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("buscar-error");
+    $("tarjeta-encontrado").classList.add("oculto");
+    $("tarjeta-nuevo").classList.add("oculto");
+    $("tarjeta-asignar").classList.add("oculto");
+    $("tarjeta-exito").classList.add("oculto");
+
+    var placa = $("buscar-placa").value.trim().toUpperCase();
+    if (!placa) {
+      mostrarError("buscar-error", "Escribe una placa para buscar.");
+      return;
+    }
+
+    var query = "select=id_vehiculo,placa,vin,marca,modelo,anio,kilometraje,id_cliente,clientes(nombre,telefono,correo)&placa=eq." + encodeURIComponent(placa);
+    return restRequest("GET", "vehiculos", { query: query }).then(function (data) {
+      var encontrado = data && data.length ? data[0] : null;
+      $("tarjeta-buscar").classList.add("oculto");
+      if (encontrado) {
+        vehiculoSeleccionado = { id_vehiculo: encontrado.id_vehiculo, id_cliente: encontrado.id_cliente };
+        var cliente = encontrado.clientes || {};
+        $("info-vehiculo-encontrado").innerHTML =
+          "<b>" + encontrado.marca + " " + encontrado.modelo + " (" + encontrado.anio + ") — Placa " + encontrado.placa + "</b>" +
+          "Cliente: " + (cliente.nombre || "—") + "<br>" +
+          "Teléfono: " + (cliente.telefono || "—") + "<br>" +
+          "Kilometraje registrado: " + encontrado.kilometraje;
+        $("tarjeta-encontrado").classList.remove("oculto");
+      } else {
+        $("nuevo-vehiculo-placa").value = placa;
+        $("tarjeta-nuevo").classList.remove("oculto");
+      }
+    }).catch(function (err) {
+      mostrarError("buscar-error", "Error buscando el vehículo: " + err.message);
+    });
+  }, "buscar-error"));
+
+  $("btn-usar-encontrado").addEventListener("click", function () {
+    $("tarjeta-encontrado").classList.add("oculto");
+    $("tarjeta-asignar").classList.remove("oculto");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+
+  $("btn-no-es-este").addEventListener("click", function () {
+    $("tarjeta-encontrado").classList.add("oculto");
+    $("nuevo-vehiculo-placa").value = $("buscar-placa").value.trim().toUpperCase();
+    $("tarjeta-nuevo").classList.remove("oculto");
+  });
+
+  $("btn-registrar-nuevo").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("nuevo-error");
+
+    var nombre = $("nuevo-cliente-nombre").value.trim();
+    var tipo = $("nuevo-cliente-tipo").value;
+    var telefono = $("nuevo-cliente-telefono").value.trim();
+    var correo = $("nuevo-cliente-correo").value.trim();
+    var placa = $("nuevo-vehiculo-placa").value.trim().toUpperCase();
+    var vin = $("nuevo-vehiculo-vin").value.trim().toUpperCase();
+    var marca = $("nuevo-vehiculo-marca").value.trim();
+    var modelo = $("nuevo-vehiculo-modelo").value.trim();
+    var anio = $("nuevo-vehiculo-anio").value ? parseInt($("nuevo-vehiculo-anio").value, 10) : null;
+    var km = $("nuevo-vehiculo-km").value ? parseInt($("nuevo-vehiculo-km").value, 10) : 0;
+
+    if (!nombre || !placa) {
+      mostrarError("nuevo-error", "El nombre del cliente y la placa son obligatorios.");
+      return;
+    }
+    if (vin && vin.length !== 17) {
+      mostrarError("nuevo-error", "El VIN debe tener 17 caracteres (o déjalo vacío).");
+      return;
+    }
+
+    var clienteCreado;
+    return restRequest("POST", "clientes", {
+      body: { nombre: nombre, tipo: tipo, telefono: telefono || null, correo: correo || null }
+    }).then(function (clientes) {
+      clienteCreado = clientes[0];
+      return restRequest("POST", "vehiculos", {
+        body: {
+          id_cliente: clienteCreado.id_cliente,
+          placa: placa, vin: vin || null, marca: marca || null, modelo: modelo || null,
+          anio: anio, kilometraje: km
+        }
+      });
+    }).then(function (vehiculos) {
+      var vehiculoCreado = vehiculos[0];
+      vehiculoSeleccionado = { id_vehiculo: vehiculoCreado.id_vehiculo, id_cliente: clienteCreado.id_cliente };
+      $("tarjeta-nuevo").classList.add("oculto");
+      $("tarjeta-asignar").classList.remove("oculto");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }).catch(function (err) {
+      mostrarError("nuevo-error", "No se pudo guardar: " + err.message);
+    });
+  }, "nuevo-error"));
+
+  $("btn-abrir-orden").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("orden-error");
+
+    if (!vehiculoSeleccionado) {
+      mostrarError("orden-error", "Primero selecciona o registra un vehículo.");
+      return;
+    }
+    var id_asesor = $("select-asesor").value;
+    var id_tecnico = $("select-tecnico").value;
+    if (!id_asesor || !id_tecnico) {
+      mostrarError("orden-error", "Debes asignar un asesor y un técnico.");
+      return;
+    }
+
+    var ordenCreada;
+    return restRequest("POST", "ordenes_trabajo", {
+      body: {
+        id_cliente: vehiculoSeleccionado.id_cliente,
+        id_vehiculo: vehiculoSeleccionado.id_vehiculo,
+        id_asesor: id_asesor,
+        id_tecnico: id_tecnico,
+        estado: "abierta"
+      }
+    }).then(function (ordenes) {
+      ordenCreada = ordenes[0];
+      return restRequest("POST", "historial_ot", {
+        body: {
+          id_ot: ordenCreada.id_ot,
+          accion: "Orden creada (estado: abierta)",
+          id_usuario: usuarioActualId
+        }
+      });
+    }).then(function () {
+      $("tarjeta-asignar").classList.add("oculto");
+      $("texto-exito").innerHTML = "✅ Orden <b>OT-" + ordenCreada.numero_ot + "</b> abierta correctamente.";
+      $("tarjeta-exito").classList.remove("oculto");
+    }).catch(function (err) {
+      mostrarError("orden-error", "No se pudo abrir la orden: " + err.message);
+    });
+  }, "orden-error"));
+
+  $("btn-otra-orden").addEventListener("click", function () {
+    vehiculoSeleccionado = null;
+    $("buscar-placa").value = "";
+    $("tarjeta-exito").classList.add("oculto");
+    $("tarjeta-encontrado").classList.add("oculto");
+    $("tarjeta-nuevo").classList.add("oculto");
+    $("tarjeta-asignar").classList.add("oculto");
+    $("tarjeta-buscar").classList.remove("oculto");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+
+})();
+</script>
+</body>
+</html>
