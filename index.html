@@ -36,7 +36,10 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
 
     <div class="barra-superior">
       <span id="usuario-actual"></span>
-      <button id="btn-logout">Cerrar sesión</button>
+      <div class="grupo-botones-barra">
+        <button id="btn-ir-contabilidad" class="oculto secundario-barra">Contabilidad</button>
+        <button id="btn-logout">Cerrar sesión</button>
+      </div>
     </div>
 
     <div id="tarjeta-buscar" class="tarjeta">
@@ -122,6 +125,7 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
       <input id="item-nombre" type="text" placeholder="Ej. Filtro de aceite">
       <label for="item-costo" id="label-item-costo">Costo</label>
       <input id="item-costo" type="number" min="0" step="0.01">
+      <div id="nota-costo-hora" class="oculto nota-ayuda"></div>
       <label for="item-cantidad">Cantidad (u horas)</label>
       <input id="item-cantidad" type="number" min="0.01" step="0.01" value="1">
       <div id="grupo-precio-manual" class="oculto">
@@ -157,6 +161,66 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
     </div>
 
   </section>
+
+  <section id="pantalla-contabilidad" class="oculto">
+    <div class="barra-superior">
+      <span id="usuario-actual-contab"></span>
+      <div class="grupo-botones-barra">
+        <button id="btn-volver-de-contabilidad" class="secundario-barra">← Órdenes</button>
+        <button id="btn-logout-contab">Cerrar sesión</button>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h1>Contabilidad</h1>
+      <h2>Costo hora de equilibrio</h2>
+      <div id="costo-hora-actual" class="info-vehiculo"></div>
+      <label for="contab-horas-mes">Horas de mano de obra disponibles al mes</label>
+      <input id="contab-horas-mes" type="number" min="0" step="0.01">
+      <button id="btn-guardar-horas">Guardar horas disponibles</button>
+      <div id="contab-horas-error" class="mensaje-error"></div>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Costos fijos mensuales</h2>
+      <div id="lista-costos-fijos"></div>
+      <h3>Agregar costo fijo</h3>
+      <label for="costo-fijo-concepto">Concepto</label>
+      <input id="costo-fijo-concepto" type="text" placeholder="Ej. Arriendo">
+      <label for="costo-fijo-monto">Monto mensual</label>
+      <input id="costo-fijo-monto" type="number" min="0" step="0.01">
+      <button id="btn-agregar-costo-fijo">Agregar</button>
+      <div id="costo-fijo-error" class="mensaje-error"></div>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Egresos (compras y gastos)</h2>
+      <div id="lista-egresos"></div>
+      <h3>Registrar egreso</h3>
+      <label for="egreso-fecha">Fecha</label>
+      <input id="egreso-fecha" type="date">
+      <label for="egreso-proveedor">Proveedor (opcional)</label>
+      <input id="egreso-proveedor" type="text">
+      <label for="egreso-concepto">Concepto</label>
+      <input id="egreso-concepto" type="text" placeholder="Ej. Compra de repuestos">
+      <label for="egreso-categoria">Categoría</label>
+      <select id="egreso-categoria">
+        <option value="compra">Compra (repuesto/insumo cargado a una orden)</option>
+        <option value="gasto">Gasto operativo (arriendo, servicios, etc.)</option>
+      </select>
+      <div class="nota-ayuda">Las compras ya se descuentan solas cuando cierras la orden a la que pertenecen, así que no restan de nuevo en el resultado del mes — solo quedan aquí como control de lo que pagaste.</div>
+      <label for="egreso-monto">Monto</label>
+      <input id="egreso-monto" type="number" min="0" step="0.01">
+      <button id="btn-agregar-egreso">Registrar egreso</button>
+      <div id="egreso-error" class="mensaje-error"></div>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Resultado del mes actual</h2>
+      <div id="resultado-mensual" class="info-vehiculo"></div>
+    </div>
+  </section>
+
 </div>
 
 <style>
@@ -222,10 +286,17 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
   }
   .barra-superior { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
   .barra-superior span { font-size: 13px; color: var(--gris); }
-  .barra-superior button { width: auto; margin: 0; padding: 8px 14px; font-size: 13px; background: transparent; color: var(--rojo); border: 1px solid var(--rojo); }
+  .barra-superior button, .grupo-botones-barra button { width: auto; margin: 0; padding: 8px 14px; font-size: 13px; background: transparent; color: var(--rojo); border: 1px solid var(--rojo); }
+  .grupo-botones-barra { display: flex; gap: 8px; }
+  .grupo-botones-barra button.secundario-barra { color: var(--azul); border-color: var(--azul); }
   .oculto { display: none !important; }
+  .nota-ayuda { font-size: 13px; color: var(--gris); margin: -6px 0 10px; }
   .info-vehiculo { background: var(--gris-claro); border-radius: 8px; padding: 12px; font-size: 14px; margin-top: 8px; }
   .info-vehiculo b { display: block; margin-bottom: 4px; }
+  .fila-renglon { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--borde); font-size: 14px; }
+  .fila-renglon:last-child { border-bottom: none; }
+  .fila-renglon .fila-detalle { color: var(--gris); font-size: 12px; }
+  .fila-renglon button { width: auto; margin: 0; padding: 5px 10px; font-size: 12px; }
 </style>
 
 <script>
@@ -237,6 +308,7 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
 
   var accessToken = null;
   var usuarioActualId = null;
+  var rolActual = null;
   var vehiculoSeleccionado = null;
   var ordenActual = null; // { id_ot, numero_ot }
   var canvas, ctx, dibujando = false;
@@ -328,18 +400,163 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
       });
   }, "login-error"));
 
-  $("btn-logout").addEventListener("click", function () {
+  function cerrarSesion() {
     accessToken = null;
     usuarioActualId = null;
+    rolActual = null;
     location.reload();
-  });
+  }
+  $("btn-logout").addEventListener("click", cerrarSesion);
+  $("btn-logout-contab").addEventListener("click", cerrarSesion);
 
   function entrarAlApp(correo) {
     $("pantalla-login").classList.add("oculto");
     $("pantalla-app").classList.remove("oculto");
     $("usuario-actual").textContent = "Sesión: " + correo;
-    return cargarAsesoresYTecnicos();
+    $("usuario-actual-contab").textContent = "Sesión: " + correo;
+    return restRequest("GET", "usuarios", { query: "select=rol&id_usuario=eq." + usuarioActualId })
+      .then(function (filas) {
+        rolActual = filas && filas.length ? filas[0].rol : null;
+        var puedeVerContabilidad = rolActual === "administrador" || rolActual === "contador";
+        $("btn-ir-contabilidad").classList.toggle("oculto", !puedeVerContabilidad);
+        return cargarAsesoresYTecnicos();
+      });
   }
+
+  $("btn-ir-contabilidad").addEventListener("click", conManejoDeErrores(function () {
+    $("pantalla-app").classList.add("oculto");
+    $("pantalla-contabilidad").classList.remove("oculto");
+    return cargarContabilidad();
+  }, "contab-horas-error"));
+
+  $("btn-volver-de-contabilidad").addEventListener("click", function () {
+    $("pantalla-contabilidad").classList.add("oculto");
+    $("pantalla-app").classList.remove("oculto");
+  });
+
+  function formatoMoneda(numero) {
+    return "$" + Number(numero || 0).toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function cargarContabilidad() {
+    return Promise.all([
+      restRequest("POST", "rpc/calcular_costo_hora_equilibrio", { body: {} }),
+      restRequest("GET", "parametros_taller", { query: "select=horas_disponibles_mes&id=eq.1" }),
+      restRequest("GET", "costos_fijos_mensuales", { query: "select=*&order=creado_en.desc" }),
+      restRequest("GET", "egresos", { query: "select=*&order=fecha.desc,creado_en.desc&limit=20" }),
+      restRequest("GET", "vista_resultado_mensual", { query: "select=*&limit=1" })
+    ]).then(function (r) {
+      var costoHora = r[0];
+      var parametros = r[1] && r[1][0];
+      var costosFijos = r[2] || [];
+      var egresos = r[3] || [];
+      var resultado = r[4] && r[4][0];
+
+      $("costo-hora-actual").innerHTML = (costoHora === null || costoHora === undefined)
+        ? "<b>Aún no calculable</b>Configura tus costos fijos y las horas disponibles abajo."
+        : "<b>" + formatoMoneda(costoHora) + " por hora</b>Esto es lo que te cuesta internamente cada hora de mano de obra (antes de margen). Se usa como sugerencia al agregar un ítem de mano de obra.";
+
+      $("contab-horas-mes").value = parametros ? parametros.horas_disponibles_mes : "";
+
+      var listaCF = $("lista-costos-fijos");
+      listaCF.innerHTML = costosFijos.length ? "" : "<p class=\"nota-ayuda\">Todavía no has agregado costos fijos.</p>";
+      costosFijos.forEach(function (cf) {
+        var fila = document.createElement("div");
+        fila.className = "fila-renglon";
+        fila.innerHTML =
+          "<span>" + cf.concepto + (cf.activo ? "" : " <span class=\"fila-detalle\">(inactivo)</span>") + "<br><span class=\"fila-detalle\">" + formatoMoneda(cf.monto_mensual) + " / mes</span></span>";
+        var btn = document.createElement("button");
+        btn.className = "secundario";
+        btn.textContent = cf.activo ? "Desactivar" : "Activar";
+        btn.addEventListener("click", conManejoDeErrores(function () {
+          return restRequest("PATCH", "costos_fijos_mensuales", {
+            query: "id_costo_fijo=eq." + cf.id_costo_fijo,
+            body: { activo: !cf.activo }
+          }).then(cargarContabilidad);
+        }, "costo-fijo-error"));
+        fila.appendChild(btn);
+        listaCF.appendChild(fila);
+      });
+
+      var listaEg = $("lista-egresos");
+      listaEg.innerHTML = egresos.length ? "" : "<p class=\"nota-ayuda\">Todavía no has registrado egresos.</p>";
+      egresos.forEach(function (eg) {
+        var fila = document.createElement("div");
+        fila.className = "fila-renglon";
+        fila.innerHTML =
+          "<span>" + eg.concepto + "<br><span class=\"fila-detalle\">" + eg.fecha + (eg.proveedor ? " · " + eg.proveedor : "") + "</span></span>" +
+          "<span>" + formatoMoneda(eg.monto) + "</span>";
+        listaEg.appendChild(fila);
+      });
+
+      if (resultado) {
+        $("resultado-mensual").innerHTML =
+          "<b>Mes de " + resultado.periodo + "</b>" +
+          "Ingresos: " + formatoMoneda(resultado.ingresos) + "<br>" +
+          "Costo de ventas: " + formatoMoneda(resultado.costo_ventas) + "<br>" +
+          "Utilidad bruta: " + formatoMoneda(resultado.utilidad_bruta) + "<br>" +
+          "Egresos operativos: " + formatoMoneda(resultado.egresos_operativos) + "<br>" +
+          "<b>Utilidad neta: " + formatoMoneda(resultado.utilidad_neta) + "</b>";
+      } else {
+        $("resultado-mensual").innerHTML = "Todavía no hay órdenes cerradas ni egresos este mes.";
+      }
+    });
+  }
+
+  $("btn-guardar-horas").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("contab-horas-error");
+    var horas = parseFloat($("contab-horas-mes").value);
+    if (!(horas >= 0)) {
+      mostrarError("contab-horas-error", "Escribe un número de horas válido.");
+      return;
+    }
+    return restRequest("PATCH", "parametros_taller", { query: "id=eq.1", body: { horas_disponibles_mes: horas } })
+      .then(cargarContabilidad);
+  }, "contab-horas-error"));
+
+  $("btn-agregar-costo-fijo").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("costo-fijo-error");
+    var concepto = $("costo-fijo-concepto").value.trim();
+    var monto = parseFloat($("costo-fijo-monto").value);
+    if (!concepto || !(monto >= 0)) {
+      mostrarError("costo-fijo-error", "Escribe el concepto y un monto válido.");
+      return;
+    }
+    return restRequest("POST", "costos_fijos_mensuales", { body: { concepto: concepto, monto_mensual: monto } })
+      .then(function () {
+        $("costo-fijo-concepto").value = "";
+        $("costo-fijo-monto").value = "";
+        return cargarContabilidad();
+      });
+  }, "costo-fijo-error"));
+
+  $("btn-agregar-egreso").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("egreso-error");
+    var fecha = $("egreso-fecha").value || new Date().toISOString().slice(0, 10);
+    var proveedor = $("egreso-proveedor").value.trim();
+    var concepto = $("egreso-concepto").value.trim();
+    var categoria = $("egreso-categoria").value;
+    var monto = parseFloat($("egreso-monto").value);
+    if (!concepto || !(monto >= 0)) {
+      mostrarError("egreso-error", "Escribe el concepto y un monto válido.");
+      return;
+    }
+    return restRequest("POST", "egresos", {
+      body: {
+        fecha: fecha,
+        proveedor: proveedor || null,
+        concepto: concepto,
+        categoria: categoria,
+        monto: monto,
+        id_usuario_registro: usuarioActualId
+      }
+    }).then(function () {
+      $("egreso-proveedor").value = "";
+      $("egreso-concepto").value = "";
+      $("egreso-monto").value = "";
+      return cargarContabilidad();
+    });
+  }, "egreso-error"));
 
   function cargarAsesoresYTecnicos() {
     return Promise.all([
@@ -568,7 +785,7 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
     return cargarItemsDeOrden();
   }, "item-error"));
 
-  $("item-tipo").addEventListener("change", function () {
+  $("item-tipo").addEventListener("change", conManejoDeErrores(function () {
     var esManoObra = this.value === "mano_obra";
     $("label-item-costo").textContent = esManoObra
       ? "Costo hora interno (punto de equilibrio) — no es lo que cobras"
@@ -576,8 +793,24 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
     $("grupo-precio-manual").classList.toggle("oculto", !esManoObra);
     if (!esManoObra) {
       $("item-precio-aplicado").value = "";
+      $("nota-costo-hora").classList.add("oculto");
+      return;
     }
-  });
+    return restRequest("POST", "rpc/calcular_costo_hora_equilibrio", { body: {} })
+      .then(function (costoHora) {
+        var nota = $("nota-costo-hora");
+        if (costoHora === null || costoHora === undefined) {
+          nota.textContent = "Aún no configuras tus costos fijos y horas disponibles en Contabilidad, así que no hay un costo hora calculado. Puedes escribirlo a mano por ahora.";
+          nota.classList.remove("oculto");
+          return;
+        }
+        nota.textContent = "Costo hora de equilibrio calculado en Contabilidad: $" + Number(costoHora).toLocaleString("es-CO", { minimumFractionDigits: 2 }) + ". Se puso como sugerencia abajo, puedes cambiarlo si este caso es distinto.";
+        nota.classList.remove("oculto");
+        if (!$("item-costo").value) {
+          $("item-costo").value = costoHora;
+        }
+      });
+  }, "item-error"));
 
   $("btn-agregar-item").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("item-error");
