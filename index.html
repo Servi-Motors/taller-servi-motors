@@ -37,6 +37,7 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
     <div class="barra-superior">
       <span id="usuario-actual"></span>
       <div class="grupo-botones-barra">
+        <button id="btn-ir-egreso" class="secundario-barra">Registrar gasto</button>
         <button id="btn-ir-contabilidad" class="oculto secundario-barra">Contabilidad</button>
         <button id="btn-logout">Cerrar sesión</button>
       </div>
@@ -202,9 +203,29 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
     </div>
 
     <div class="tarjeta">
-      <h2>Egresos (compras y gastos)</h2>
+      <h2>Historial de egresos</h2>
+      <div class="nota-ayuda">Para registrar un gasto nuevo usa el botón "Registrar gasto" en la pantalla principal — cualquier usuario puede registrarlo ahí mismo, apenas ocurra.</div>
       <div id="lista-egresos"></div>
-      <h3>Registrar egreso</h3>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Resultado del mes actual</h2>
+      <div id="resultado-mensual" class="info-vehiculo"></div>
+    </div>
+  </section>
+
+  <section id="pantalla-egreso" class="oculto">
+    <div class="barra-superior">
+      <span id="usuario-actual-egreso"></span>
+      <div class="grupo-botones-barra">
+        <button id="btn-volver-de-egreso" class="secundario-barra">← Órdenes</button>
+        <button id="btn-logout-egreso">Cerrar sesión</button>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h1>Registrar gasto</h1>
+      <h2>Regístralo apenas ocurra, para no olvidarlo</h2>
       <label for="egreso-fecha">Fecha</label>
       <input id="egreso-fecha" type="date">
       <label for="egreso-proveedor">Proveedor (opcional)</label>
@@ -216,16 +237,12 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
         <option value="compra">Compra (repuesto/insumo cargado a una orden)</option>
         <option value="gasto">Gasto operativo (arriendo, servicios, etc.)</option>
       </select>
-      <div class="nota-ayuda">Las compras ya se descuentan solas cuando cierras la orden a la que pertenecen, así que no restan de nuevo en el resultado del mes — solo quedan aquí como control de lo que pagaste.</div>
+      <div class="nota-ayuda">Las compras ya se descuentan solas cuando se cierra la orden a la que pertenecen, así que no restan de nuevo del resultado del mes — solo quedan como control de lo que pagaste.</div>
       <label for="egreso-monto">Monto</label>
       <input id="egreso-monto" type="number" min="0" step="0.01">
       <button id="btn-agregar-egreso">Registrar egreso</button>
       <div id="egreso-error" class="mensaje-error"></div>
-    </div>
-
-    <div class="tarjeta">
-      <h2>Resultado del mes actual</h2>
-      <div id="resultado-mensual" class="info-vehiculo"></div>
+      <div id="egreso-exito" class="mensaje-error oculto" style="background:#f0fdf4;color:var(--verde);border-color:#bbf7d0;"></div>
     </div>
   </section>
 
@@ -416,12 +433,14 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
   }
   $("btn-logout").addEventListener("click", cerrarSesion);
   $("btn-logout-contab").addEventListener("click", cerrarSesion);
+  $("btn-logout-egreso").addEventListener("click", cerrarSesion);
 
   function entrarAlApp(correo) {
     $("pantalla-login").classList.add("oculto");
     $("pantalla-app").classList.remove("oculto");
     $("usuario-actual").textContent = "Sesión: " + correo;
     $("usuario-actual-contab").textContent = "Sesión: " + correo;
+    $("usuario-actual-egreso").textContent = "Sesión: " + correo;
     return restRequest("GET", "usuarios", { query: "select=rol&id_usuario=eq." + usuarioActualId })
       .then(function (filas) {
         rolActual = filas && filas.length ? filas[0].rol : null;
@@ -439,6 +458,22 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
 
   $("btn-volver-de-contabilidad").addEventListener("click", function () {
     $("pantalla-contabilidad").classList.add("oculto");
+    $("pantalla-app").classList.remove("oculto");
+  });
+
+  $("btn-ir-egreso").addEventListener("click", function () {
+    ocultarError("egreso-error");
+    $("egreso-exito").classList.add("oculto");
+    $("egreso-fecha").value = new Date().toISOString().slice(0, 10);
+    $("egreso-proveedor").value = "";
+    $("egreso-concepto").value = "";
+    $("egreso-monto").value = "";
+    $("pantalla-app").classList.add("oculto");
+    $("pantalla-egreso").classList.remove("oculto");
+  });
+
+  $("btn-volver-de-egreso").addEventListener("click", function () {
+    $("pantalla-egreso").classList.add("oculto");
     $("pantalla-app").classList.remove("oculto");
   });
 
@@ -563,6 +598,7 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
 
   $("btn-agregar-egreso").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("egreso-error");
+    $("egreso-exito").classList.add("oculto");
     var fecha = $("egreso-fecha").value || new Date().toISOString().slice(0, 10);
     var proveedor = $("egreso-proveedor").value.trim();
     var concepto = $("egreso-concepto").value.trim();
@@ -585,7 +621,9 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
       $("egreso-proveedor").value = "";
       $("egreso-concepto").value = "";
       $("egreso-monto").value = "";
-      return cargarContabilidad();
+      var exito = $("egreso-exito");
+      exito.textContent = "Gasto registrado. Puedes seguir registrando otro o volver a Órdenes.";
+      exito.classList.remove("oculto");
     });
   }, "egreso-error"));
 
