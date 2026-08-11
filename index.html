@@ -38,6 +38,7 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
       <span id="usuario-actual"></span>
       <div class="grupo-botones-barra">
         <button id="btn-ir-egreso" class="secundario-barra">Registrar gasto</button>
+        <button id="btn-ir-inventario" class="oculto secundario-barra">Inventario</button>
         <button id="btn-ir-contabilidad" class="oculto secundario-barra">Contabilidad</button>
         <button id="btn-logout">Cerrar sesión</button>
       </div>
@@ -122,6 +123,12 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
         <option value="mano_obra">Mano de obra (por hora)</option>
         <option value="trabajo_externo">Trabajo externo</option>
       </select>
+      <div id="grupo-stock-existente" class="oculto">
+        <label for="item-stock-existente">Usar de tu stock (opcional)</label>
+        <select id="item-stock-existente">
+          <option value="">No, es una compra nueva</option>
+        </select>
+      </div>
       <label for="item-nombre">Nombre / descripción</label>
       <input id="item-nombre" type="text" placeholder="Ej. Filtro de aceite">
       <label for="item-costo" id="label-item-costo">Costo</label>
@@ -250,6 +257,64 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
     </div>
   </section>
 
+  <section id="pantalla-inventario" class="oculto">
+    <div class="barra-superior">
+      <span id="usuario-actual-inventario"></span>
+      <div class="grupo-botones-barra">
+        <button id="btn-volver-de-inventario" class="secundario-barra">← Órdenes</button>
+        <button id="btn-logout-inventario">Cerrar sesión</button>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h1>Inventario</h1>
+      <h2>Stock de insumos que manejas por volumen</h2>
+      <div id="lista-stock"></div>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Registrar entrada de stock (compra por volumen)</h2>
+      <label for="stock-item">Ítem</label>
+      <select id="stock-item"></select>
+
+      <div id="grupo-stock-nuevo-item" class="oculto">
+        <label for="stock-nuevo-tipo">Tipo</label>
+        <select id="stock-nuevo-tipo">
+          <option value="insumo">Insumo</option>
+          <option value="repuesto">Repuesto</option>
+        </select>
+        <label for="stock-nuevo-nombre">Nombre</label>
+        <input id="stock-nuevo-nombre" type="text" placeholder="Ej. Aceite Kixx 5W30 (galón)">
+        <label for="stock-nuevo-minimo">Stock mínimo (para alertarte)</label>
+        <input id="stock-nuevo-minimo" type="number" min="0" step="0.01" value="0">
+      </div>
+
+      <label for="stock-cantidad">Cantidad que compraste</label>
+      <input id="stock-cantidad" type="number" min="0.01" step="0.01">
+      <label for="stock-costo-unitario">Costo por unidad</label>
+      <input id="stock-costo-unitario" type="number" min="0" step="0.01">
+      <label for="stock-proveedor">Proveedor</label>
+      <select id="stock-proveedor"></select>
+      <button id="btn-registrar-entrada">Registrar entrada</button>
+      <div id="stock-error" class="mensaje-error"></div>
+      <div id="stock-exito" class="mensaje-error oculto" style="background:#f0fdf4;color:var(--verde);border-color:#bbf7d0;"></div>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Proveedores</h2>
+      <div id="lista-proveedores"></div>
+      <h3>Agregar proveedor</h3>
+      <label for="proveedor-nombre">Nombre</label>
+      <input id="proveedor-nombre" type="text">
+      <label for="proveedor-contacto">Contacto (teléfono/correo)</label>
+      <input id="proveedor-contacto" type="text">
+      <label for="proveedor-condiciones">Condiciones de pago</label>
+      <input id="proveedor-condiciones" type="text" placeholder="Ej. Contado, crédito 30 días">
+      <button id="btn-agregar-proveedor">Agregar proveedor</button>
+      <div id="proveedor-error" class="mensaje-error"></div>
+    </div>
+  </section>
+
 </div>
 
 <style>
@@ -326,6 +391,8 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
   .fila-renglon:last-child { border-bottom: none; }
   .fila-renglon .fila-detalle { color: var(--gris); font-size: 12px; }
   .fila-renglon button { width: auto; margin: 0; padding: 5px 10px; font-size: 12px; }
+  .fila-renglon.alerta-stock { color: var(--rojo); }
+  .fila-renglon.alerta-stock .fila-detalle { color: var(--rojo); }
 </style>
 
 <script>
@@ -438,6 +505,7 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
   $("btn-logout").addEventListener("click", cerrarSesion);
   $("btn-logout-contab").addEventListener("click", cerrarSesion);
   $("btn-logout-egreso").addEventListener("click", cerrarSesion);
+  $("btn-logout-inventario").addEventListener("click", cerrarSesion);
 
   function entrarAlApp(correo) {
     $("pantalla-login").classList.add("oculto");
@@ -445,11 +513,14 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
     $("usuario-actual").textContent = "Sesión: " + correo;
     $("usuario-actual-contab").textContent = "Sesión: " + correo;
     $("usuario-actual-egreso").textContent = "Sesión: " + correo;
+    $("usuario-actual-inventario").textContent = "Sesión: " + correo;
     return restRequest("GET", "usuarios", { query: "select=rol&id_usuario=eq." + usuarioActualId })
       .then(function (filas) {
         rolActual = filas && filas.length ? filas[0].rol : null;
         var puedeVerContabilidad = rolActual === "administrador" || rolActual === "contador";
         $("btn-ir-contabilidad").classList.toggle("oculto", !puedeVerContabilidad);
+        var puedeVerInventario = rolActual === "administrador" || rolActual === "asesor" || rolActual === "contador";
+        $("btn-ir-inventario").classList.toggle("oculto", !puedeVerInventario);
         return cargarAsesoresYTecnicos();
       });
   }
@@ -464,6 +535,162 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
     $("pantalla-contabilidad").classList.add("oculto");
     $("pantalla-app").classList.remove("oculto");
   });
+
+  $("btn-ir-inventario").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("stock-error");
+    $("stock-exito").classList.add("oculto");
+    $("pantalla-app").classList.add("oculto");
+    $("pantalla-inventario").classList.remove("oculto");
+    return cargarInventario();
+  }, "stock-error"));
+
+  $("btn-volver-de-inventario").addEventListener("click", function () {
+    $("pantalla-inventario").classList.add("oculto");
+    $("pantalla-app").classList.remove("oculto");
+  });
+
+  function cargarInventario() {
+    return Promise.all([
+      restRequest("GET", "items", { query: "select=id_item,nombre,tipo,stock_actual,stock_minimo&stock_gestionado=eq.true&order=nombre.asc" }),
+      restRequest("GET", "proveedores", { query: "select=*&order=nombre.asc" })
+    ]).then(function (r) {
+      var itemsStock = r[0] || [];
+      var proveedores = r[1] || [];
+
+      var listaStock = $("lista-stock");
+      listaStock.innerHTML = itemsStock.length ? "" : "<p class=\"nota-ayuda\">Todavía no tienes ítems con stock gestionado. Agrega uno abajo al registrar una entrada.</p>";
+      itemsStock.forEach(function (it) {
+        var bajo = Number(it.stock_actual) <= Number(it.stock_minimo);
+        var fila = document.createElement("div");
+        fila.className = "fila-renglon" + (bajo ? " alerta-stock" : "");
+        fila.innerHTML =
+          "<span>" + it.nombre + (bajo ? " ⚠️ bajo mínimo" : "") + "<br><span class=\"fila-detalle\">Mínimo: " + it.stock_minimo + "</span></span>" +
+          "<span>" + it.stock_actual + "</span>";
+        listaStock.appendChild(fila);
+      });
+
+      var selItem = $("stock-item");
+      selItem.innerHTML = "";
+      var optNuevo = document.createElement("option");
+      optNuevo.value = "__nuevo__";
+      optNuevo.textContent = "+ Nuevo ítem de stock";
+      selItem.appendChild(optNuevo);
+      itemsStock.forEach(function (it) {
+        var opt = document.createElement("option");
+        opt.value = it.id_item;
+        opt.textContent = it.nombre + " (hay " + it.stock_actual + ")";
+        selItem.appendChild(opt);
+      });
+      $("grupo-stock-nuevo-item").classList.remove("oculto");
+
+      var selProv = $("stock-proveedor");
+      selProv.innerHTML = "";
+      var optSinProv = document.createElement("option");
+      optSinProv.value = "";
+      optSinProv.textContent = "(sin especificar)";
+      selProv.appendChild(optSinProv);
+      proveedores.forEach(function (p) {
+        var opt = document.createElement("option");
+        opt.value = p.id_proveedor;
+        opt.textContent = p.nombre;
+        selProv.appendChild(opt);
+      });
+
+      var listaProv = $("lista-proveedores");
+      listaProv.innerHTML = proveedores.length ? "" : "<p class=\"nota-ayuda\">Todavía no has agregado proveedores.</p>";
+      proveedores.forEach(function (p) {
+        var fila = document.createElement("div");
+        fila.className = "fila-renglon";
+        fila.innerHTML =
+          "<span>" + p.nombre + "<br><span class=\"fila-detalle\">" + (p.contacto || "") + (p.condiciones_pago ? " · " + p.condiciones_pago : "") + "</span></span>";
+        listaProv.appendChild(fila);
+      });
+    });
+  }
+
+  $("stock-item").addEventListener("change", function () {
+    $("grupo-stock-nuevo-item").classList.toggle("oculto", this.value !== "__nuevo__");
+  });
+
+  $("btn-registrar-entrada").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("stock-error");
+    $("stock-exito").classList.add("oculto");
+    var itemSeleccionado = $("stock-item").value;
+    var cantidad = parseFloat($("stock-cantidad").value);
+    var costoUnitario = parseFloat($("stock-costo-unitario").value);
+    var idProveedor = $("stock-proveedor").value || null;
+
+    if (!(cantidad > 0) || !(costoUnitario >= 0)) {
+      mostrarError("stock-error", "Escribe una cantidad y un costo por unidad válidos.");
+      return;
+    }
+
+    var obtenerIdItem;
+    if (itemSeleccionado === "__nuevo__") {
+      var nombreNuevo = $("stock-nuevo-nombre").value.trim();
+      var tipoNuevo = $("stock-nuevo-tipo").value;
+      var minimoNuevo = parseFloat($("stock-nuevo-minimo").value) || 0;
+      if (!nombreNuevo) {
+        mostrarError("stock-error", "Escribe el nombre del ítem nuevo.");
+        return;
+      }
+      obtenerIdItem = restRequest("POST", "items", {
+        body: {
+          tipo: tipoNuevo,
+          nombre: nombreNuevo,
+          costo: costoUnitario,
+          stock_gestionado: true,
+          stock_minimo: minimoNuevo
+        }
+      }).then(function (items) { return items[0].id_item; });
+    } else {
+      obtenerIdItem = restRequest("PATCH", "items", {
+        query: "id_item=eq." + itemSeleccionado,
+        body: { costo: costoUnitario }
+      }).then(function () { return itemSeleccionado; });
+    }
+
+    return obtenerIdItem.then(function (idItem) {
+      return restRequest("POST", "movimientos_inventario", {
+        body: {
+          id_item: idItem,
+          tipo: "entrada",
+          cantidad: cantidad,
+          costo_unitario: costoUnitario,
+          id_proveedor: idProveedor,
+          id_usuario_registro: usuarioActualId
+        }
+      });
+    }).then(function () {
+      $("stock-nuevo-nombre").value = "";
+      $("stock-nuevo-minimo").value = "0";
+      $("stock-cantidad").value = "";
+      $("stock-costo-unitario").value = "";
+      var exito = $("stock-exito");
+      exito.textContent = "Entrada registrada correctamente.";
+      exito.classList.remove("oculto");
+      return cargarInventario();
+    });
+  }, "stock-error"));
+
+  $("btn-agregar-proveedor").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("proveedor-error");
+    var nombre = $("proveedor-nombre").value.trim();
+    var contacto = $("proveedor-contacto").value.trim();
+    var condiciones = $("proveedor-condiciones").value.trim();
+    if (!nombre) {
+      mostrarError("proveedor-error", "Escribe el nombre del proveedor.");
+      return;
+    }
+    return restRequest("POST", "proveedores", {
+      body: { nombre: nombre, contacto: contacto || null, condiciones_pago: condiciones || null }
+    }).then(function () {
+      $("proveedor-nombre").value = "";
+      $("proveedor-contacto").value = "";
+      $("proveedor-condiciones").value = "";
+      return cargarInventario();
+    });
+  }, "proveedor-error"));
 
   $("btn-ir-egreso").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("egreso-error");
@@ -896,17 +1123,47 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
     return cargarItemsDeOrden();
   }, "item-error"));
 
+  var itemsStockDisponibles = [];
+
+  function reiniciarSelectorStock() {
+    $("item-stock-existente").value = "";
+    $("item-nombre").disabled = false;
+    $("item-costo").disabled = false;
+  }
+
+  function cargarItemsStockPara(tipo) {
+    return restRequest("GET", "items", {
+      query: "select=id_item,nombre,costo,stock_actual&stock_gestionado=eq.true&tipo=eq." + tipo + "&order=nombre.asc"
+    }).then(function (items) {
+      itemsStockDisponibles = items || [];
+      var sel = $("item-stock-existente");
+      sel.innerHTML = '<option value="">No, es una compra nueva</option>';
+      itemsStockDisponibles.forEach(function (it) {
+        var opt = document.createElement("option");
+        opt.value = it.id_item;
+        opt.textContent = it.nombre + " (hay " + it.stock_actual + ")";
+        sel.appendChild(opt);
+      });
+    });
+  }
+
   $("item-tipo").addEventListener("change", conManejoDeErrores(function () {
     var esManoObra = this.value === "mano_obra";
+    var esRepuestoOInsumo = this.value === "repuesto" || this.value === "insumo";
     $("label-item-costo").textContent = esManoObra
       ? "Costo hora interno (punto de equilibrio) — no es lo que cobras"
       : "Costo (lo que te cuesta a ti, no lo que cobras)";
     $("grupo-precio-manual").classList.toggle("oculto", !esManoObra);
+    $("grupo-stock-existente").classList.toggle("oculto", !esRepuestoOInsumo);
+    reiniciarSelectorStock();
     if (!esManoObra) {
       $("item-precio-aplicado").value = "";
       $("nota-costo-hora").classList.add("oculto");
-      return;
     }
+    if (esRepuestoOInsumo) {
+      return cargarItemsStockPara(this.value);
+    }
+    if (!esManoObra) return;
     return restRequest("POST", "rpc/calcular_costo_hora_equilibrio", { body: {} })
       .then(function (costoHora) {
         var nota = $("nota-costo-hora");
@@ -923,12 +1180,30 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
       });
   }, "item-error"));
 
+  $("item-stock-existente").addEventListener("change", function () {
+    var idSeleccionado = this.value;
+    if (!idSeleccionado) {
+      $("item-nombre").value = "";
+      $("item-costo").value = "";
+      $("item-nombre").disabled = false;
+      $("item-costo").disabled = false;
+      return;
+    }
+    var item = itemsStockDisponibles.filter(function (it) { return it.id_item === idSeleccionado; })[0];
+    if (!item) return;
+    $("item-nombre").value = item.nombre;
+    $("item-costo").value = item.costo;
+    $("item-nombre").disabled = true;
+    $("item-costo").disabled = true;
+  });
+
   $("btn-agregar-item").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("item-error");
     var tipo = $("item-tipo").value;
     var nombre = $("item-nombre").value.trim();
     var costo = parseFloat($("item-costo").value);
     var cantidad = parseFloat($("item-cantidad").value);
+    var idStockExistente = $("item-stock-existente").value || null;
     var precioManual = (tipo === "mano_obra" && $("item-precio-aplicado").value)
       ? parseFloat($("item-precio-aplicado").value)
       : null;
@@ -938,20 +1213,45 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
       return;
     }
 
-    return restRequest("POST", "items", { body: { tipo: tipo, nombre: nombre, costo: costo } })
-      .then(function (items) {
-        var detalle = { id_ot: ordenActual.id_ot, id_item: items[0].id_item, cantidad: cantidad };
+    var obtenerIdItem = idStockExistente
+      ? Promise.resolve(idStockExistente)
+      : restRequest("POST", "items", { body: { tipo: tipo, nombre: nombre, costo: costo } })
+          .then(function (items) { return items[0].id_item; });
+
+    return obtenerIdItem.then(function (idItem) {
+      // Si se usa stock existente, se descuenta PRIMERO — así, si no
+      // alcanza el stock, el ítem nunca llega a agregarse a la orden.
+      var descontarStock = idStockExistente
+        ? restRequest("POST", "movimientos_inventario", {
+            body: {
+              id_item: idStockExistente,
+              tipo: "salida",
+              cantidad: cantidad,
+              id_ot: ordenActual.id_ot,
+              id_usuario_registro: usuarioActualId
+            }
+          })
+        : Promise.resolve();
+
+      return descontarStock.then(function () {
+        var detalle = { id_ot: ordenActual.id_ot, id_item: idItem, cantidad: cantidad };
         if (precioManual !== null && precioManual >= 0) {
           detalle.precio_aplicado_cliente = precioManual;
         }
         return restRequest("POST", "ot_detalle", { body: detalle });
-      })
+      });
+    })
       .then(function () {
         $("item-nombre").value = "";
         $("item-costo").value = "";
         $("item-cantidad").value = "1";
         $("item-precio-aplicado").value = "";
-        return cargarItemsDeOrden();
+        var tipoActual = $("item-tipo").value;
+        reiniciarSelectorStock();
+        var recarga = (tipoActual === "repuesto" || tipoActual === "insumo")
+          ? cargarItemsStockPara(tipoActual)
+          : Promise.resolve();
+        return recarga.then(cargarItemsDeOrden);
       })
       .catch(function (err) {
         mostrarError("item-error", "No se pudo agregar: " + err.message);
