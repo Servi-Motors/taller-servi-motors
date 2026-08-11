@@ -173,11 +173,19 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
 
     <div class="tarjeta">
       <h1>Contabilidad</h1>
-      <h2>Costo hora de equilibrio</h2>
+      <h2>Costo y precio hora de equilibrio</h2>
       <div id="costo-hora-actual" class="info-vehiculo"></div>
+      <div id="precio-hora-actual" class="info-vehiculo"></div>
       <label for="contab-horas-mes">Horas de mano de obra disponibles al mes</label>
       <input id="contab-horas-mes" type="number" min="0" step="0.01">
-      <button id="btn-guardar-horas">Guardar horas disponibles</button>
+      <label for="contab-pct-tecnico">% variable pagado a técnicos (sobre la venta de la hora)</label>
+      <input id="contab-pct-tecnico" type="number" min="0" max="99.99" step="0.01" placeholder="Ej. 25.714">
+      <label for="contab-pct-comisiones">% comisiones / bonificaciones</label>
+      <input id="contab-pct-comisiones" type="number" min="0" max="99.99" step="0.01" placeholder="Ej. 4">
+      <label for="contab-pct-datafono">% costo de datáfono</label>
+      <input id="contab-pct-datafono" type="number" min="0" max="99.99" step="0.01" placeholder="Ej. 3.5">
+      <div class="nota-ayuda">Estos tres se descuentan de cada hora vendida (no son costos fijos), por eso el precio de equilibrio los cubre aparte del costo fijo.</div>
+      <button id="btn-guardar-horas">Guardar</button>
       <div id="contab-horas-error" class="mensaje-error"></div>
     </div>
 
@@ -441,22 +449,31 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
   function cargarContabilidad() {
     return Promise.all([
       restRequest("POST", "rpc/calcular_costo_hora_equilibrio", { body: {} }),
-      restRequest("GET", "parametros_taller", { query: "select=horas_disponibles_mes&id=eq.1" }),
+      restRequest("POST", "rpc/calcular_precio_hora_equilibrio", { body: {} }),
+      restRequest("GET", "parametros_taller", { query: "select=horas_disponibles_mes,pct_variable_tecnico,pct_comisiones,pct_datafono&id=eq.1" }),
       restRequest("GET", "costos_fijos_mensuales", { query: "select=*&order=creado_en.desc" }),
       restRequest("GET", "egresos", { query: "select=*&order=fecha.desc,creado_en.desc&limit=20" }),
       restRequest("GET", "vista_resultado_mensual", { query: "select=*&limit=1" })
     ]).then(function (r) {
       var costoHora = r[0];
-      var parametros = r[1] && r[1][0];
-      var costosFijos = r[2] || [];
-      var egresos = r[3] || [];
-      var resultado = r[4] && r[4][0];
+      var precioHora = r[1];
+      var parametros = r[2] && r[2][0];
+      var costosFijos = r[3] || [];
+      var egresos = r[4] || [];
+      var resultado = r[5] && r[5][0];
 
       $("costo-hora-actual").innerHTML = (costoHora === null || costoHora === undefined)
-        ? "<b>Aún no calculable</b>Configura tus costos fijos y las horas disponibles abajo."
-        : "<b>" + formatoMoneda(costoHora) + " por hora</b>Esto es lo que te cuesta internamente cada hora de mano de obra (antes de margen). Se usa como sugerencia al agregar un ítem de mano de obra.";
+        ? "<b>Costo hora: aún no calculable</b>Configura tus costos fijos y las horas disponibles abajo."
+        : "<b>Costo hora de equilibrio: " + formatoMoneda(costoHora) + "</b>Esto es lo que te cuesta internamente cada hora de mano de obra, solo por costos fijos. Se usa como sugerencia al agregar un ítem de mano de obra.";
+
+      $("precio-hora-actual").innerHTML = (precioHora === null || precioHora === undefined)
+        ? "<b>Precio hora de equilibrio: aún no calculable</b>Configura los % variables abajo."
+        : "<b>Precio hora de equilibrio: " + formatoMoneda(precioHora) + "</b>Es el mínimo que debes cobrar por hora para cubrir costos fijos MÁS el % variable a técnicos, comisiones y datáfono. Todavía no incluye ganancia para ti.";
 
       $("contab-horas-mes").value = parametros ? parametros.horas_disponibles_mes : "";
+      $("contab-pct-tecnico").value = parametros ? Number(parametros.pct_variable_tecnico * 100).toFixed(3) : "";
+      $("contab-pct-comisiones").value = parametros ? Number(parametros.pct_comisiones * 100).toFixed(3) : "";
+      $("contab-pct-datafono").value = parametros ? Number(parametros.pct_datafono * 100).toFixed(3) : "";
 
       var listaCF = $("lista-costos-fijos");
       listaCF.innerHTML = costosFijos.length ? "" : "<p class=\"nota-ayuda\">Todavía no has agregado costos fijos.</p>";
@@ -506,12 +523,26 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
   $("btn-guardar-horas").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("contab-horas-error");
     var horas = parseFloat($("contab-horas-mes").value);
+    var pctTecnico = parseFloat($("contab-pct-tecnico").value) || 0;
+    var pctComisiones = parseFloat($("contab-pct-comisiones").value) || 0;
+    var pctDatafono = parseFloat($("contab-pct-datafono").value) || 0;
     if (!(horas >= 0)) {
       mostrarError("contab-horas-error", "Escribe un número de horas válido.");
       return;
     }
-    return restRequest("PATCH", "parametros_taller", { query: "id=eq.1", body: { horas_disponibles_mes: horas } })
-      .then(cargarContabilidad);
+    if (pctTecnico + pctComisiones + pctDatafono >= 100) {
+      mostrarError("contab-horas-error", "La suma de los tres porcentajes debe ser menor a 100%.");
+      return;
+    }
+    return restRequest("PATCH", "parametros_taller", {
+      query: "id=eq.1",
+      body: {
+        horas_disponibles_mes: horas,
+        pct_variable_tecnico: pctTecnico / 100,
+        pct_comisiones: pctComisiones / 100,
+        pct_datafono: pctDatafono / 100
+      }
+    }).then(cargarContabilidad);
   }, "contab-horas-error"));
 
   $("btn-agregar-costo-fijo").addEventListener("click", conManejoDeErrores(function () {
