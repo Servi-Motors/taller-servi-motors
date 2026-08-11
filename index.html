@@ -488,7 +488,7 @@ the data-access layer at all.
   }
 </style>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.0/chart.umd.js"></script>
 <script>
 (function () {
   "use strict";
@@ -750,8 +750,13 @@ the data-access layer at all.
 
   function dibujarGraficoMensual(filas, puedeVerFinanzas) {
     if (graficoMensual) { graficoMensual.destroy(); graficoMensual = null; }
+    if (typeof Chart === "undefined") {
+      $("sin-datos-mensual").textContent = "No se pudo cargar la librería de gráficos (revisa tu conexión y recarga la página).";
+      $("sin-datos-mensual").classList.remove("oculto");
+      return;
+    }
     $("sin-datos-mensual").classList.toggle("oculto", !!filas.length);
-    if (!filas.length || typeof Chart === "undefined") return;
+    if (!filas.length) return;
 
     var etiquetas = filas.map(function (f) { return f.periodo.slice(0, 7); });
     var datasets = [{
@@ -787,8 +792,13 @@ the data-access layer at all.
 
   function dibujarGraficoEstados(filas) {
     if (graficoEstados) { graficoEstados.destroy(); graficoEstados = null; }
+    if (typeof Chart === "undefined") {
+      $("sin-datos-estados").textContent = "No se pudo cargar la librería de gráficos (revisa tu conexión y recarga la página).";
+      $("sin-datos-estados").classList.remove("oculto");
+      return;
+    }
     $("sin-datos-estados").classList.toggle("oculto", !!filas.length);
-    if (!filas.length || typeof Chart === "undefined") return;
+    if (!filas.length) return;
 
     var colores = { abierta: "#2563eb", pendiente_autorizacion: "#dc2626", en_proceso: "#f59e0b", cerrada: "#16a34a", cancelada: "#6b7280" };
     graficoEstados = new Chart($("grafico-estados").getContext("2d"), {
