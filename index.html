@@ -238,6 +238,10 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
         <option value="gasto">Gasto operativo (arriendo, servicios, etc.)</option>
       </select>
       <div class="nota-ayuda">Las compras ya se descuentan solas cuando se cierra la orden a la que pertenecen, así que no restan de nuevo del resultado del mes — solo quedan como control de lo que pagaste.</div>
+      <div id="grupo-egreso-orden">
+        <label for="egreso-orden">Orden a la que pertenece esta compra</label>
+        <select id="egreso-orden"></select>
+      </div>
       <label for="egreso-monto">Monto</label>
       <input id="egreso-monto" type="number" min="0" step="0.01">
       <button id="btn-agregar-egreso">Registrar egreso</button>
@@ -461,20 +465,51 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
     $("pantalla-app").classList.remove("oculto");
   });
 
-  $("btn-ir-egreso").addEventListener("click", function () {
+  $("btn-ir-egreso").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("egreso-error");
     $("egreso-exito").classList.add("oculto");
     $("egreso-fecha").value = new Date().toISOString().slice(0, 10);
     $("egreso-proveedor").value = "";
     $("egreso-concepto").value = "";
     $("egreso-monto").value = "";
+    $("egreso-categoria").value = "compra";
+    $("grupo-egreso-orden").classList.remove("oculto");
     $("pantalla-app").classList.add("oculto");
     $("pantalla-egreso").classList.remove("oculto");
-  });
+    return cargarOrdenesParaEgreso();
+  }, "egreso-error"));
 
   $("btn-volver-de-egreso").addEventListener("click", function () {
     $("pantalla-egreso").classList.add("oculto");
     $("pantalla-app").classList.remove("oculto");
+  });
+
+  function cargarOrdenesParaEgreso() {
+    var query = "select=id_ot,numero_ot,estado,vehiculos(placa),clientes(nombre)&estado=neq.cancelada&order=fecha_apertura.desc&limit=40";
+    return restRequest("GET", "ordenes_trabajo", { query: query }).then(function (ordenes) {
+      var sel = $("egreso-orden");
+      sel.innerHTML = "";
+      if (!ordenes || !ordenes.length) {
+        var opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "No hay órdenes disponibles";
+        sel.appendChild(opt);
+        return;
+      }
+      ordenes.forEach(function (o) {
+        var opt = document.createElement("option");
+        opt.value = o.id_ot;
+        var vehiculo = o.vehiculos ? o.vehiculos.placa : "";
+        var cliente = o.clientes ? o.clientes.nombre : "";
+        opt.textContent = "OT-" + o.numero_ot + " · " + vehiculo + " · " + cliente + " (" + o.estado + ")";
+        sel.appendChild(opt);
+      });
+    });
+  }
+
+  $("egreso-categoria").addEventListener("change", function () {
+    var esCompra = this.value === "compra";
+    $("grupo-egreso-orden").classList.toggle("oculto", !esCompra);
   });
 
   function formatoMoneda(numero) {
@@ -487,7 +522,7 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
       restRequest("POST", "rpc/calcular_precio_hora_equilibrio", { body: {} }),
       restRequest("GET", "parametros_taller", { query: "select=horas_disponibles_mes,pct_variable_tecnico,pct_comisiones,pct_datafono&id=eq.1" }),
       restRequest("GET", "costos_fijos_mensuales", { query: "select=*&order=creado_en.desc" }),
-      restRequest("GET", "egresos", { query: "select=*&order=fecha.desc,creado_en.desc&limit=20" }),
+      restRequest("GET", "egresos", { query: "select=*,ordenes_trabajo(numero_ot)&order=fecha.desc,creado_en.desc&limit=20" }),
       restRequest("GET", "vista_resultado_mensual", { query: "select=*&limit=1" })
     ]).then(function (r) {
       var costoHora = r[0];
@@ -535,8 +570,9 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
       egresos.forEach(function (eg) {
         var fila = document.createElement("div");
         fila.className = "fila-renglon";
+        var orden = eg.ordenes_trabajo ? " · OT-" + eg.ordenes_trabajo.numero_ot : "";
         fila.innerHTML =
-          "<span>" + eg.concepto + "<br><span class=\"fila-detalle\">" + eg.fecha + (eg.proveedor ? " · " + eg.proveedor : "") + "</span></span>" +
+          "<span>" + eg.concepto + " <span class=\"fila-detalle\">(" + eg.categoria + ")</span><br><span class=\"fila-detalle\">" + eg.fecha + (eg.proveedor ? " · " + eg.proveedor : "") + orden + "</span></span>" +
           "<span>" + formatoMoneda(eg.monto) + "</span>";
         listaEg.appendChild(fila);
       });
@@ -604,8 +640,13 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
     var concepto = $("egreso-concepto").value.trim();
     var categoria = $("egreso-categoria").value;
     var monto = parseFloat($("egreso-monto").value);
+    var idOt = $("egreso-orden").value || null;
     if (!concepto || !(monto >= 0)) {
       mostrarError("egreso-error", "Escribe el concepto y un monto válido.");
+      return;
+    }
+    if (categoria === "compra" && !idOt) {
+      mostrarError("egreso-error", "Elige a qué orden pertenece esta compra.");
       return;
     }
     return restRequest("POST", "egresos", {
@@ -615,6 +656,7 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
         concepto: concepto,
         categoria: categoria,
         monto: monto,
+        id_ot: categoria === "compra" ? idOt : null,
         id_usuario_registro: usuarioActualId
       }
     }).then(function () {
