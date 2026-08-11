@@ -1,26 +1,29 @@
 <!-- design-decisions
-Role: internal operations tool (work-order intake screen) for an auto repair shop, not a marketing document.
+Role: internal operations tool for an auto repair shop (order intake, inventory, accounting), not a marketing document.
 Stance: the person opening this is standing at the counter with a customer waiting — every extra click costs them.
-No animation/atmosphere system needed; clarity and speed carry the whole thing. Single neutral+blue palette,
-blue = action/primary, red = error, green = success. System sans font, no external fonts. Zero external JS —
-all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), per the no-external-deps rule.
+Shell: persistent sidebar nav + dashboard home (requested to resemble a reference product called "AutoGest"), built
+around our real Supabase data — no template/demo data. Sidebar only lists modules that actually exist; nothing
+fake. Single neutral+blue palette, blue = action/primary, red = error, green = success. System sans font, no
+external fonts. Zero external JS for data access — all Supabase calls are raw fetch() against the REST/Auth HTTP
+API (no SDK), per the no-external-deps rule established after a fatal SDK naming collision. Exception: Chart.js
+is loaded from cdnjs for the two dashboard charts — hand-rolling charts isn't worth it, and this doesn't touch
+the data-access layer at all.
 -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Taller Servi Motors – Abrir Orden de Trabajo</title>
+<title>Taller Servi Motors – Panel principal</title>
 </head>
 <body>
 
-<div class="contenedor">
+<section id="seccion-error-carga" class="tarjeta oculto" style="background:#fef2f2;border:1px solid #fecaca;max-width:480px;margin:12px auto;">
+  <b style="color:#dc2626;">No se pudo cargar la aplicación</b>
+  <p id="error-carga-detalle" style="font-size:14px;margin-top:8px;"></p>
+</section>
 
-  <section id="seccion-error-carga" class="tarjeta oculto" style="background:#fef2f2;border:1px solid #fecaca;">
-    <b style="color:#dc2626;">No se pudo cargar la aplicación</b>
-    <p id="error-carga-detalle" style="font-size:14px;margin-top:8px;"></p>
-  </section>
-
+<div id="contenedor-login">
   <section id="pantalla-login" class="tarjeta">
     <h1>Taller Servi Motors</h1>
     <h2>Inicia sesión para continuar</h2>
@@ -31,290 +34,336 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
     <button id="btn-login">Iniciar sesión</button>
     <div id="login-error" class="mensaje-error"></div>
   </section>
+</div>
 
-  <section id="pantalla-app" class="oculto">
+<div id="shell" class="oculto">
 
-    <div class="barra-superior">
-      <span id="usuario-actual"></span>
-      <div class="grupo-botones-barra">
-        <button id="btn-ir-egreso" class="secundario-barra">Registrar gasto</button>
-        <button id="btn-ir-inventario" class="oculto secundario-barra">Inventario</button>
-        <button id="btn-ir-contabilidad" class="oculto secundario-barra">Contabilidad</button>
-        <button id="btn-logout">Cerrar sesión</button>
+  <header id="barra-movil">
+    <button id="btn-menu-movil" aria-label="Menú">☰</button>
+    <span id="titulo-pagina-movil">Taller Servi Motors</span>
+  </header>
+
+  <div id="fondo-menu-movil" class="oculto"></div>
+
+  <nav id="sidebar">
+    <div class="sidebar-marca">🔧 Taller Servi Motors</div>
+    <div class="sidebar-usuario" id="usuario-actual"></div>
+
+    <a href="#" class="nav-link" data-pagina="inicio">🏠 Inicio</a>
+
+    <div class="nav-seccion">Gestión</div>
+    <a href="#" class="nav-link" data-pagina="app">🧾 Órdenes</a>
+
+    <div class="nav-seccion">Stock</div>
+    <a href="#" class="nav-link oculto" id="nav-inventario" data-pagina="inventario">📦 Inventario</a>
+
+    <div class="nav-seccion">Contabilidad</div>
+    <a href="#" class="nav-link" data-pagina="egreso">💸 Registrar gasto</a>
+    <a href="#" class="nav-link oculto" id="nav-contabilidad" data-pagina="contabilidad">📊 Contabilidad</a>
+
+    <button id="btn-logout" class="nav-logout">Cerrar sesión</button>
+  </nav>
+
+  <main id="contenido-principal">
+
+    <section id="pantalla-inicio" class="pagina pagina-ancha">
+      <h1>Panel principal</h1>
+      <h2>Visión general de tu taller</h2>
+      <div id="inicio-error" class="mensaje-error"></div>
+
+      <div class="grid-kpis">
+        <div class="tarjeta-kpi">
+          <div class="kpi-numero" id="kpi-abiertas">—</div>
+          <div class="kpi-etiqueta">Órdenes abiertas</div>
+        </div>
+        <div class="tarjeta-kpi">
+          <div class="kpi-numero" id="kpi-proceso">—</div>
+          <div class="kpi-etiqueta">En proceso</div>
+        </div>
+        <div class="tarjeta-kpi">
+          <div class="kpi-numero" id="kpi-cerradas-mes">—</div>
+          <div class="kpi-etiqueta">Cerradas este mes</div>
+        </div>
+        <div class="tarjeta-kpi oculto" id="tarjeta-kpi-ingresos">
+          <div class="kpi-numero" id="kpi-ingresos-mes">—</div>
+          <div class="kpi-etiqueta">Ingresos estimados (mes)</div>
+        </div>
+        <div class="tarjeta-kpi">
+          <div class="kpi-numero" id="kpi-stock-bajo">—</div>
+          <div class="kpi-etiqueta">Productos con bajo stock</div>
+        </div>
       </div>
-    </div>
 
-    <div id="tarjeta-buscar" class="tarjeta">
-      <h1>Abrir Orden de Trabajo</h1>
-      <h2>Paso 1: busca el vehículo por placa</h2>
-      <label for="buscar-placa">Placa</label>
-      <input id="buscar-placa" type="text" placeholder="Ej. ABC123" style="text-transform:uppercase">
-      <button id="btn-buscar">Buscar vehículo</button>
-      <div id="buscar-error" class="mensaje-error"></div>
-    </div>
+      <div class="grid-graficos">
+        <div class="tarjeta">
+          <h2>Órdenes e ingresos por mes</h2>
+          <canvas id="grafico-mensual" height="220"></canvas>
+          <div id="sin-datos-mensual" class="nota-ayuda oculto">Todavía no hay órdenes cerradas para graficar.</div>
+        </div>
+        <div class="tarjeta">
+          <h2>Estado actual de órdenes</h2>
+          <canvas id="grafico-estados" height="220"></canvas>
+          <div id="sin-datos-estados" class="nota-ayuda oculto">Todavía no hay órdenes para mostrar.</div>
+        </div>
+      </div>
 
-    <div id="tarjeta-encontrado" class="tarjeta oculto">
-      <h2>Vehículo encontrado</h2>
-      <div id="info-vehiculo-encontrado" class="info-vehiculo"></div>
-      <button id="btn-usar-encontrado">Continuar con este vehículo</button>
-      <button id="btn-no-es-este" class="secundario">No es este / registrar otro</button>
-    </div>
+      <div class="tarjeta">
+        <h2>Accesos rápidos</h2>
+        <button id="btn-inicio-nueva-orden">+ Nueva orden</button>
+        <button id="btn-inicio-registrar-gasto" class="secundario">+ Registrar gasto</button>
+      </div>
+    </section>
 
-    <div id="tarjeta-nuevo" class="tarjeta oculto">
-      <h2>Vehículo no registrado — datos del cliente y vehículo</h2>
+    <section id="pantalla-app" class="pagina oculto">
 
-      <h3>Cliente</h3>
-      <label for="nuevo-cliente-nombre">Nombre</label>
-      <input id="nuevo-cliente-nombre" type="text" placeholder="Nombre completo">
-      <label for="nuevo-cliente-tipo">Tipo</label>
-      <select id="nuevo-cliente-tipo">
-        <option value="particular">Particular</option>
-        <option value="empresa">Empresa</option>
-      </select>
-      <label for="nuevo-cliente-telefono">Teléfono</label>
-      <input id="nuevo-cliente-telefono" type="tel" placeholder="300 000 0000">
-      <label for="nuevo-cliente-correo">Correo</label>
-      <input id="nuevo-cliente-correo" type="email" placeholder="cliente@correo.com">
+      <div id="tarjeta-buscar" class="tarjeta">
+        <h1>Abrir Orden de Trabajo</h1>
+        <h2>Paso 1: busca el vehículo por placa</h2>
+        <label for="buscar-placa">Placa</label>
+        <input id="buscar-placa" type="text" placeholder="Ej. ABC123" style="text-transform:uppercase">
+        <button id="btn-buscar">Buscar vehículo</button>
+        <div id="buscar-error" class="mensaje-error"></div>
+      </div>
 
-      <h3>Vehículo</h3>
-      <label for="nuevo-vehiculo-placa">Placa</label>
-      <input id="nuevo-vehiculo-placa" type="text" style="text-transform:uppercase">
-      <label for="nuevo-vehiculo-vin">VIN (opcional, 17 caracteres)</label>
-      <input id="nuevo-vehiculo-vin" type="text" maxlength="17">
-      <label for="nuevo-vehiculo-marca">Marca</label>
-      <input id="nuevo-vehiculo-marca" type="text">
-      <label for="nuevo-vehiculo-modelo">Modelo</label>
-      <input id="nuevo-vehiculo-modelo" type="text">
-      <label for="nuevo-vehiculo-anio">Año</label>
-      <input id="nuevo-vehiculo-anio" type="number" min="1950" max="2100">
-      <label for="nuevo-vehiculo-km">Kilometraje actual</label>
-      <input id="nuevo-vehiculo-km" type="number" min="0">
+      <div id="tarjeta-encontrado" class="tarjeta oculto">
+        <h2>Vehículo encontrado</h2>
+        <div id="info-vehiculo-encontrado" class="info-vehiculo"></div>
+        <button id="btn-usar-encontrado">Continuar con este vehículo</button>
+        <button id="btn-no-es-este" class="secundario">No es este / registrar otro</button>
+      </div>
 
-      <button id="btn-registrar-nuevo">Guardar cliente y vehículo</button>
-      <div id="nuevo-error" class="mensaje-error"></div>
-    </div>
+      <div id="tarjeta-nuevo" class="tarjeta oculto">
+        <h2>Vehículo no registrado — datos del cliente y vehículo</h2>
 
-    <div id="tarjeta-asignar" class="tarjeta oculto">
-      <h2>Paso 2: asigna responsables y abre la orden</h2>
-      <label for="select-asesor">Asesor</label>
-      <select id="select-asesor"></select>
-      <label for="select-tecnico">Técnico responsable</label>
-      <select id="select-tecnico"></select>
-      <button id="btn-abrir-orden">Abrir orden de trabajo</button>
-      <div id="orden-error" class="mensaje-error"></div>
-    </div>
-
-    <div id="tarjeta-exito" class="tarjeta oculto">
-      <div id="texto-exito"></div>
-      <button id="btn-ir-items">Agregar ítems a esta orden</button>
-      <button id="btn-otra-orden" class="secundario">Abrir otra orden</button>
-    </div>
-
-    <div id="tarjeta-items" class="tarjeta oculto">
-      <h1>Ítems de la orden</h1>
-      <h2 id="items-subtitulo"></h2>
-      <div id="lista-items"></div>
-
-      <h3>Agregar ítem</h3>
-      <label for="item-tipo">Tipo</label>
-      <select id="item-tipo">
-        <option value="repuesto">Repuesto</option>
-        <option value="insumo">Insumo</option>
-        <option value="mano_obra">Mano de obra (por hora)</option>
-        <option value="trabajo_externo">Trabajo externo</option>
-      </select>
-      <div id="grupo-stock-existente" class="oculto">
-        <label for="item-stock-existente">Usar de tu stock (opcional)</label>
-        <select id="item-stock-existente">
-          <option value="">No, es una compra nueva</option>
+        <h3>Cliente</h3>
+        <label for="nuevo-cliente-nombre">Nombre</label>
+        <input id="nuevo-cliente-nombre" type="text" placeholder="Nombre completo">
+        <label for="nuevo-cliente-tipo">Tipo</label>
+        <select id="nuevo-cliente-tipo">
+          <option value="particular">Particular</option>
+          <option value="empresa">Empresa</option>
         </select>
+        <label for="nuevo-cliente-telefono">Teléfono</label>
+        <input id="nuevo-cliente-telefono" type="tel" placeholder="300 000 0000">
+        <label for="nuevo-cliente-correo">Correo</label>
+        <input id="nuevo-cliente-correo" type="email" placeholder="cliente@correo.com">
+
+        <h3>Vehículo</h3>
+        <label for="nuevo-vehiculo-placa">Placa</label>
+        <input id="nuevo-vehiculo-placa" type="text" style="text-transform:uppercase">
+        <label for="nuevo-vehiculo-vin">VIN (opcional, 17 caracteres)</label>
+        <input id="nuevo-vehiculo-vin" type="text" maxlength="17">
+        <label for="nuevo-vehiculo-marca">Marca</label>
+        <input id="nuevo-vehiculo-marca" type="text">
+        <label for="nuevo-vehiculo-modelo">Modelo</label>
+        <input id="nuevo-vehiculo-modelo" type="text">
+        <label for="nuevo-vehiculo-anio">Año</label>
+        <input id="nuevo-vehiculo-anio" type="number" min="1950" max="2100">
+        <label for="nuevo-vehiculo-km">Kilometraje actual</label>
+        <input id="nuevo-vehiculo-km" type="number" min="0">
+
+        <button id="btn-registrar-nuevo">Guardar cliente y vehículo</button>
+        <div id="nuevo-error" class="mensaje-error"></div>
       </div>
-      <label for="item-nombre">Nombre / descripción</label>
-      <input id="item-nombre" type="text" placeholder="Ej. Filtro de aceite">
-      <label for="item-costo" id="label-item-costo">Costo</label>
-      <input id="item-costo" type="number" min="0" step="0.01">
-      <div id="nota-costo-hora" class="oculto nota-ayuda"></div>
-      <label for="item-cantidad">Cantidad (u horas)</label>
-      <input id="item-cantidad" type="number" min="0.01" step="0.01" value="1">
-      <div id="grupo-precio-manual" class="oculto">
-        <label for="item-precio-aplicado">Precio que cobras al cliente (tarifa fija de mano de obra)</label>
-        <input id="item-precio-aplicado" type="number" min="0" step="0.01">
+
+      <div id="tarjeta-asignar" class="tarjeta oculto">
+        <h2>Paso 2: asigna responsables y abre la orden</h2>
+        <label for="select-asesor">Asesor</label>
+        <select id="select-asesor"></select>
+        <label for="select-tecnico">Técnico responsable</label>
+        <select id="select-tecnico"></select>
+        <button id="btn-abrir-orden">Abrir orden de trabajo</button>
+        <div id="orden-error" class="mensaje-error"></div>
       </div>
-      <button id="btn-agregar-item">Agregar a la orden</button>
-      <div id="item-error" class="mensaje-error"></div>
 
-      <button id="btn-ir-firma" class="secundario">Solicitar firma de autorización</button>
-    </div>
-
-    <div id="tarjeta-firma" class="tarjeta oculto">
-      <h1>Firma de autorización</h1>
-      <h2>El cliente autoriza el trabajo antes de que el técnico lo ejecute</h2>
-      <div id="firma-resumen" class="info-vehiculo"></div>
-
-      <label for="firma-nombre">Nombre de quien autoriza</label>
-      <input id="firma-nombre" type="text" placeholder="Nombre completo">
-      <label for="firma-documento">Documento de identidad</label>
-      <input id="firma-documento" type="text" placeholder="Cédula (opcional)">
-
-      <label for="firma-canvas">Firma (dibuja con el dedo o el mouse)</label>
-      <canvas id="firma-canvas" style="width:100%;height:150px;border:1px solid var(--borde);border-radius:8px;touch-action:none;background:#fff;display:block;"></canvas>
-      <button id="btn-limpiar-firma" class="secundario">Limpiar firma</button>
-      <button id="btn-confirmar-firma">Confirmar autorización</button>
-      <div id="firma-error" class="mensaje-error"></div>
-    </div>
-
-    <div id="tarjeta-firma-exito" class="tarjeta oculto">
-      <div id="texto-firma-exito"></div>
-      <button id="btn-volver-items">Volver a la orden</button>
-    </div>
-
-  </section>
-
-  <section id="pantalla-contabilidad" class="oculto">
-    <div class="barra-superior">
-      <span id="usuario-actual-contab"></span>
-      <div class="grupo-botones-barra">
-        <button id="btn-volver-de-contabilidad" class="secundario-barra">← Órdenes</button>
-        <button id="btn-logout-contab">Cerrar sesión</button>
+      <div id="tarjeta-exito" class="tarjeta oculto">
+        <div id="texto-exito"></div>
+        <button id="btn-ir-items">Agregar ítems a esta orden</button>
+        <button id="btn-otra-orden" class="secundario">Abrir otra orden</button>
       </div>
-    </div>
 
-    <div class="tarjeta">
-      <h1>Contabilidad</h1>
-      <h2>Costo y precio hora de equilibrio</h2>
-      <div id="costo-hora-actual" class="info-vehiculo"></div>
-      <div id="precio-hora-actual" class="info-vehiculo"></div>
-      <label for="contab-horas-mes">Horas de mano de obra disponibles al mes</label>
-      <input id="contab-horas-mes" type="number" min="0" step="0.01">
-      <label for="contab-pct-tecnico">% variable pagado a técnicos (sobre la venta de la hora)</label>
-      <input id="contab-pct-tecnico" type="number" min="0" max="99.99" step="0.01" placeholder="Ej. 25.714">
-      <label for="contab-pct-comisiones">% comisiones / bonificaciones</label>
-      <input id="contab-pct-comisiones" type="number" min="0" max="99.99" step="0.01" placeholder="Ej. 4">
-      <label for="contab-pct-datafono">% costo de datáfono</label>
-      <input id="contab-pct-datafono" type="number" min="0" max="99.99" step="0.01" placeholder="Ej. 3.5">
-      <div class="nota-ayuda">Estos tres se descuentan de cada hora vendida (no son costos fijos), por eso el precio de equilibrio los cubre aparte del costo fijo.</div>
-      <button id="btn-guardar-horas">Guardar</button>
-      <div id="contab-horas-error" class="mensaje-error"></div>
-    </div>
+      <div id="tarjeta-items" class="tarjeta oculto">
+        <h1>Ítems de la orden</h1>
+        <h2 id="items-subtitulo"></h2>
+        <div id="lista-items"></div>
 
-    <div class="tarjeta">
-      <h2>Costos fijos mensuales</h2>
-      <div id="lista-costos-fijos"></div>
-      <h3>Agregar costo fijo</h3>
-      <label for="costo-fijo-concepto">Concepto</label>
-      <input id="costo-fijo-concepto" type="text" placeholder="Ej. Arriendo">
-      <label for="costo-fijo-monto">Monto mensual</label>
-      <input id="costo-fijo-monto" type="number" min="0" step="0.01">
-      <button id="btn-agregar-costo-fijo">Agregar</button>
-      <div id="costo-fijo-error" class="mensaje-error"></div>
-    </div>
-
-    <div class="tarjeta">
-      <h2>Historial de egresos</h2>
-      <div class="nota-ayuda">Para registrar un gasto nuevo usa el botón "Registrar gasto" en la pantalla principal — cualquier usuario puede registrarlo ahí mismo, apenas ocurra.</div>
-      <div id="lista-egresos"></div>
-    </div>
-
-    <div class="tarjeta">
-      <h2>Resultado del mes actual</h2>
-      <div id="resultado-mensual" class="info-vehiculo"></div>
-    </div>
-  </section>
-
-  <section id="pantalla-egreso" class="oculto">
-    <div class="barra-superior">
-      <span id="usuario-actual-egreso"></span>
-      <div class="grupo-botones-barra">
-        <button id="btn-volver-de-egreso" class="secundario-barra">← Órdenes</button>
-        <button id="btn-logout-egreso">Cerrar sesión</button>
-      </div>
-    </div>
-
-    <div class="tarjeta">
-      <h1>Registrar gasto</h1>
-      <h2>Regístralo apenas ocurra, para no olvidarlo</h2>
-      <label for="egreso-fecha">Fecha</label>
-      <input id="egreso-fecha" type="date">
-      <label for="egreso-proveedor">Proveedor (opcional)</label>
-      <input id="egreso-proveedor" type="text">
-      <label for="egreso-concepto">Concepto</label>
-      <input id="egreso-concepto" type="text" placeholder="Ej. Compra de repuestos">
-      <label for="egreso-categoria">Categoría</label>
-      <select id="egreso-categoria">
-        <option value="compra">Compra (repuesto/insumo cargado a una orden)</option>
-        <option value="gasto">Gasto operativo (arriendo, servicios, etc.)</option>
-      </select>
-      <div class="nota-ayuda">Las compras ya se descuentan solas cuando se cierra la orden a la que pertenecen, así que no restan de nuevo del resultado del mes — solo quedan como control de lo que pagaste.</div>
-      <div id="grupo-egreso-orden">
-        <label for="egreso-orden">Orden a la que pertenece esta compra</label>
-        <select id="egreso-orden"></select>
-      </div>
-      <label for="egreso-monto">Monto</label>
-      <input id="egreso-monto" type="number" min="0" step="0.01">
-      <button id="btn-agregar-egreso">Registrar egreso</button>
-      <div id="egreso-error" class="mensaje-error"></div>
-      <div id="egreso-exito" class="mensaje-error oculto" style="background:#f0fdf4;color:var(--verde);border-color:#bbf7d0;"></div>
-    </div>
-  </section>
-
-  <section id="pantalla-inventario" class="oculto">
-    <div class="barra-superior">
-      <span id="usuario-actual-inventario"></span>
-      <div class="grupo-botones-barra">
-        <button id="btn-volver-de-inventario" class="secundario-barra">← Órdenes</button>
-        <button id="btn-logout-inventario">Cerrar sesión</button>
-      </div>
-    </div>
-
-    <div class="tarjeta">
-      <h1>Inventario</h1>
-      <h2>Stock de insumos que manejas por volumen</h2>
-      <div id="lista-stock"></div>
-    </div>
-
-    <div class="tarjeta">
-      <h2>Registrar entrada de stock (compra por volumen)</h2>
-      <label for="stock-item">Ítem</label>
-      <select id="stock-item"></select>
-
-      <div id="grupo-stock-nuevo-item" class="oculto">
-        <label for="stock-nuevo-tipo">Tipo</label>
-        <select id="stock-nuevo-tipo">
-          <option value="insumo">Insumo</option>
+        <h3>Agregar ítem</h3>
+        <label for="item-tipo">Tipo</label>
+        <select id="item-tipo">
           <option value="repuesto">Repuesto</option>
+          <option value="insumo">Insumo</option>
+          <option value="mano_obra">Mano de obra (por hora)</option>
+          <option value="trabajo_externo">Trabajo externo</option>
         </select>
-        <label for="stock-nuevo-nombre">Nombre</label>
-        <input id="stock-nuevo-nombre" type="text" placeholder="Ej. Aceite Kixx 5W30 (galón)">
-        <label for="stock-nuevo-minimo">Stock mínimo (para alertarte)</label>
-        <input id="stock-nuevo-minimo" type="number" min="0" step="0.01" value="0">
+        <div id="grupo-stock-existente" class="oculto">
+          <label for="item-stock-existente">Usar de tu stock (opcional)</label>
+          <select id="item-stock-existente">
+            <option value="">No, es una compra nueva</option>
+          </select>
+        </div>
+        <label for="item-nombre">Nombre / descripción</label>
+        <input id="item-nombre" type="text" placeholder="Ej. Filtro de aceite">
+        <label for="item-costo" id="label-item-costo">Costo</label>
+        <input id="item-costo" type="number" min="0" step="0.01">
+        <div id="nota-costo-hora" class="oculto nota-ayuda"></div>
+        <label for="item-cantidad">Cantidad (u horas)</label>
+        <input id="item-cantidad" type="number" min="0.01" step="0.01" value="1">
+        <div id="grupo-precio-manual" class="oculto">
+          <label for="item-precio-aplicado">Precio que cobras al cliente (tarifa fija de mano de obra)</label>
+          <input id="item-precio-aplicado" type="number" min="0" step="0.01">
+        </div>
+        <button id="btn-agregar-item">Agregar a la orden</button>
+        <div id="item-error" class="mensaje-error"></div>
+
+        <button id="btn-ir-firma" class="secundario">Solicitar firma de autorización</button>
       </div>
 
-      <label for="stock-cantidad">Cantidad que compraste</label>
-      <input id="stock-cantidad" type="number" min="0.01" step="0.01">
-      <label for="stock-costo-unitario">Costo por unidad</label>
-      <input id="stock-costo-unitario" type="number" min="0" step="0.01">
-      <label for="stock-proveedor">Proveedor</label>
-      <select id="stock-proveedor"></select>
-      <button id="btn-registrar-entrada">Registrar entrada</button>
-      <div id="stock-error" class="mensaje-error"></div>
-      <div id="stock-exito" class="mensaje-error oculto" style="background:#f0fdf4;color:var(--verde);border-color:#bbf7d0;"></div>
-    </div>
+      <div id="tarjeta-firma" class="tarjeta oculto">
+        <h1>Firma de autorización</h1>
+        <h2>El cliente autoriza el trabajo antes de que el técnico lo ejecute</h2>
+        <div id="firma-resumen" class="info-vehiculo"></div>
 
-    <div class="tarjeta">
-      <h2>Proveedores</h2>
-      <div id="lista-proveedores"></div>
-      <h3>Agregar proveedor</h3>
-      <label for="proveedor-nombre">Nombre</label>
-      <input id="proveedor-nombre" type="text">
-      <label for="proveedor-contacto">Contacto (teléfono/correo)</label>
-      <input id="proveedor-contacto" type="text">
-      <label for="proveedor-condiciones">Condiciones de pago</label>
-      <input id="proveedor-condiciones" type="text" placeholder="Ej. Contado, crédito 30 días">
-      <button id="btn-agregar-proveedor">Agregar proveedor</button>
-      <div id="proveedor-error" class="mensaje-error"></div>
-    </div>
-  </section>
+        <label for="firma-nombre">Nombre de quien autoriza</label>
+        <input id="firma-nombre" type="text" placeholder="Nombre completo">
+        <label for="firma-documento">Documento de identidad</label>
+        <input id="firma-documento" type="text" placeholder="Cédula (opcional)">
 
+        <label for="firma-canvas">Firma (dibuja con el dedo o el mouse)</label>
+        <canvas id="firma-canvas" style="width:100%;height:150px;border:1px solid var(--borde);border-radius:8px;touch-action:none;background:#fff;display:block;"></canvas>
+        <button id="btn-limpiar-firma" class="secundario">Limpiar firma</button>
+        <button id="btn-confirmar-firma">Confirmar autorización</button>
+        <div id="firma-error" class="mensaje-error"></div>
+      </div>
+
+      <div id="tarjeta-firma-exito" class="tarjeta oculto">
+        <div id="texto-firma-exito"></div>
+        <button id="btn-volver-items">Volver a la orden</button>
+      </div>
+
+    </section>
+
+    <section id="pantalla-contabilidad" class="pagina oculto">
+      <div class="tarjeta">
+        <h1>Contabilidad</h1>
+        <h2>Costo y precio hora de equilibrio</h2>
+        <div id="costo-hora-actual" class="info-vehiculo"></div>
+        <div id="precio-hora-actual" class="info-vehiculo"></div>
+        <label for="contab-horas-mes">Horas de mano de obra disponibles al mes</label>
+        <input id="contab-horas-mes" type="number" min="0" step="0.01">
+        <label for="contab-pct-tecnico">% variable pagado a técnicos (sobre la venta de la hora)</label>
+        <input id="contab-pct-tecnico" type="number" min="0" max="99.99" step="0.01" placeholder="Ej. 25.714">
+        <label for="contab-pct-comisiones">% comisiones / bonificaciones</label>
+        <input id="contab-pct-comisiones" type="number" min="0" max="99.99" step="0.01" placeholder="Ej. 4">
+        <label for="contab-pct-datafono">% costo de datáfono</label>
+        <input id="contab-pct-datafono" type="number" min="0" max="99.99" step="0.01" placeholder="Ej. 3.5">
+        <div class="nota-ayuda">Estos tres se descuentan de cada hora vendida (no son costos fijos), por eso el precio de equilibrio los cubre aparte del costo fijo.</div>
+        <button id="btn-guardar-horas">Guardar</button>
+        <div id="contab-horas-error" class="mensaje-error"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Costos fijos mensuales</h2>
+        <div id="lista-costos-fijos"></div>
+        <h3>Agregar costo fijo</h3>
+        <label for="costo-fijo-concepto">Concepto</label>
+        <input id="costo-fijo-concepto" type="text" placeholder="Ej. Arriendo">
+        <label for="costo-fijo-monto">Monto mensual</label>
+        <input id="costo-fijo-monto" type="number" min="0" step="0.01">
+        <button id="btn-agregar-costo-fijo">Agregar</button>
+        <div id="costo-fijo-error" class="mensaje-error"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Historial de egresos</h2>
+        <div class="nota-ayuda">Para registrar un gasto nuevo usa "Registrar gasto" en el menú — cualquier usuario puede registrarlo ahí mismo, apenas ocurra.</div>
+        <div id="lista-egresos"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Resultado del mes actual</h2>
+        <div id="resultado-mensual" class="info-vehiculo"></div>
+      </div>
+    </section>
+
+    <section id="pantalla-egreso" class="pagina oculto">
+      <div class="tarjeta">
+        <h1>Registrar gasto</h1>
+        <h2>Regístralo apenas ocurra, para no olvidarlo</h2>
+        <label for="egreso-fecha">Fecha</label>
+        <input id="egreso-fecha" type="date">
+        <label for="egreso-proveedor">Proveedor (opcional)</label>
+        <input id="egreso-proveedor" type="text">
+        <label for="egreso-concepto">Concepto</label>
+        <input id="egreso-concepto" type="text" placeholder="Ej. Compra de repuestos">
+        <label for="egreso-categoria">Categoría</label>
+        <select id="egreso-categoria">
+          <option value="compra">Compra (repuesto/insumo cargado a una orden)</option>
+          <option value="gasto">Gasto operativo (arriendo, servicios, etc.)</option>
+        </select>
+        <div class="nota-ayuda">Las compras ya se descuentan solas cuando se cierra la orden a la que pertenecen, así que no restan de nuevo del resultado del mes — solo quedan como control de lo que pagaste.</div>
+        <div id="grupo-egreso-orden">
+          <label for="egreso-orden">Orden a la que pertenece esta compra</label>
+          <select id="egreso-orden"></select>
+        </div>
+        <label for="egreso-monto">Monto</label>
+        <input id="egreso-monto" type="number" min="0" step="0.01">
+        <button id="btn-agregar-egreso">Registrar egreso</button>
+        <div id="egreso-error" class="mensaje-error"></div>
+        <div id="egreso-exito" class="mensaje-error oculto" style="background:#f0fdf4;color:var(--verde);border-color:#bbf7d0;"></div>
+      </div>
+    </section>
+
+    <section id="pantalla-inventario" class="pagina oculto">
+      <div class="tarjeta">
+        <h1>Inventario</h1>
+        <h2>Stock de insumos que manejas por volumen</h2>
+        <div id="lista-stock"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Registrar entrada de stock (compra por volumen)</h2>
+        <label for="stock-item">Ítem</label>
+        <select id="stock-item"></select>
+
+        <div id="grupo-stock-nuevo-item" class="oculto">
+          <label for="stock-nuevo-tipo">Tipo</label>
+          <select id="stock-nuevo-tipo">
+            <option value="insumo">Insumo</option>
+            <option value="repuesto">Repuesto</option>
+          </select>
+          <label for="stock-nuevo-nombre">Nombre</label>
+          <input id="stock-nuevo-nombre" type="text" placeholder="Ej. Aceite Kixx 5W30 (galón)">
+          <label for="stock-nuevo-minimo">Stock mínimo (para alertarte)</label>
+          <input id="stock-nuevo-minimo" type="number" min="0" step="0.01" value="0">
+        </div>
+
+        <label for="stock-cantidad">Cantidad que compraste</label>
+        <input id="stock-cantidad" type="number" min="0.01" step="0.01">
+        <label for="stock-costo-unitario">Costo por unidad</label>
+        <input id="stock-costo-unitario" type="number" min="0" step="0.01">
+        <label for="stock-proveedor">Proveedor</label>
+        <select id="stock-proveedor"></select>
+        <button id="btn-registrar-entrada">Registrar entrada</button>
+        <div id="stock-error" class="mensaje-error"></div>
+        <div id="stock-exito" class="mensaje-error oculto" style="background:#f0fdf4;color:var(--verde);border-color:#bbf7d0;"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Proveedores</h2>
+        <div id="lista-proveedores"></div>
+        <h3>Agregar proveedor</h3>
+        <label for="proveedor-nombre">Nombre</label>
+        <input id="proveedor-nombre" type="text">
+        <label for="proveedor-contacto">Contacto (teléfono/correo)</label>
+        <input id="proveedor-contacto" type="text">
+        <label for="proveedor-condiciones">Condiciones de pago</label>
+        <input id="proveedor-condiciones" type="text" placeholder="Ej. Contado, crédito 30 días">
+        <button id="btn-agregar-proveedor">Agregar proveedor</button>
+        <div id="proveedor-error" class="mensaje-error"></div>
+      </div>
+    </section>
+
+  </main>
 </div>
 
 <style>
@@ -344,10 +393,9 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
     font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
     background: var(--fondo);
     margin: 0;
-    padding: 12px;
     color: var(--texto);
   }
-  .contenedor { max-width: 480px; margin: 0 auto; }
+  #contenedor-login { max-width: 480px; margin: 0 auto; padding: 12px; }
   .tarjeta {
     background: var(--tarjeta-bg);
     border-radius: 12px;
@@ -378,11 +426,6 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
   #tarjeta-exito {
     background: #f0fdf4; color: var(--verde); border: 1px solid #bbf7d0; text-align: center;
   }
-  .barra-superior { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-  .barra-superior span { font-size: 13px; color: var(--gris); }
-  .barra-superior button, .grupo-botones-barra button { width: auto; margin: 0; padding: 8px 14px; font-size: 13px; background: transparent; color: var(--rojo); border: 1px solid var(--rojo); }
-  .grupo-botones-barra { display: flex; gap: 8px; }
-  .grupo-botones-barra button.secundario-barra { color: var(--azul); border-color: var(--azul); }
   .oculto { display: none !important; }
   .nota-ayuda { font-size: 13px; color: var(--gris); margin: -6px 0 10px; }
   .info-vehiculo { background: var(--gris-claro); border-radius: 8px; padding: 12px; font-size: 14px; margin-top: 8px; }
@@ -393,8 +436,59 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
   .fila-renglon button { width: auto; margin: 0; padding: 5px 10px; font-size: 12px; }
   .fila-renglon.alerta-stock { color: var(--rojo); }
   .fila-renglon.alerta-stock .fila-detalle { color: var(--rojo); }
+
+  /* ---------------------------------------------------------------
+     SHELL: menú lateral + contenido
+     --------------------------------------------------------------- */
+  #shell { display: flex; min-height: 100vh; }
+  #barra-movil { display: none; }
+  #fondo-menu-movil { display: none; }
+
+  #sidebar {
+    width: 230px; flex-shrink: 0;
+    background: var(--tarjeta-bg); border-right: 1px solid var(--borde);
+    padding: 16px 12px; display: flex; flex-direction: column; gap: 2px;
+    position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  }
+  .sidebar-marca { font-weight: 700; font-size: 15px; padding: 4px 10px 14px; }
+  .sidebar-usuario { font-size: 12px; color: var(--gris); padding: 0 10px 14px; border-bottom: 1px solid var(--borde); margin-bottom: 8px; word-break: break-all; }
+  .nav-seccion { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--gris); padding: 10px 10px 4px; }
+  .nav-link { display: block; padding: 9px 10px; border-radius: 8px; color: var(--texto); text-decoration: none; font-size: 14px; font-weight: 500; }
+  .nav-link:hover { background: var(--gris-claro); }
+  .nav-link.activo { background: var(--azul); color: #fff; }
+  .nav-logout { width: auto; margin: 16px 10px 0; padding: 8px 12px; font-size: 13px; background: transparent; color: var(--rojo); border: 1px solid var(--rojo); }
+
+  #contenido-principal { flex: 1; padding: 22px; min-width: 0; }
+  .pagina:not(.pagina-ancha) { max-width: 560px; }
+
+  .grid-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .tarjeta-kpi { background: var(--tarjeta-bg); border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .kpi-numero { font-size: 26px; font-weight: 700; }
+  .kpi-etiqueta { font-size: 13px; color: var(--gris); margin-top: 4px; }
+  .grid-graficos { display: grid; grid-template-columns: 1.3fr 1fr; gap: 12px; }
+
+  @media (max-width: 900px) {
+    #shell { display: block; }
+    #barra-movil {
+      display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+      background: var(--tarjeta-bg); border-bottom: 1px solid var(--borde);
+      position: sticky; top: 0; z-index: 20;
+    }
+    #barra-movil button { width: auto; margin: 0; padding: 6px 10px; font-size: 18px; line-height: 1; background: transparent; color: var(--texto); border: 1px solid var(--borde); }
+    #titulo-pagina-movil { font-weight: 700; font-size: 15px; }
+    #fondo-menu-movil.visible { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 25; }
+    #sidebar {
+      position: fixed; top: 0; left: 0; z-index: 30;
+      transform: translateX(-100%); transition: transform .18s ease;
+      box-shadow: 2px 0 12px rgba(0,0,0,.15);
+    }
+    #sidebar.abierto { transform: translateX(0); }
+    #contenido-principal { padding: 14px; }
+    .grid-graficos { grid-template-columns: 1fr; }
+  }
 </style>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <script>
 (function () {
   "use strict";
@@ -408,6 +502,8 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
   var vehiculoSeleccionado = null;
   var ordenActual = null; // { id_ot, numero_ot }
   var canvas, ctx, dibujando = false;
+  var graficoMensual = null;
+  var graficoEstados = null;
 
   function $(id) { return document.getElementById(id); }
 
@@ -433,6 +529,10 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
           mostrarError(elIdError, "Error inesperado: " + (err && err.message ? err.message : String(err)));
         });
     };
+  }
+
+  function formatoMoneda(numero) {
+    return "$" + Number(numero || 0).toLocaleString("es-CO", { maximumFractionDigits: 0 });
   }
 
   function authFetch(path, body) {
@@ -503,52 +603,210 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
     location.reload();
   }
   $("btn-logout").addEventListener("click", cerrarSesion);
-  $("btn-logout-contab").addEventListener("click", cerrarSesion);
-  $("btn-logout-egreso").addEventListener("click", cerrarSesion);
-  $("btn-logout-inventario").addEventListener("click", cerrarSesion);
 
   function entrarAlApp(correo) {
-    $("pantalla-login").classList.add("oculto");
-    $("pantalla-app").classList.remove("oculto");
+    $("contenedor-login").classList.add("oculto");
+    $("shell").classList.remove("oculto");
     $("usuario-actual").textContent = "Sesión: " + correo;
-    $("usuario-actual-contab").textContent = "Sesión: " + correo;
-    $("usuario-actual-egreso").textContent = "Sesión: " + correo;
-    $("usuario-actual-inventario").textContent = "Sesión: " + correo;
     return restRequest("GET", "usuarios", { query: "select=rol&id_usuario=eq." + usuarioActualId })
       .then(function (filas) {
         rolActual = filas && filas.length ? filas[0].rol : null;
         var puedeVerContabilidad = rolActual === "administrador" || rolActual === "contador";
-        $("btn-ir-contabilidad").classList.toggle("oculto", !puedeVerContabilidad);
+        $("nav-contabilidad").classList.toggle("oculto", !puedeVerContabilidad);
         var puedeVerInventario = rolActual === "administrador" || rolActual === "asesor" || rolActual === "contador";
-        $("btn-ir-inventario").classList.toggle("oculto", !puedeVerInventario);
+        $("nav-inventario").classList.toggle("oculto", !puedeVerInventario);
         return cargarAsesoresYTecnicos();
+      })
+      .then(function () {
+        return mostrarPagina("inicio");
       });
   }
 
-  $("btn-ir-contabilidad").addEventListener("click", conManejoDeErrores(function () {
-    $("pantalla-app").classList.add("oculto");
-    $("pantalla-contabilidad").classList.remove("oculto");
-    return cargarContabilidad();
-  }, "contab-horas-error"));
+  // =====================================================================
+  // NAVEGACIÓN (menú lateral)
+  // =====================================================================
+  var PAGINAS = ["inicio", "app", "inventario", "contabilidad", "egreso"];
+  var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", inventario: "Inventario", contabilidad: "Contabilidad", egreso: "Registrar gasto" };
+  var ERROR_POR_PAGINA = { inicio: "inicio-error", inventario: "stock-error", contabilidad: "contab-horas-error", egreso: "egreso-error" };
 
-  $("btn-volver-de-contabilidad").addEventListener("click", function () {
-    $("pantalla-contabilidad").classList.add("oculto");
-    $("pantalla-app").classList.remove("oculto");
+  function mostrarPagina(nombre) {
+    if (PAGINAS.indexOf(nombre) === -1) nombre = "inicio";
+    PAGINAS.forEach(function (p) {
+      $("pantalla-" + p).classList.toggle("oculto", p !== nombre);
+    });
+    document.querySelectorAll(".nav-link").forEach(function (a) {
+      a.classList.toggle("activo", a.getAttribute("data-pagina") === nombre);
+    });
+    $("titulo-pagina-movil").textContent = TITULOS_PAGINA[nombre] || "Taller Servi Motors";
+    cerrarMenuMovil();
+    window.scrollTo({ top: 0 });
+
+    var promesa = null;
+    if (nombre === "inicio") promesa = cargarInicio();
+    else if (nombre === "inventario") promesa = cargarInventario();
+    else if (nombre === "contabilidad") promesa = cargarContabilidad();
+    else if (nombre === "egreso") {
+      ocultarError("egreso-error");
+      $("egreso-exito").classList.add("oculto");
+      $("egreso-fecha").value = new Date().toISOString().slice(0, 10);
+      $("egreso-proveedor").value = "";
+      $("egreso-concepto").value = "";
+      $("egreso-monto").value = "";
+      $("egreso-categoria").value = "compra";
+      $("grupo-egreso-orden").classList.remove("oculto");
+      promesa = cargarOrdenesParaEgreso();
+    }
+
+    var idError = ERROR_POR_PAGINA[nombre];
+    if (promesa && idError) {
+      promesa.catch(function (err) {
+        console.error(err);
+        mostrarError(idError, "No se pudo cargar: " + err.message);
+      });
+    }
+  }
+
+  document.querySelectorAll(".nav-link").forEach(function (a) {
+    a.addEventListener("click", function (e) {
+      e.preventDefault();
+      mostrarPagina(this.getAttribute("data-pagina"));
+    });
   });
 
-  $("btn-ir-inventario").addEventListener("click", conManejoDeErrores(function () {
-    ocultarError("stock-error");
-    $("stock-exito").classList.add("oculto");
-    $("pantalla-app").classList.add("oculto");
-    $("pantalla-inventario").classList.remove("oculto");
-    return cargarInventario();
-  }, "stock-error"));
+  function abrirMenuMovil() {
+    $("sidebar").classList.add("abierto");
+    $("fondo-menu-movil").classList.add("visible");
+  }
+  function cerrarMenuMovil() {
+    $("sidebar").classList.remove("abierto");
+    $("fondo-menu-movil").classList.remove("visible");
+  }
+  $("btn-menu-movil").addEventListener("click", function () {
+    if ($("sidebar").classList.contains("abierto")) cerrarMenuMovil(); else abrirMenuMovil();
+  });
+  $("fondo-menu-movil").addEventListener("click", cerrarMenuMovil);
 
-  $("btn-volver-de-inventario").addEventListener("click", function () {
-    $("pantalla-inventario").classList.add("oculto");
-    $("pantalla-app").classList.remove("oculto");
+  function reiniciarFlujoOrden() {
+    vehiculoSeleccionado = null;
+    ordenActual = null;
+    $("buscar-placa").value = "";
+    ["tarjeta-exito", "tarjeta-encontrado", "tarjeta-nuevo", "tarjeta-asignar", "tarjeta-items", "tarjeta-firma", "tarjeta-firma-exito"].forEach(function (id) {
+      $(id).classList.add("oculto");
+    });
+    $("tarjeta-buscar").classList.remove("oculto");
+  }
+
+  $("btn-inicio-nueva-orden").addEventListener("click", function () {
+    reiniciarFlujoOrden();
+    mostrarPagina("app");
+  });
+  $("btn-inicio-registrar-gasto").addEventListener("click", function () {
+    mostrarPagina("egreso");
   });
 
+  // =====================================================================
+  // PANEL PRINCIPAL (dashboard de inicio)
+  // =====================================================================
+  function cargarInicio() {
+    ocultarError("inicio-error");
+    var inicioMesDate = new Date();
+    inicioMesDate.setDate(1);
+    var inicioMesStr = inicioMesDate.toISOString().slice(0, 10);
+    var mesActualEtiqueta = inicioMesStr.slice(0, 7);
+
+    return Promise.all([
+      restRequest("GET", "ordenes_trabajo", { query: "select=id_ot,estado,fecha_cierre" }),
+      restRequest("GET", "items", { query: "select=id_item,stock_actual,stock_minimo&stock_gestionado=eq.true" }),
+      restRequest("GET", "vista_estado_ordenes", { query: "select=*" }),
+      restRequest("GET", "vista_resultado_mensual", { query: "select=periodo,ordenes_cerradas,ingresos&order=periodo.asc&limit=6" })
+    ]).then(function (r) {
+      var ordenes = r[0] || [];
+      var itemsStock = r[1] || [];
+      var estados = r[2] || [];
+      var resultadoMensual = r[3] || [];
+
+      var abiertas = ordenes.filter(function (o) { return o.estado === "abierta" || o.estado === "pendiente_autorizacion"; }).length;
+      var enProceso = ordenes.filter(function (o) { return o.estado === "en_proceso"; }).length;
+      var cerradasMes = ordenes.filter(function (o) { return o.estado === "cerrada" && o.fecha_cierre && o.fecha_cierre.slice(0, 10) >= inicioMesStr; }).length;
+
+      $("kpi-abiertas").textContent = abiertas;
+      $("kpi-proceso").textContent = enProceso;
+      $("kpi-cerradas-mes").textContent = cerradasMes;
+
+      var stockBajo = itemsStock.filter(function (it) { return Number(it.stock_actual) <= Number(it.stock_minimo); }).length;
+      $("kpi-stock-bajo").textContent = stockBajo;
+
+      var puedeVerFinanzas = rolActual === "administrador" || rolActual === "contador";
+      $("tarjeta-kpi-ingresos").classList.toggle("oculto", !puedeVerFinanzas);
+      if (puedeVerFinanzas) {
+        var filaMesActual = resultadoMensual.filter(function (f) { return f.periodo.slice(0, 7) === mesActualEtiqueta; })[0];
+        $("kpi-ingresos-mes").textContent = formatoMoneda(filaMesActual ? filaMesActual.ingresos : 0);
+      }
+
+      dibujarGraficoMensual(resultadoMensual, puedeVerFinanzas);
+      dibujarGraficoEstados(estados);
+    });
+  }
+
+  function dibujarGraficoMensual(filas, puedeVerFinanzas) {
+    if (graficoMensual) { graficoMensual.destroy(); graficoMensual = null; }
+    $("sin-datos-mensual").classList.toggle("oculto", !!filas.length);
+    if (!filas.length || typeof Chart === "undefined") return;
+
+    var etiquetas = filas.map(function (f) { return f.periodo.slice(0, 7); });
+    var datasets = [{
+      type: "bar",
+      label: "Órdenes cerradas",
+      data: filas.map(function (f) { return f.ordenes_cerradas; }),
+      backgroundColor: "#2563eb",
+      yAxisID: "y"
+    }];
+    if (puedeVerFinanzas) {
+      datasets.push({
+        type: "line",
+        label: "Ingresos ($)",
+        data: filas.map(function (f) { return f.ingresos; }),
+        borderColor: "#16a34a",
+        backgroundColor: "#16a34a",
+        yAxisID: "y1",
+        tension: 0.3
+      });
+    }
+    graficoMensual = new Chart($("grafico-mensual").getContext("2d"), {
+      type: "bar",
+      data: { labels: etiquetas, datasets: datasets },
+      options: {
+        responsive: true,
+        scales: {
+          y: { beginAtZero: true, position: "left", title: { display: true, text: "Órdenes" } },
+          y1: { beginAtZero: true, position: "right", display: puedeVerFinanzas, grid: { drawOnChartArea: false }, title: { display: true, text: "Ingresos" } }
+        }
+      }
+    });
+  }
+
+  function dibujarGraficoEstados(filas) {
+    if (graficoEstados) { graficoEstados.destroy(); graficoEstados = null; }
+    $("sin-datos-estados").classList.toggle("oculto", !!filas.length);
+    if (!filas.length || typeof Chart === "undefined") return;
+
+    var colores = { abierta: "#2563eb", pendiente_autorizacion: "#dc2626", en_proceso: "#f59e0b", cerrada: "#16a34a", cancelada: "#6b7280" };
+    graficoEstados = new Chart($("grafico-estados").getContext("2d"), {
+      type: "doughnut",
+      data: {
+        labels: filas.map(function (f) { return f.estado; }),
+        datasets: [{
+          data: filas.map(function (f) { return f.cantidad; }),
+          backgroundColor: filas.map(function (f) { return colores[f.estado] || "#94a3b8"; })
+        }]
+      },
+      options: { responsive: true }
+    });
+  }
+
+  // =====================================================================
+  // INVENTARIO
+  // =====================================================================
   function cargarInventario() {
     return Promise.all([
       restRequest("GET", "items", { query: "select=id_item,nombre,tipo,stock_actual,stock_minimo&stock_gestionado=eq.true&order=nombre.asc" }),
@@ -692,25 +950,9 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
     });
   }, "proveedor-error"));
 
-  $("btn-ir-egreso").addEventListener("click", conManejoDeErrores(function () {
-    ocultarError("egreso-error");
-    $("egreso-exito").classList.add("oculto");
-    $("egreso-fecha").value = new Date().toISOString().slice(0, 10);
-    $("egreso-proveedor").value = "";
-    $("egreso-concepto").value = "";
-    $("egreso-monto").value = "";
-    $("egreso-categoria").value = "compra";
-    $("grupo-egreso-orden").classList.remove("oculto");
-    $("pantalla-app").classList.add("oculto");
-    $("pantalla-egreso").classList.remove("oculto");
-    return cargarOrdenesParaEgreso();
-  }, "egreso-error"));
-
-  $("btn-volver-de-egreso").addEventListener("click", function () {
-    $("pantalla-egreso").classList.add("oculto");
-    $("pantalla-app").classList.remove("oculto");
-  });
-
+  // =====================================================================
+  // REGISTRAR GASTO
+  // =====================================================================
   function cargarOrdenesParaEgreso() {
     var query = "select=id_ot,numero_ot,estado,vehiculos(placa),clientes(nombre)&estado=neq.cancelada&order=fecha_apertura.desc&limit=40";
     return restRequest("GET", "ordenes_trabajo", { query: query }).then(function (ordenes) {
@@ -739,10 +981,46 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
     $("grupo-egreso-orden").classList.toggle("oculto", !esCompra);
   });
 
-  function formatoMoneda(numero) {
-    return "$" + Number(numero || 0).toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
+  $("btn-agregar-egreso").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("egreso-error");
+    $("egreso-exito").classList.add("oculto");
+    var fecha = $("egreso-fecha").value || new Date().toISOString().slice(0, 10);
+    var proveedor = $("egreso-proveedor").value.trim();
+    var concepto = $("egreso-concepto").value.trim();
+    var categoria = $("egreso-categoria").value;
+    var monto = parseFloat($("egreso-monto").value);
+    var idOt = $("egreso-orden").value || null;
+    if (!concepto || !(monto >= 0)) {
+      mostrarError("egreso-error", "Escribe el concepto y un monto válido.");
+      return;
+    }
+    if (categoria === "compra" && !idOt) {
+      mostrarError("egreso-error", "Elige a qué orden pertenece esta compra.");
+      return;
+    }
+    return restRequest("POST", "egresos", {
+      body: {
+        fecha: fecha,
+        proveedor: proveedor || null,
+        concepto: concepto,
+        categoria: categoria,
+        monto: monto,
+        id_ot: categoria === "compra" ? idOt : null,
+        id_usuario_registro: usuarioActualId
+      }
+    }).then(function () {
+      $("egreso-proveedor").value = "";
+      $("egreso-concepto").value = "";
+      $("egreso-monto").value = "";
+      var exito = $("egreso-exito");
+      exito.textContent = "Gasto registrado. Puedes seguir registrando otro o ir a otra sección.";
+      exito.classList.remove("oculto");
+    });
+  }, "egreso-error"));
 
+  // =====================================================================
+  // CONTABILIDAD
+  // =====================================================================
   function cargarContabilidad() {
     return Promise.all([
       restRequest("POST", "rpc/calcular_costo_hora_equilibrio", { body: {} }),
@@ -859,43 +1137,9 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
       });
   }, "costo-fijo-error"));
 
-  $("btn-agregar-egreso").addEventListener("click", conManejoDeErrores(function () {
-    ocultarError("egreso-error");
-    $("egreso-exito").classList.add("oculto");
-    var fecha = $("egreso-fecha").value || new Date().toISOString().slice(0, 10);
-    var proveedor = $("egreso-proveedor").value.trim();
-    var concepto = $("egreso-concepto").value.trim();
-    var categoria = $("egreso-categoria").value;
-    var monto = parseFloat($("egreso-monto").value);
-    var idOt = $("egreso-orden").value || null;
-    if (!concepto || !(monto >= 0)) {
-      mostrarError("egreso-error", "Escribe el concepto y un monto válido.");
-      return;
-    }
-    if (categoria === "compra" && !idOt) {
-      mostrarError("egreso-error", "Elige a qué orden pertenece esta compra.");
-      return;
-    }
-    return restRequest("POST", "egresos", {
-      body: {
-        fecha: fecha,
-        proveedor: proveedor || null,
-        concepto: concepto,
-        categoria: categoria,
-        monto: monto,
-        id_ot: categoria === "compra" ? idOt : null,
-        id_usuario_registro: usuarioActualId
-      }
-    }).then(function () {
-      $("egreso-proveedor").value = "";
-      $("egreso-concepto").value = "";
-      $("egreso-monto").value = "";
-      var exito = $("egreso-exito");
-      exito.textContent = "Gasto registrado. Puedes seguir registrando otro o volver a Órdenes.";
-      exito.classList.remove("oculto");
-    });
-  }, "egreso-error"));
-
+  // =====================================================================
+  // ÓRDENES — buscar / crear cliente-vehículo / asignar
+  // =====================================================================
   function cargarAsesoresYTecnicos() {
     return Promise.all([
       restRequest("GET", "usuarios", { query: "select=id_usuario,nombre&rol=eq.asesor&estado=eq.activo" }),
@@ -1056,24 +1300,13 @@ all data access is raw fetch() against Supabase's REST/Auth HTTP API (no SDK), p
   }, "orden-error"));
 
   $("btn-otra-orden").addEventListener("click", function () {
-    vehiculoSeleccionado = null;
-    ordenActual = null;
-    $("buscar-placa").value = "";
-    $("tarjeta-exito").classList.add("oculto");
-    $("tarjeta-encontrado").classList.add("oculto");
-    $("tarjeta-nuevo").classList.add("oculto");
-    $("tarjeta-asignar").classList.add("oculto");
-    $("tarjeta-buscar").classList.remove("oculto");
+    reiniciarFlujoOrden();
     window.scrollTo({ top: 0, behavior: "smooth" });
   });
 
   // =====================================================================
   // ÍTEMS DE LA ORDEN
   // =====================================================================
-  function formatoMoneda(n) {
-    return "$" + Number(n).toLocaleString("es-CO", { maximumFractionDigits: 0 });
-  }
-
   function cargarItemsDeOrden() {
     var query = "select=id_detalle,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
     return restRequest("GET", "ot_detalle", { query: query }).then(function (filas) {
