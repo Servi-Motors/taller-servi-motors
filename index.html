@@ -300,20 +300,54 @@ the data-access layer at all.
       </div>
     </section>
 
-    <section id="pantalla-clientes" class="pagina oculto">
-      <h1>Clientes</h1>
+    <section id="pantalla-clientes" class="pagina pagina-ancha oculto">
+      <h1>Gestión de Clientes</h1>
+      <div class="nota-ayuda">Listado y administración de clientes</div>
       <div id="clientes-error" class="mensaje-error"></div>
 
-      <div class="tarjeta">
-        <h2>Buscar</h2>
-        <input id="clientes-buscar" type="text" placeholder="Buscar por nombre o teléfono">
-        <div id="lista-clientes" style="margin-top:10px;"></div>
-      </div>
+      <button id="btn-mostrar-form-cliente" class="boton-agregar">+ Agregar cliente</button>
 
       <div class="tarjeta">
+        <div class="tabla-toolbar">
+          <label>Mostrar
+            <select id="clientes-tamano">
+              <option value="10">10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="999999">Todos</option>
+            </select>
+            registros
+          </label>
+          <label>Buscar <input id="clientes-buscar" type="text"></label>
+        </div>
+        <div class="tabla-scroll">
+          <table class="tabla-datos" id="tabla-clientes">
+            <thead>
+              <tr>
+                <th data-orden="nombre">Nombre</th>
+                <th data-orden="documento">Documento</th>
+                <th data-orden="telefono">Teléfono</th>
+                <th data-orden="correo">Correo</th>
+                <th data-orden="direccion">Dirección</th>
+                <th data-orden="observaciones">Observaciones</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="cuerpo-tabla-clientes"></tbody>
+          </table>
+        </div>
+        <div class="tabla-pie">
+          <span id="clientes-info-paginacion"></span>
+          <span id="clientes-paginacion"></span>
+        </div>
+      </div>
+
+      <div class="tarjeta oculto" id="tarjeta-form-cliente">
         <h2 id="clientes-form-titulo">Agregar cliente</h2>
         <label for="cliente-nombre">Nombre</label>
         <input id="cliente-nombre" type="text">
+        <label for="cliente-documento">Documento / RUC</label>
+        <input id="cliente-documento" type="text">
         <label for="cliente-tipo">Tipo</label>
         <select id="cliente-tipo">
           <option value="particular">Particular</option>
@@ -325,22 +359,56 @@ the data-access layer at all.
         <input id="cliente-correo" type="email">
         <label for="cliente-direccion">Dirección</label>
         <input id="cliente-direccion" type="text">
+        <label for="cliente-observaciones">Observaciones</label>
+        <input id="cliente-observaciones" type="text">
         <button id="btn-guardar-cliente">Agregar cliente</button>
-        <button id="btn-cancelar-edicion-cliente" class="secundario oculto">Cancelar edición</button>
+        <button id="btn-cancelar-edicion-cliente" class="secundario">Cancelar</button>
       </div>
     </section>
 
-    <section id="pantalla-vehiculos" class="pagina oculto">
-      <h1>Vehículos</h1>
+    <section id="pantalla-vehiculos" class="pagina pagina-ancha oculto">
+      <h1>Gestión de Vehículos</h1>
+      <div class="nota-ayuda">Listado y administración de vehículos</div>
       <div id="vehiculos-error" class="mensaje-error"></div>
 
-      <div class="tarjeta">
-        <h2>Buscar</h2>
-        <input id="vehiculos-buscar" type="text" placeholder="Buscar por placa o cliente">
-        <div id="lista-vehiculos" style="margin-top:10px;"></div>
-      </div>
+      <button id="btn-mostrar-form-vehiculo" class="boton-agregar">+ Agregar vehículo</button>
 
       <div class="tarjeta">
+        <div class="tabla-toolbar">
+          <label>Mostrar
+            <select id="vehiculos-tamano">
+              <option value="10">10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="999999">Todos</option>
+            </select>
+            registros
+          </label>
+          <label>Buscar <input id="vehiculos-buscar" type="text"></label>
+        </div>
+        <div class="tabla-scroll">
+          <table class="tabla-datos" id="tabla-vehiculos">
+            <thead>
+              <tr>
+                <th data-orden="placa">Placa</th>
+                <th data-orden="marca">Marca</th>
+                <th data-orden="modelo">Modelo</th>
+                <th data-orden="anio">Año</th>
+                <th data-orden="cliente">Cliente</th>
+                <th data-orden="kilometraje">Kilometraje</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="cuerpo-tabla-vehiculos"></tbody>
+          </table>
+        </div>
+        <div class="tabla-pie">
+          <span id="vehiculos-info-paginacion"></span>
+          <span id="vehiculos-paginacion"></span>
+        </div>
+      </div>
+
+      <div class="tarjeta oculto" id="tarjeta-form-vehiculo">
         <h2 id="vehiculos-form-titulo">Agregar vehículo</h2>
         <label for="vehiculo-cliente">Cliente dueño</label>
         <select id="vehiculo-cliente"></select>
@@ -357,20 +425,50 @@ the data-access layer at all.
         <label for="vehiculo-km">Kilometraje</label>
         <input id="vehiculo-km" type="number" min="0" value="0">
         <button id="btn-guardar-vehiculo">Agregar vehículo</button>
-        <button id="btn-cancelar-edicion-vehiculo" class="secundario oculto">Cancelar edición</button>
+        <button id="btn-cancelar-edicion-vehiculo" class="secundario">Cancelar</button>
       </div>
     </section>
 
-    <section id="pantalla-proveedores" class="pagina oculto">
-      <h1>Proveedores</h1>
+    <section id="pantalla-proveedores" class="pagina pagina-ancha oculto">
+      <h1>Gestión de Proveedores</h1>
+      <div class="nota-ayuda">Listado y administración de proveedores</div>
       <div id="proveedores-error" class="mensaje-error"></div>
 
-      <div class="tarjeta">
-        <h2>Proveedores</h2>
-        <div id="lista-proveedores"></div>
-      </div>
+      <button id="btn-mostrar-form-proveedor" class="boton-agregar">+ Agregar proveedor</button>
 
       <div class="tarjeta">
+        <div class="tabla-toolbar">
+          <label>Mostrar
+            <select id="proveedores-tamano">
+              <option value="10">10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="999999">Todos</option>
+            </select>
+            registros
+          </label>
+          <label>Buscar <input id="proveedores-buscar" type="text"></label>
+        </div>
+        <div class="tabla-scroll">
+          <table class="tabla-datos" id="tabla-proveedores">
+            <thead>
+              <tr>
+                <th data-orden="nombre">Nombre</th>
+                <th data-orden="contacto">Contacto</th>
+                <th data-orden="condiciones_pago">Condiciones de pago</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="cuerpo-tabla-proveedores"></tbody>
+          </table>
+        </div>
+        <div class="tabla-pie">
+          <span id="proveedores-info-paginacion"></span>
+          <span id="proveedores-paginacion"></span>
+        </div>
+      </div>
+
+      <div class="tarjeta oculto" id="tarjeta-form-proveedor">
         <h2 id="proveedores-form-titulo">Agregar proveedor</h2>
         <label for="proveedor-nombre">Nombre</label>
         <input id="proveedor-nombre" type="text">
@@ -379,7 +477,7 @@ the data-access layer at all.
         <label for="proveedor-condiciones">Condiciones de pago</label>
         <input id="proveedor-condiciones" type="text" placeholder="Ej. Contado, crédito 30 días">
         <button id="btn-agregar-proveedor">Agregar proveedor</button>
-        <button id="btn-cancelar-edicion-proveedor" class="secundario oculto">Cancelar edición</button>
+        <button id="btn-cancelar-edicion-proveedor" class="secundario">Cancelar</button>
         <div id="proveedor-error" class="mensaje-error"></div>
       </div>
     </section>
@@ -824,6 +922,25 @@ the data-access layer at all.
   .kanban-tarjeta:hover { border-color: var(--azul); }
   .kanban-tarjeta b { display: block; font-size: 13px; }
   .kanban-vacio { font-size: 12px; color: var(--gris); padding: 4px 2px; }
+
+  .boton-agregar { width: auto; display: inline-block; background: var(--verde); margin: 0 0 12px; padding: 10px 16px; }
+  .boton-agregar:hover { background: #15803d; }
+  .tabla-toolbar { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; justify-content: space-between; margin-bottom: 12px; font-size: 13px; }
+  .tabla-toolbar label { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; margin: 0; }
+  .tabla-toolbar select, .tabla-toolbar input { width: auto; padding: 6px 8px; font-size: 13px; margin: 0; }
+  .tabla-scroll { overflow-x: auto; }
+  table.tabla-datos { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+  table.tabla-datos th { text-align: left; padding: 8px 10px; border-bottom: 2px solid var(--borde); color: var(--gris); font-size: 12px; text-transform: uppercase; letter-spacing: .02em; cursor: pointer; user-select: none; }
+  table.tabla-datos th:hover { color: var(--texto); }
+  table.tabla-datos th.orden-activo { color: var(--azul); }
+  table.tabla-datos td { padding: 8px 10px; border-bottom: 1px solid var(--borde); }
+  table.tabla-datos tbody tr:hover { background: var(--gris-claro); }
+  table.tabla-datos td.tabla-vacia { text-align: center; color: var(--gris); white-space: normal; }
+  table.tabla-datos td button { width: auto; margin: 0; padding: 5px 10px; font-size: 12px; }
+  .tabla-pie { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; font-size: 13px; color: var(--gris); }
+  .tabla-pie button { width: auto; margin: 0; padding: 6px 12px; font-size: 13px; }
+  .tabla-pie button:disabled { opacity: .4; cursor: default; }
+  .tabla-pagina-actual { font-weight: 600; color: var(--texto); }
 
   @media (max-width: 900px) {
     #shell { display: block; }
@@ -1534,74 +1651,192 @@ the data-access layer at all.
   }, "agenda-error"));
 
   // =====================================================================
+  // TABLA DE GESTIÓN (búsqueda + orden + paginación) — reutilizable
+  // =====================================================================
+  function crearTablaGestion(cfg) {
+    var datos = [];
+    var estado = { pagina: 1, ordenClave: null, ordenAsc: true };
+
+    function filasFiltradas() {
+      var texto = $(cfg.idBuscar).value.trim().toLowerCase();
+      var filas = !texto ? datos.slice() : datos.filter(function (f) { return cfg.filtro(f, texto); });
+      if (estado.ordenClave) {
+        var col = cfg.columnas.filter(function (c) { return c.clave === estado.ordenClave; })[0];
+        if (col) {
+          filas.sort(function (a, b) {
+            var va = col.obtener(a); var vb = col.obtener(b);
+            va = (va === null || va === undefined) ? "" : va;
+            vb = (vb === null || vb === undefined) ? "" : vb;
+            if (va < vb) return estado.ordenAsc ? -1 : 1;
+            if (va > vb) return estado.ordenAsc ? 1 : -1;
+            return 0;
+          });
+        }
+      }
+      return filas;
+    }
+
+    function renderizar() {
+      var filas = filasFiltradas();
+      var total = filas.length;
+      var tamano = parseInt($(cfg.idTamano).value, 10) || 10;
+      var totalPaginas = Math.max(1, Math.ceil(total / tamano));
+      if (estado.pagina > totalPaginas) estado.pagina = totalPaginas;
+      var inicio = (estado.pagina - 1) * tamano;
+      var pagina = filas.slice(inicio, inicio + tamano);
+
+      var tbody = $(cfg.idCuerpoTabla);
+      tbody.innerHTML = "";
+      if (!pagina.length) {
+        var trVacio = document.createElement("tr");
+        var tdVacio = document.createElement("td");
+        tdVacio.colSpan = cfg.columnas.length + 1;
+        tdVacio.className = "tabla-vacia";
+        tdVacio.textContent = "Sin resultados.";
+        trVacio.appendChild(tdVacio);
+        tbody.appendChild(trVacio);
+      }
+      pagina.forEach(function (fila) {
+        var tr = document.createElement("tr");
+        cfg.columnas.forEach(function (col) {
+          var td = document.createElement("td");
+          td.innerHTML = col.html ? col.html(fila) : (col.obtener(fila) || "—");
+          tr.appendChild(td);
+        });
+        var tdAcciones = document.createElement("td");
+        var btn = document.createElement("button");
+        btn.className = "secundario";
+        btn.textContent = "Editar";
+        btn.addEventListener("click", function () { cfg.onEditar(fila); });
+        tdAcciones.appendChild(btn);
+        tr.appendChild(tdAcciones);
+        tbody.appendChild(tr);
+      });
+
+      var desde = total ? inicio + 1 : 0;
+      var hasta = Math.min(inicio + tamano, total);
+      $(cfg.idInfo).textContent = "Mostrando " + desde + " a " + hasta + " de " + total + " registros";
+
+      var cont = $(cfg.idPaginacion);
+      cont.innerHTML = "";
+      var btnAnterior = document.createElement("button");
+      btnAnterior.className = "secundario";
+      btnAnterior.textContent = "Anterior";
+      btnAnterior.disabled = estado.pagina <= 1;
+      btnAnterior.addEventListener("click", function () { estado.pagina--; renderizar(); });
+      cont.appendChild(btnAnterior);
+
+      var span = document.createElement("span");
+      span.className = "tabla-pagina-actual";
+      span.textContent = estado.pagina + " / " + totalPaginas;
+      cont.appendChild(span);
+
+      var btnSiguiente = document.createElement("button");
+      btnSiguiente.className = "secundario";
+      btnSiguiente.textContent = "Siguiente";
+      btnSiguiente.disabled = estado.pagina >= totalPaginas;
+      btnSiguiente.addEventListener("click", function () { estado.pagina++; renderizar(); });
+      cont.appendChild(btnSiguiente);
+
+      document.querySelectorAll("#" + cfg.idTabla + " thead th[data-orden]").forEach(function (th) {
+        th.classList.toggle("orden-activo", th.getAttribute("data-orden") === estado.ordenClave);
+      });
+    }
+
+    $(cfg.idBuscar).addEventListener("input", function () { estado.pagina = 1; renderizar(); });
+    $(cfg.idTamano).addEventListener("change", function () { estado.pagina = 1; renderizar(); });
+    document.querySelectorAll("#" + cfg.idTabla + " thead th[data-orden]").forEach(function (th) {
+      th.addEventListener("click", function () {
+        var clave = th.getAttribute("data-orden");
+        if (estado.ordenClave === clave) estado.ordenAsc = !estado.ordenAsc;
+        else { estado.ordenClave = clave; estado.ordenAsc = true; }
+        estado.pagina = 1;
+        renderizar();
+      });
+    });
+
+    return {
+      establecerDatos: function (nuevos) { datos = nuevos || []; estado.pagina = 1; renderizar(); }
+    };
+  }
+
+  // =====================================================================
   // GESTIÓN — Clientes / Vehículos / Proveedores / Personal
   // =====================================================================
   var clienteEditando = null;
-  var todosClientes = [];
+
+  var tablaClientes = crearTablaGestion({
+    idBuscar: "clientes-buscar", idTamano: "clientes-tamano", idTabla: "tabla-clientes",
+    idCuerpoTabla: "cuerpo-tabla-clientes", idInfo: "clientes-info-paginacion", idPaginacion: "clientes-paginacion",
+    columnas: [
+      { clave: "nombre", obtener: function (c) { return c.nombre; } },
+      { clave: "documento", obtener: function (c) { return c.documento; } },
+      { clave: "telefono", obtener: function (c) { return c.telefono; } },
+      { clave: "correo", obtener: function (c) { return c.correo; } },
+      { clave: "direccion", obtener: function (c) { return c.direccion; } },
+      { clave: "observaciones", obtener: function (c) { return c.observaciones; } }
+    ],
+    filtro: function (c, texto) {
+      return (c.nombre || "").toLowerCase().indexOf(texto) !== -1 ||
+        (c.telefono || "").toLowerCase().indexOf(texto) !== -1 ||
+        (c.documento || "").toLowerCase().indexOf(texto) !== -1;
+    },
+    onEditar: function (c) { cargarClienteEnFormulario(c); }
+  });
 
   function cargarClientes() {
     ocultarError("clientes-error");
     return restRequest("GET", "clientes", { query: "select=*&order=nombre.asc&limit=500" }).then(function (filas) {
-      todosClientes = filas || [];
-      renderizarListaClientes();
+      tablaClientes.establecerDatos(filas || []);
     });
   }
 
-  function renderizarListaClientes() {
-    var filtro = $("clientes-buscar").value.trim().toLowerCase();
-    var filas = !filtro ? todosClientes : todosClientes.filter(function (c) {
-      return (c.nombre || "").toLowerCase().indexOf(filtro) !== -1 || (c.telefono || "").toLowerCase().indexOf(filtro) !== -1;
-    });
-    var lista = $("lista-clientes");
-    lista.innerHTML = filas.length ? "" : "<p class=\"nota-ayuda\">Sin resultados.</p>";
-    filas.forEach(function (c) {
-      var fila = document.createElement("div");
-      fila.className = "fila-renglon";
-      fila.style.cursor = "pointer";
-      fila.innerHTML =
-        "<span><b>" + c.nombre + "</b> <span class=\"fila-detalle\">(" + c.tipo + ")</span><br>" +
-        "<span class=\"fila-detalle\">" + (c.telefono || "—") + (c.correo ? " · " + c.correo : "") + "</span></span>";
-      fila.addEventListener("click", function () { cargarClienteEnFormulario(c); });
-      lista.appendChild(fila);
-    });
-  }
-  $("clientes-buscar").addEventListener("input", renderizarListaClientes);
+  function mostrarFormularioCliente() { $("tarjeta-form-cliente").classList.remove("oculto"); }
+  $("btn-mostrar-form-cliente").addEventListener("click", function () {
+    reiniciarFormularioCliente();
+    mostrarFormularioCliente();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
 
   function cargarClienteEnFormulario(c) {
     clienteEditando = c.id_cliente;
     $("cliente-nombre").value = c.nombre || "";
+    $("cliente-documento").value = c.documento || "";
     $("cliente-tipo").value = c.tipo || "particular";
     $("cliente-telefono").value = c.telefono || "";
     $("cliente-correo").value = c.correo || "";
     $("cliente-direccion").value = c.direccion || "";
+    $("cliente-observaciones").value = c.observaciones || "";
     $("clientes-form-titulo").textContent = "Editar cliente";
     $("btn-guardar-cliente").textContent = "Guardar cambios";
-    $("btn-cancelar-edicion-cliente").classList.remove("oculto");
+    mostrarFormularioCliente();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function reiniciarFormularioCliente() {
     clienteEditando = null;
-    ["cliente-nombre", "cliente-telefono", "cliente-correo", "cliente-direccion"].forEach(function (id) { $(id).value = ""; });
+    ["cliente-nombre", "cliente-documento", "cliente-telefono", "cliente-correo", "cliente-direccion", "cliente-observaciones"].forEach(function (id) { $(id).value = ""; });
     $("cliente-tipo").value = "particular";
     $("clientes-form-titulo").textContent = "Agregar cliente";
     $("btn-guardar-cliente").textContent = "Agregar cliente";
-    $("btn-cancelar-edicion-cliente").classList.add("oculto");
+    $("tarjeta-form-cliente").classList.add("oculto");
   }
   $("btn-cancelar-edicion-cliente").addEventListener("click", reiniciarFormularioCliente);
 
   $("btn-guardar-cliente").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("clientes-error");
     var nombre = $("cliente-nombre").value.trim();
+    var documento = $("cliente-documento").value.trim();
     var tipo = $("cliente-tipo").value;
     var telefono = $("cliente-telefono").value.trim();
     var correo = $("cliente-correo").value.trim();
     var direccion = $("cliente-direccion").value.trim();
+    var observaciones = $("cliente-observaciones").value.trim();
     if (!nombre) {
       mostrarError("clientes-error", "Escribe el nombre del cliente.");
       return;
     }
-    var body = { nombre: nombre, tipo: tipo, telefono: telefono || null, correo: correo || null, direccion: direccion || null };
+    var body = { nombre: nombre, documento: documento || null, tipo: tipo, telefono: telefono || null, correo: correo || null, direccion: direccion || null, observaciones: observaciones || null };
     var pedido = clienteEditando
       ? restRequest("PATCH", "clientes", { query: "id_cliente=eq." + clienteEditando, body: body })
       : restRequest("POST", "clientes", { body: body });
@@ -1613,6 +1848,24 @@ the data-access layer at all.
 
   var vehiculoEditando = null;
   var todosVehiculos = [];
+
+  var tablaVehiculos = crearTablaGestion({
+    idBuscar: "vehiculos-buscar", idTamano: "vehiculos-tamano", idTabla: "tabla-vehiculos",
+    idCuerpoTabla: "cuerpo-tabla-vehiculos", idInfo: "vehiculos-info-paginacion", idPaginacion: "vehiculos-paginacion",
+    columnas: [
+      { clave: "placa", obtener: function (v) { return v.placa; } },
+      { clave: "marca", obtener: function (v) { return v.marca; } },
+      { clave: "modelo", obtener: function (v) { return v.modelo; } },
+      { clave: "anio", obtener: function (v) { return v.anio; } },
+      { clave: "cliente", obtener: function (v) { return v.clientes ? v.clientes.nombre : ""; } },
+      { clave: "kilometraje", obtener: function (v) { return v.kilometraje; } }
+    ],
+    filtro: function (v, texto) {
+      return (v.placa || "").toLowerCase().indexOf(texto) !== -1 ||
+        ((v.clientes && v.clientes.nombre) || "").toLowerCase().indexOf(texto) !== -1;
+    },
+    onEditar: function (v) { cargarVehiculoEnFormulario(v); }
+  });
 
   function cargarVehiculos() {
     ocultarError("vehiculos-error");
@@ -1633,29 +1886,16 @@ the data-access layer at all.
       });
       if (valorPrevio) sel.value = valorPrevio;
 
-      renderizarListaVehiculos();
+      tablaVehiculos.establecerDatos(todosVehiculos);
     });
   }
 
-  function renderizarListaVehiculos() {
-    var filtro = $("vehiculos-buscar").value.trim().toUpperCase();
-    var filas = !filtro ? todosVehiculos : todosVehiculos.filter(function (v) {
-      return (v.placa || "").toUpperCase().indexOf(filtro) !== -1 || ((v.clientes && v.clientes.nombre) || "").toUpperCase().indexOf(filtro) !== -1;
-    });
-    var lista = $("lista-vehiculos");
-    lista.innerHTML = filas.length ? "" : "<p class=\"nota-ayuda\">Sin resultados.</p>";
-    filas.forEach(function (v) {
-      var fila = document.createElement("div");
-      fila.className = "fila-renglon";
-      fila.style.cursor = "pointer";
-      fila.innerHTML =
-        "<span><b>" + v.placa + "</b> <span class=\"fila-detalle\">" + [v.marca, v.modelo, v.anio].filter(Boolean).join(" ") + "</span><br>" +
-        "<span class=\"fila-detalle\">" + (v.clientes ? v.clientes.nombre : "—") + " · " + (v.kilometraje || 0) + " km</span></span>";
-      fila.addEventListener("click", function () { cargarVehiculoEnFormulario(v); });
-      lista.appendChild(fila);
-    });
-  }
-  $("vehiculos-buscar").addEventListener("input", renderizarListaVehiculos);
+  function mostrarFormularioVehiculo() { $("tarjeta-form-vehiculo").classList.remove("oculto"); }
+  $("btn-mostrar-form-vehiculo").addEventListener("click", function () {
+    reiniciarFormularioVehiculo();
+    mostrarFormularioVehiculo();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
 
   function cargarVehiculoEnFormulario(v) {
     vehiculoEditando = v.id_vehiculo;
@@ -1668,7 +1908,7 @@ the data-access layer at all.
     $("vehiculo-km").value = v.kilometraje || 0;
     $("vehiculos-form-titulo").textContent = "Editar vehículo";
     $("btn-guardar-vehiculo").textContent = "Guardar cambios";
-    $("btn-cancelar-edicion-vehiculo").classList.remove("oculto");
+    mostrarFormularioVehiculo();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -1678,7 +1918,7 @@ the data-access layer at all.
     $("vehiculo-km").value = "0";
     $("vehiculos-form-titulo").textContent = "Agregar vehículo";
     $("btn-guardar-vehiculo").textContent = "Agregar vehículo";
-    $("btn-cancelar-edicion-vehiculo").classList.add("oculto");
+    $("tarjeta-form-vehiculo").classList.add("oculto");
   }
   $("btn-cancelar-edicion-vehiculo").addEventListener("click", reiniciarFormularioVehiculo);
 
@@ -1715,22 +1955,31 @@ the data-access layer at all.
 
   var proveedorEditando = null;
 
+  var tablaProveedores = crearTablaGestion({
+    idBuscar: "proveedores-buscar", idTamano: "proveedores-tamano", idTabla: "tabla-proveedores",
+    idCuerpoTabla: "cuerpo-tabla-proveedores", idInfo: "proveedores-info-paginacion", idPaginacion: "proveedores-paginacion",
+    columnas: [
+      { clave: "nombre", obtener: function (p) { return p.nombre; } },
+      { clave: "contacto", obtener: function (p) { return p.contacto; } },
+      { clave: "condiciones_pago", obtener: function (p) { return p.condiciones_pago; } }
+    ],
+    filtro: function (p, texto) { return (p.nombre || "").toLowerCase().indexOf(texto) !== -1; },
+    onEditar: function (p) { cargarProveedorEnFormulario(p); }
+  });
+
   function cargarProveedoresPagina() {
     ocultarError("proveedores-error");
     return restRequest("GET", "proveedores", { query: "select=*&order=nombre.asc" }).then(function (filas) {
-      var lista = $("lista-proveedores");
-      lista.innerHTML = filas.length ? "" : "<p class=\"nota-ayuda\">Todavía no has agregado proveedores.</p>";
-      filas.forEach(function (p) {
-        var fila = document.createElement("div");
-        fila.className = "fila-renglon";
-        fila.style.cursor = "pointer";
-        fila.innerHTML =
-          "<span>" + p.nombre + "<br><span class=\"fila-detalle\">" + (p.contacto || "") + (p.condiciones_pago ? " · " + p.condiciones_pago : "") + "</span></span>";
-        fila.addEventListener("click", function () { cargarProveedorEnFormulario(p); });
-        lista.appendChild(fila);
-      });
+      tablaProveedores.establecerDatos(filas || []);
     });
   }
+
+  function mostrarFormularioProveedor() { $("tarjeta-form-proveedor").classList.remove("oculto"); }
+  $("btn-mostrar-form-proveedor").addEventListener("click", function () {
+    reiniciarFormularioProveedor();
+    mostrarFormularioProveedor();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
 
   function cargarProveedorEnFormulario(p) {
     proveedorEditando = p.id_proveedor;
@@ -1739,7 +1988,7 @@ the data-access layer at all.
     $("proveedor-condiciones").value = p.condiciones_pago || "";
     $("proveedores-form-titulo").textContent = "Editar proveedor";
     $("btn-agregar-proveedor").textContent = "Guardar cambios";
-    $("btn-cancelar-edicion-proveedor").classList.remove("oculto");
+    mostrarFormularioProveedor();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -1750,7 +1999,7 @@ the data-access layer at all.
     $("proveedor-condiciones").value = "";
     $("proveedores-form-titulo").textContent = "Agregar proveedor";
     $("btn-agregar-proveedor").textContent = "Agregar proveedor";
-    $("btn-cancelar-edicion-proveedor").classList.add("oculto");
+    $("tarjeta-form-proveedor").classList.add("oculto");
   }
   $("btn-cancelar-edicion-proveedor").addEventListener("click", reiniciarFormularioProveedor);
 
