@@ -211,6 +211,11 @@ the data-access layer at all.
       <div id="tarjeta-items" class="tarjeta tarjeta-formulario oculto">
         <h1>Ítems de la orden</h1>
         <h2 id="items-subtitulo"></h2>
+        <div id="estado-orden-info" class="nota-ayuda"></div>
+        <div id="botones-estado-orden" class="agenda-controles"></div>
+        <div id="estado-orden-notificar"></div>
+        <div id="autorizacion-pendiente-cont"></div>
+
         <div id="lista-items"></div>
 
         <h3>Agregar ítem</h3>
@@ -263,6 +268,7 @@ the data-access layer at all.
 
       <div id="tarjeta-firma-exito" class="tarjeta tarjeta-formulario oculto">
         <div id="texto-firma-exito"></div>
+        <div id="firma-exito-notificar"></div>
         <button id="btn-volver-items">Volver a la orden</button>
       </div>
 
@@ -872,6 +878,12 @@ the data-access layer at all.
         <h2>Avisar vehículo listo</h2>
         <div class="nota-ayuda">Órdenes cerradas en los últimos 14 días.</div>
         <div id="lista-recordatorios-listos"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Próximo mantenimiento</h2>
+        <div class="nota-ayuda">Vehículos sin visita hace más de 5 meses. Es un estimado — confirma antes de contactar.</div>
+        <div id="lista-recordatorios-mantenimiento"></div>
       </div>
 
       <div class="tarjeta tarjeta-formulario">
@@ -1957,11 +1969,13 @@ the data-access layer at all.
     return Promise.all([
       restRequest("GET", "citas", { query: "select=*,clientes(nombre,telefono),vehiculos(placa)&estado=in.(agendada,confirmada)&fecha_hora=gte." + ahora.toISOString() + "&fecha_hora=lte." + en7dias.toISOString() + "&order=fecha_hora.asc&limit=100" }),
       restRequest("GET", "ordenes_trabajo", { query: "select=id_ot,numero_ot,fecha_cierre,clientes(nombre,telefono),vehiculos(placa,marca,modelo)&estado=eq.cerrada&fecha_cierre=gte." + hace14dias.toISOString() + "&order=fecha_cierre.desc&limit=100" }),
-      restRequest("GET", "clientes", { query: "select=id_cliente,nombre,telefono&order=nombre.asc&limit=500" })
+      restRequest("GET", "clientes", { query: "select=id_cliente,nombre,telefono&order=nombre.asc&limit=500" }),
+      restRequest("GET", "vista_proximos_mantenimientos", { query: "select=*&limit=50" })
     ]).then(function (r) {
       renderizarRecordatoriosCitas(r[0] || []);
       renderizarRecordatoriosListos(r[1] || []);
       poblarSelectorClientesComunicaciones(r[2] || []);
+      renderizarRecordatoriosMantenimiento(r[3] || []);
     });
   }
 
@@ -1999,6 +2013,23 @@ the data-access layer at all.
         "<span><b>" + (cliente ? cliente.nombre : "Sin cliente") + "</b> <span class=\"fila-detalle\">OT #" + o.numero_ot + (veh ? " · " + veh.placa : "") + "</span><br>" +
         "<span class=\"fila-detalle\">Cerrada el " + fecha + "</span></span>";
       fila.appendChild(crearBotonWhatsApp(cliente && cliente.telefono, mensaje));
+      cont.appendChild(fila);
+    });
+  }
+
+  function renderizarRecordatoriosMantenimiento(filas) {
+    var cont = $("lista-recordatorios-mantenimiento");
+    cont.innerHTML = filas.length ? "" : "<p class=\"nota-ayuda\">No hay vehículos con visita vencida por ahora.</p>";
+    filas.forEach(function (v) {
+      var meses = Math.floor(v.dias_desde_ultima_visita / 30);
+      var mensaje = "Hola " + v.cliente_nombre + ", en Taller Servi Motors notamos que ya pasó un tiempo desde tu última visita con el vehículo " +
+        v.placa + ". ¿Quieres agendar un mantenimiento preventivo?";
+      var fila = document.createElement("div");
+      fila.className = "fila-renglon";
+      fila.innerHTML =
+        "<span><b>" + v.cliente_nombre + "</b> <span class=\"fila-detalle\">" + v.placa + (v.marca ? " · " + [v.marca, v.modelo].filter(Boolean).join(" ") : "") + "</span><br>" +
+        "<span class=\"fila-detalle\">Última visita hace " + meses + " meses (" + v.dias_desde_ultima_visita + " días)</span></span>";
+      fila.appendChild(crearBotonWhatsApp(v.cliente_telefono, mensaje));
       cont.appendChild(fila);
     });
   }
@@ -3504,15 +3535,125 @@ the data-access layer at all.
   // =====================================================================
   // ÍTEMS DE LA ORDEN
   // =====================================================================
+  function mensajeParaEstadoOrden(nuevoEstado) {
+    if (nuevoEstado === "cerrada") {
+      return "Hola " + ordenActual.clienteNombre + ", tu vehículo" + (ordenActual.vehiculoPlaca ? " " + ordenActual.vehiculoPlaca : "") +
+        " ya está listo en Taller Servi Motors. ¡Puedes pasar a recogerlo cuando gustes!";
+    }
+    if (nuevoEstado === "cancelada") {
+      return "Hola " + ordenActual.clienteNombre + ", tu orden OT-" + ordenActual.numero_ot + " en Taller Servi Motors fue cancelada. Cualquier duda, contáctanos.";
+    }
+    if (nuevoEstado === "en_proceso") {
+      return "Hola " + ordenActual.clienteNombre + ", tu vehículo" + (ordenActual.vehiculoPlaca ? " " + ordenActual.vehiculoPlaca : "") +
+        " ya está en proceso de reparación en Taller Servi Motors.";
+    }
+    return null;
+  }
+
+  function mostrarNotificarCambioEstado(idContenedor, nuevoEstado, textoPrevio) {
+    var cont = $(idContenedor);
+    cont.innerHTML = "";
+    if (!ordenActual.clienteNombre) return;
+    var mensaje = mensajeParaEstadoOrden(nuevoEstado);
+    if (!mensaje) return;
+    var nota = document.createElement("div");
+    nota.className = "nota-ayuda";
+    nota.textContent = textoPrevio || "¿Avisar al cliente?";
+    cont.appendChild(nota);
+    cont.appendChild(crearBotonWhatsApp(ordenActual.clienteTelefono, mensaje));
+  }
+
+  function cambiarEstadoOrden(nuevoEstado) {
+    ocultarError("item-error");
+    var body = { estado: nuevoEstado };
+    if (nuevoEstado === "cerrada") body.fecha_cierre = new Date().toISOString();
+    return restRequest("PATCH", "ordenes_trabajo", { query: "id_ot=eq." + ordenActual.id_ot, body: body })
+      .then(function () {
+        return restRequest("POST", "historial_ot", {
+          body: { id_ot: ordenActual.id_ot, accion: "Orden " + (nuevoEstado === "cerrada" ? "cerrada" : "cancelada"), id_usuario: usuarioActualId }
+        });
+      })
+      .then(function () {
+        cargarTableroOrdenes().catch(function (err) { console.error(err); });
+        return cargarItemsDeOrden();
+      })
+      .then(function () {
+        mostrarNotificarCambioEstado("estado-orden-notificar", nuevoEstado);
+      });
+  }
+
+  var ETIQUETAS_ESTADO_ORDEN = { abierta: "Abierta", pendiente_autorizacion: "Pendiente autorización", en_proceso: "En proceso", cerrada: "Cerrada", cancelada: "Cancelada" };
+
+  function renderizarEstadoOrden() {
+    $("estado-orden-info").textContent = "Estado actual: " + (ETIQUETAS_ESTADO_ORDEN[ordenActual.estado] || ordenActual.estado);
+    $("estado-orden-notificar").innerHTML = "";
+
+    var cont = $("botones-estado-orden");
+    cont.innerHTML = "";
+    if (ordenActual.estado === "abierta" || ordenActual.estado === "pendiente_autorizacion" || ordenActual.estado === "en_proceso") {
+      var btnCerrar = document.createElement("button");
+      btnCerrar.type = "button";
+      btnCerrar.className = "secundario";
+      btnCerrar.textContent = "Cerrar orden";
+      btnCerrar.addEventListener("click", conManejoDeErrores(function () { return cambiarEstadoOrden("cerrada"); }, "item-error"));
+      cont.appendChild(btnCerrar);
+
+      var btnCancelar = document.createElement("button");
+      btnCancelar.type = "button";
+      btnCancelar.className = "secundario";
+      btnCancelar.textContent = "Cancelar orden";
+      btnCancelar.addEventListener("click", conManejoDeErrores(function () {
+        if (!window.confirm("¿Cancelar esta orden? No se puede deshacer desde la app.")) return;
+        return cambiarEstadoOrden("cancelada");
+      }, "item-error"));
+      cont.appendChild(btnCancelar);
+    }
+  }
+
+  function renderizarAutorizacionPendiente(hayPendientes, monto) {
+    var cont = $("autorizacion-pendiente-cont");
+    cont.innerHTML = "";
+    if (!hayPendientes || !ordenActual.clienteNombre) return;
+    var esAdicional = ordenActual.estado === "en_proceso";
+    var mensaje = "Hola " + ordenActual.clienteNombre + ", " +
+      (esAdicional
+        ? "encontramos algo adicional en tu vehículo" + (ordenActual.vehiculoPlaca ? " " + ordenActual.vehiculoPlaca : "") + " que también necesita tu autorización"
+        : "tenemos listo el presupuesto de tu vehículo" + (ordenActual.vehiculoPlaca ? " " + ordenActual.vehiculoPlaca : "") + " para tu autorización") +
+      " (" + formatoMoneda(monto) + "). Por favor confírmanos o pasa por el taller a autorizarlo.";
+    var nota = document.createElement("div");
+    nota.className = "nota-ayuda";
+    nota.textContent = (esAdicional ? "Hay ítems adicionales" : "Hay ítems") + " pendientes de autorización (" + formatoMoneda(monto) + "). ¿Avisar al cliente?";
+    cont.appendChild(nota);
+    cont.appendChild(crearBotonWhatsApp(ordenActual.clienteTelefono, mensaje));
+  }
+
   function cargarItemsDeOrden() {
-    var query = "select=id_detalle,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
-    return restRequest("GET", "ot_detalle", { query: query }).then(function (filas) {
+    var queryItems = "select=id_detalle,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
+    var queryOrden = "select=estado,fecha_cierre,clientes(nombre,telefono),vehiculos(placa,marca,modelo)&id_ot=eq." + ordenActual.id_ot;
+    return Promise.all([
+      restRequest("GET", "ot_detalle", { query: queryItems }),
+      restRequest("GET", "ordenes_trabajo", { query: queryOrden })
+    ]).then(function (r) {
+      var filas = r[0] || [];
+      var orden = (r[1] && r[1][0]) || null;
+
       $("items-subtitulo").textContent = "Orden OT-" + ordenActual.numero_ot;
+      $("firma-exito-notificar").innerHTML = "";
+
+      if (orden) {
+        ordenActual.estado = orden.estado;
+        ordenActual.clienteNombre = orden.clientes ? orden.clientes.nombre : null;
+        ordenActual.clienteTelefono = orden.clientes ? orden.clientes.telefono : null;
+        ordenActual.vehiculoPlaca = orden.vehiculos ? orden.vehiculos.placa : null;
+        renderizarEstadoOrden();
+      }
+
       var html = "";
       var hayPendientes = false;
+      var montoPendiente = 0;
       (filas || []).forEach(function (f) {
         var subtotal = f.cantidad * f.precio_aplicado_cliente;
-        if (f.estado_autorizacion === "pendiente") hayPendientes = true;
+        if (f.estado_autorizacion === "pendiente") { hayPendientes = true; montoPendiente += subtotal; }
         var color = f.estado_autorizacion === "autorizado" ? "var(--verde)" : (f.estado_autorizacion === "rechazado" ? "var(--rojo)" : "#b45309");
         html += '<div class="info-vehiculo" style="margin-bottom:8px;">' +
           "<b>" + f.items.nombre + "</b>" +
@@ -3529,6 +3670,8 @@ the data-access layer at all.
       });
       $("lista-items").innerHTML = html || "<p style='font-size:14px;color:var(--gris);'>Todavía no hay ítems agregados.</p>";
       $("btn-ir-firma").style.display = hayPendientes ? "block" : "none";
+
+      renderizarAutorizacionPendiente(hayPendientes, montoPendiente);
     });
   }
 
@@ -3781,6 +3924,8 @@ the data-access layer at all.
       $("tarjeta-firma").classList.add("oculto");
       $("texto-firma-exito").innerHTML = "✅ Autorización registrada correctamente.";
       $("tarjeta-firma-exito").classList.remove("oculto");
+      ordenActual.estado = "en_proceso";
+      mostrarNotificarCambioEstado("firma-exito-notificar", "en_proceso", "¿Avisar al cliente que su vehículo ya está en proceso?");
     }).catch(function (err) {
       mostrarError("firma-error", err.message);
     });
