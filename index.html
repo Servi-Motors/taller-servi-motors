@@ -265,12 +265,30 @@ the data-access layer at all.
 
     </section>
 
-    <section id="pantalla-agenda" class="pagina oculto">
+    <section id="pantalla-agenda" class="pagina pagina-ancha oculto">
       <h1>Agenda</h1>
+      <div class="nota-ayuda">Organizá tus turnos agendados</div>
       <div id="agenda-error" class="mensaje-error"></div>
 
       <div class="tarjeta">
-        <h2>Agendar cita</h2>
+        <div class="agenda-cabecera">
+          <div>
+            <h2>Agenda visual</h2>
+            <div class="nota-ayuda">Vista semanal · <span id="agenda-rango-semana">—</span></div>
+          </div>
+          <button class="boton-agregar" id="btn-nuevo-turno">+ Nuevo turno</button>
+        </div>
+        <div class="agenda-controles">
+          <button type="button" class="secundario" id="btn-agenda-hoy">Hoy</button>
+          <button type="button" class="secundario" id="btn-agenda-anterior">←</button>
+          <button type="button" class="secundario" id="btn-agenda-siguiente">→</button>
+          <input type="date" id="agenda-fecha-base">
+        </div>
+        <div class="agenda-semana" id="agenda-semana"></div>
+      </div>
+
+      <div class="tarjeta tarjeta-formulario oculto" id="tarjeta-form-cita">
+        <h2 id="agenda-form-titulo">Agendar cita</h2>
         <label for="cita-cliente">Cliente</label>
         <select id="cita-cliente"></select>
         <label for="cita-vehiculo">Vehículo (opcional)</label>
@@ -286,13 +304,10 @@ the data-access layer at all.
         <label for="cita-notas">Notas (opcional)</label>
         <input id="cita-notas" type="text">
         <button id="btn-agendar-cita">Agendar cita</button>
+        <button type="button" class="secundario" id="btn-cancelar-cita">Cancelar</button>
       </div>
 
-      <div class="tarjeta">
-        <h2>Próximas citas</h2>
-        <div class="nota-ayuda">Toca "Convertir en orden" cuando el cliente llegue con el vehículo, para no volver a buscar la placa.</div>
-        <div id="lista-citas-proximas"></div>
-      </div>
+      <div class="tarjeta"><div class="nota-ayuda">Toca un turno en el calendario para confirmarlo, convertirlo en orden o cancelarlo.</div></div>
 
       <div class="tarjeta">
         <h2>Historial</h2>
@@ -942,6 +957,28 @@ the data-access layer at all.
   .tabla-pie button:disabled { opacity: .4; cursor: default; }
   .tabla-pagina-actual { font-weight: 600; color: var(--texto); }
 
+  .agenda-cabecera { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .agenda-cabecera h2 { margin: 0 0 2px; }
+  .agenda-controles { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .agenda-controles button.secundario { width: auto; margin: 0; padding: 8px 14px; }
+  .agenda-controles input[type="date"] { width: auto; margin: 0; padding: 7px 8px; }
+  .agenda-semana { display: grid; grid-template-columns: repeat(7, minmax(150px, 1fr)); gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+  .agenda-dia { background: var(--gris-claro); border-radius: 10px; padding: 8px; display: flex; flex-direction: column; min-width: 0; }
+  .agenda-dia-hoy { box-shadow: inset 0 0 0 2px var(--azul); }
+  .agenda-dia-cabecera { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; margin-bottom: 8px; }
+  .agenda-dia-nombre { font-size: 12px; color: var(--gris); text-transform: uppercase; letter-spacing: .02em; line-height: 1.5; }
+  .agenda-dia-nombre b { font-size: 14px; color: var(--texto); text-transform: none; letter-spacing: 0; }
+  .agenda-dia-agregar { width: 24px; height: 24px; flex-shrink: 0; border-radius: 50%; background: var(--azul); color: #fff; font-size: 15px; line-height: 1; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; }
+  .agenda-dia-turnos { display: flex; flex-direction: column; gap: 6px; min-height: 30px; }
+  .agenda-turno { background: var(--tarjeta-bg); border-radius: 8px; border: 1px solid var(--borde); border-left: 3px solid var(--azul); font-size: 12px; overflow: hidden; }
+  .agenda-turno-confirmada { border-left-color: var(--verde); }
+  .agenda-turno-cancelada { border-left-color: var(--rojo); opacity: .7; }
+  .agenda-turno-completada { border-left-color: var(--gris); opacity: .7; }
+  .agenda-turno-resumen { padding: 7px 8px; cursor: pointer; line-height: 1.5; }
+  .agenda-turno-resumen b { display: inline; font-size: 12px; }
+  .agenda-turno-acciones { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 8px 8px; }
+  .agenda-turno-acciones button { width: auto; margin: 0; padding: 5px 8px; font-size: 11px; }
+
   @media (max-width: 900px) {
     #shell { display: block; }
     #barra-movil {
@@ -1500,21 +1537,42 @@ the data-access layer at all.
   // =====================================================================
   var todosClientesAgenda = [];
   var todosVehiculosAgenda = [];
+  var agendaFechaBase = new Date();
+  var NOMBRES_DIA_CORTOS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
+  function inicioSemanaAgenda(d) {
+    var dt = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    var dia = dt.getDay();
+    var offset = dia === 0 ? -6 : 1 - dia;
+    dt.setDate(dt.getDate() + offset);
+    return dt;
+  }
+
+  function formatoFechaCorta(d) {
+    return String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0") + "/" + d.getFullYear();
+  }
 
   function cargarAgenda() {
     ocultarError("agenda-error");
-    if (!$("cita-fecha").value) $("cita-fecha").value = aFechaISO(new Date());
+    if (!$("agenda-fecha-base").value) $("agenda-fecha-base").value = aFechaISO(agendaFechaBase);
+
+    var inicio = inicioSemanaAgenda(agendaFechaBase);
+    var fin = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + 7);
+    var finSemana = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + 6);
+    $("agenda-rango-semana").textContent = formatoFechaCorta(inicio) + " al " + formatoFechaCorta(finSemana);
 
     return Promise.all([
       restRequest("GET", "clientes", { query: "select=id_cliente,nombre&order=nombre.asc&limit=500" }),
       restRequest("GET", "vehiculos", { query: "select=id_vehiculo,id_cliente,placa,marca,modelo&order=placa.asc&limit=500" }),
       restRequest("GET", "usuarios", { query: "select=id_usuario,nombre&rol=eq.asesor&estado=eq.activo&order=nombre.asc" }),
-      restRequest("GET", "citas", { query: "select=*,clientes(nombre),vehiculos(placa,marca,modelo),asesor:usuarios!citas_id_asesor_fkey(nombre)&order=fecha_hora.asc&limit=200" })
+      restRequest("GET", "citas", { query: "select=*,clientes(nombre),vehiculos(placa,marca,modelo),asesor:usuarios!citas_id_asesor_fkey(nombre)&fecha_hora=gte." + inicio.toISOString() + "&fecha_hora=lt." + fin.toISOString() + "&order=fecha_hora.asc&limit=300" }),
+      restRequest("GET", "citas", { query: "select=*,clientes(nombre),vehiculos(placa,marca,modelo)&estado=in.(cancelada,completada)&order=fecha_hora.desc&limit=30" })
     ]).then(function (r) {
       todosClientesAgenda = r[0] || [];
       todosVehiculosAgenda = r[1] || [];
       var asesores = r[2] || [];
-      var citas = r[3] || [];
+      var citasSemana = r[3] || [];
+      var historial = r[4] || [];
 
       var selCliente = $("cita-cliente");
       var valorPrevioCliente = selCliente.value;
@@ -1537,15 +1595,140 @@ the data-access layer at all.
       });
       if (valorPrevioAsesor) selAsesor.value = valorPrevioAsesor;
 
-      var proximas = citas.filter(function (c) { return c.estado === "agendada" || c.estado === "confirmada"; });
-      var historial = citas.filter(function (c) { return c.estado === "cancelada" || c.estado === "completada"; });
+      renderizarSemanaAgenda(inicio, citasSemana);
 
-      renderizarListaCitas($("lista-citas-proximas"), proximas, true);
       renderizarListaCitas($("lista-citas-historial"), historial, false);
       if (!historial.length) $("lista-citas-historial").innerHTML = "<p class=\"nota-ayuda\">Sin historial todavía.</p>";
-      if (!proximas.length) $("lista-citas-proximas").innerHTML = "<p class=\"nota-ayuda\">No hay citas próximas.</p>";
     });
   }
+
+  function renderizarSemanaAgenda(inicio, citas) {
+    var cont = $("agenda-semana");
+    cont.innerHTML = "";
+    var hoyISO = aFechaISO(new Date());
+    for (var i = 0; i < 7; i++) {
+      var dia = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + i);
+      var diaISO = aFechaISO(dia);
+      var citasDelDia = citas.filter(function (c) { return c.fecha_hora.slice(0, 10) === diaISO; });
+      cont.appendChild(crearColumnaDiaAgenda(dia, diaISO, citasDelDia, diaISO === hoyISO));
+    }
+  }
+
+  function crearColumnaDiaAgenda(dia, diaISO, citasDelDia, esHoy) {
+    var col = document.createElement("div");
+    col.className = "agenda-dia" + (esHoy ? " agenda-dia-hoy" : "");
+
+    var cab = document.createElement("div");
+    cab.className = "agenda-dia-cabecera";
+    var nombreDia = document.createElement("span");
+    nombreDia.className = "agenda-dia-nombre";
+    nombreDia.innerHTML = NOMBRES_DIA_CORTOS[dia.getDay()] + "<br><b>" + String(dia.getDate()).padStart(2, "0") + "/" + String(dia.getMonth() + 1).padStart(2, "0") + "</b>";
+    cab.appendChild(nombreDia);
+    var btnAgregar = document.createElement("button");
+    btnAgregar.type = "button";
+    btnAgregar.className = "agenda-dia-agregar";
+    btnAgregar.textContent = "+";
+    btnAgregar.title = "Agendar turno este día";
+    btnAgregar.addEventListener("click", function () { abrirFormularioCita(diaISO); });
+    cab.appendChild(btnAgregar);
+    col.appendChild(cab);
+
+    var lista = document.createElement("div");
+    lista.className = "agenda-dia-turnos";
+    if (!citasDelDia.length) {
+      lista.innerHTML = "<span class=\"nota-ayuda\">Sin turnos</span>";
+    } else {
+      citasDelDia.forEach(function (c) { lista.appendChild(crearTurnoAgenda(c)); });
+    }
+    col.appendChild(lista);
+    return col;
+  }
+
+  function crearTurnoAgenda(c) {
+    var veh = c.vehiculos;
+    var hora = new Date(c.fecha_hora).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+    var etiquetaEstado = { agendada: "Agendada", confirmada: "Confirmada", cancelada: "Cancelada", completada: "Completada" }[c.estado] || c.estado;
+
+    var turno = document.createElement("div");
+    turno.className = "agenda-turno agenda-turno-" + c.estado;
+
+    var resumen = document.createElement("div");
+    resumen.className = "agenda-turno-resumen";
+    resumen.innerHTML =
+      "<b>" + hora + "</b> " + (c.clientes ? c.clientes.nombre : "Sin cliente") + (veh ? " · " + veh.placa : "") + "<br>" +
+      "<span class=\"fila-detalle\">" + (c.motivo || "—") + " · " + etiquetaEstado + "</span>";
+    resumen.addEventListener("click", function () { acciones.classList.toggle("oculto"); });
+    turno.appendChild(resumen);
+
+    var acciones = document.createElement("div");
+    acciones.className = "agenda-turno-acciones oculto";
+    if (c.estado === "agendada") {
+      var btnConfirmar = document.createElement("button");
+      btnConfirmar.type = "button";
+      btnConfirmar.className = "secundario";
+      btnConfirmar.textContent = "Confirmar";
+      btnConfirmar.addEventListener("click", conManejoDeErrores(function () {
+        return restRequest("PATCH", "citas", { query: "id_cita=eq." + c.id_cita, body: { estado: "confirmada" } }).then(cargarAgenda);
+      }, "agenda-error"));
+      acciones.appendChild(btnConfirmar);
+    }
+    if (c.estado === "agendada" || c.estado === "confirmada") {
+      var btnConvertir = document.createElement("button");
+      btnConvertir.type = "button";
+      btnConvertir.className = "secundario";
+      btnConvertir.textContent = "Convertir en orden";
+      btnConvertir.addEventListener("click", conManejoDeErrores(function () {
+        return restRequest("PATCH", "citas", { query: "id_cita=eq." + c.id_cita, body: { estado: "completada" } }).then(function () {
+          reiniciarFlujoOrden();
+          mostrarPagina("app");
+          if (veh && veh.placa) {
+            $("buscar-placa").value = veh.placa;
+            $("btn-buscar").click();
+          }
+        });
+      }, "agenda-error"));
+      var btnCancelar = document.createElement("button");
+      btnCancelar.type = "button";
+      btnCancelar.className = "secundario";
+      btnCancelar.textContent = "Cancelar";
+      btnCancelar.addEventListener("click", conManejoDeErrores(function () {
+        return restRequest("PATCH", "citas", { query: "id_cita=eq." + c.id_cita, body: { estado: "cancelada" } }).then(cargarAgenda);
+      }, "agenda-error"));
+      acciones.appendChild(btnConvertir);
+      acciones.appendChild(btnCancelar);
+    }
+    turno.appendChild(acciones);
+    return turno;
+  }
+
+  function abrirFormularioCita(fechaISO) {
+    $("tarjeta-form-cita").classList.remove("oculto");
+    $("cita-fecha").value = fechaISO || aFechaISO(agendaFechaBase);
+    $("tarjeta-form-cita").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  $("btn-nuevo-turno").addEventListener("click", function () { abrirFormularioCita(aFechaISO(agendaFechaBase)); });
+  $("btn-cancelar-cita").addEventListener("click", function () { $("tarjeta-form-cita").classList.add("oculto"); });
+
+  $("btn-agenda-hoy").addEventListener("click", conManejoDeErrores(function () {
+    agendaFechaBase = new Date();
+    $("agenda-fecha-base").value = aFechaISO(agendaFechaBase);
+    return cargarAgenda();
+  }, "agenda-error"));
+  $("btn-agenda-anterior").addEventListener("click", conManejoDeErrores(function () {
+    agendaFechaBase = new Date(agendaFechaBase.getFullYear(), agendaFechaBase.getMonth(), agendaFechaBase.getDate() - 7);
+    $("agenda-fecha-base").value = aFechaISO(agendaFechaBase);
+    return cargarAgenda();
+  }, "agenda-error"));
+  $("btn-agenda-siguiente").addEventListener("click", conManejoDeErrores(function () {
+    agendaFechaBase = new Date(agendaFechaBase.getFullYear(), agendaFechaBase.getMonth(), agendaFechaBase.getDate() + 7);
+    $("agenda-fecha-base").value = aFechaISO(agendaFechaBase);
+    return cargarAgenda();
+  }, "agenda-error"));
+  $("agenda-fecha-base").addEventListener("change", conManejoDeErrores(function () {
+    var v = $("agenda-fecha-base").value;
+    if (v) agendaFechaBase = new Date(v + "T00:00:00");
+    return cargarAgenda();
+  }, "agenda-error"));
 
   function actualizarVehiculosDeCitaCliente() {
     var idCliente = $("cita-cliente").value;
@@ -1646,6 +1829,7 @@ the data-access layer at all.
     }).then(function () {
       $("cita-motivo").value = "";
       $("cita-notas").value = "";
+      $("tarjeta-form-cita").classList.add("oculto");
       return cargarAgenda();
     });
   }, "agenda-error"));
