@@ -66,8 +66,10 @@ the data-access layer at all.
     <a href="#" class="nav-link" data-pagina="egreso">💸 Registrar gasto</a>
     <a href="#" class="nav-link oculto" id="nav-contabilidad" data-pagina="contabilidad">📊 Contabilidad</a>
 
-    <div class="nav-seccion">Nómina</div>
+    <div class="nav-seccion">Configuración</div>
     <a href="#" class="nav-link oculto" id="nav-configuracion" data-pagina="configuracion">⚙️ Configuración</a>
+
+    <div class="nav-seccion">Nómina</div>
     <a href="#" class="nav-link oculto" id="nav-nomina" data-pagina="nomina">🧮 Nómina</a>
 
     <div class="nav-seccion">Análisis</div>
@@ -483,8 +485,35 @@ the data-access layer at all.
     </section>
 
     <section id="pantalla-configuracion" class="pagina oculto">
+      <h1>Configuración del taller</h1>
+      <div id="config-error" class="mensaje-error"></div>
+
       <div class="tarjeta">
-        <h1>Configuración del taller</h1>
+        <h2>Datos del taller</h2>
+        <div class="nota-ayuda">Esta información queda lista para usarse en contabilidad y en cotizaciones, facturas y recibos de pago.</div>
+        <label for="taller-nombre">Nombre del taller</label>
+        <input id="taller-nombre" type="text">
+        <label for="taller-nit">NIT</label>
+        <input id="taller-nit" type="text" placeholder="Ej. 900.123.456-7">
+        <label for="taller-direccion">Dirección</label>
+        <input id="taller-direccion" type="text">
+        <label for="taller-telefono">Teléfono</label>
+        <input id="taller-telefono" type="text">
+        <label for="taller-regimen">Régimen tributario</label>
+        <select id="taller-regimen">
+          <option value="Régimen ordinario">Régimen ordinario</option>
+          <option value="Régimen simple de tributación">Régimen simple de tributación (RST)</option>
+        </select>
+        <label for="taller-responsable-iva">¿Responsable de IVA?</label>
+        <select id="taller-responsable-iva">
+          <option value="true">Sí, responsable de IVA</option>
+          <option value="false">No responsable de IVA</option>
+        </select>
+        <button id="btn-guardar-datos-taller">Guardar datos del taller</button>
+        <div id="datos-taller-error" class="mensaje-error"></div>
+      </div>
+
+      <div class="tarjeta">
         <h2>Empleados y salario base</h2>
         <div class="nota-ayuda">Aquí solo se guardan datos fijos (salario base, tipo de contrato). Para procesar un pago usa "Nómina" en el menú — ahí se calcula y liquida cada período sin tocar estos datos.</div>
         <div id="lista-empleados"></div>
@@ -916,7 +945,7 @@ the data-access layer at all.
   // =====================================================================
   var PAGINAS = ["inicio", "app", "clientes", "vehiculos", "proveedores", "personal", "inventario", "contabilidad", "egreso", "configuracion", "nomina", "reportes"];
   var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", clientes: "Clientes", vehiculos: "Vehículos", proveedores: "Proveedores", personal: "Personal", inventario: "Inventario", contabilidad: "Contabilidad", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes" };
-  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", clientes: "clientes-error", vehiculos: "vehiculos-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", contabilidad: "contab-horas-error", egreso: "egreso-error", configuracion: "empleado-error", nomina: "nomina-error", reportes: "reportes-error" };
+  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", clientes: "clientes-error", vehiculos: "vehiculos-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", contabilidad: "contab-horas-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error" };
 
   function mostrarPagina(nombre) {
     if (PAGINAS.indexOf(nombre) === -1) nombre = "inicio";
@@ -1789,14 +1818,24 @@ the data-access layer at all.
   // CONFIGURACIÓN DEL TALLER — empleados (salario base) y préstamos
   // =====================================================================
   function cargarConfiguracion() {
+    ocultarError("config-error");
     return Promise.all([
       restRequest("GET", "empleados", { query: "select=*,usuarios(nombre,rol,correo)&order=creado_en.desc" }),
       restRequest("GET", "usuarios", { query: "select=id_usuario,nombre,rol&estado=eq.activo&order=nombre.asc" }),
-      restRequest("GET", "prestamos", { query: "select=*,empleados(usuarios(nombre))&order=fecha.desc" })
+      restRequest("GET", "prestamos", { query: "select=*,empleados(usuarios(nombre))&order=fecha.desc" }),
+      restRequest("GET", "parametros_taller", { query: "select=nombre_taller,nit,direccion,telefono,regimen_tributario,responsable_iva&id=eq.1" })
     ]).then(function (r) {
       var empleados = r[0] || [];
       var usuarios = r[1] || [];
       var prestamos = r[2] || [];
+      var datosTaller = (r[3] && r[3][0]) || {};
+
+      $("taller-nombre").value = datosTaller.nombre_taller || "";
+      $("taller-nit").value = datosTaller.nit || "";
+      $("taller-direccion").value = datosTaller.direccion || "";
+      $("taller-telefono").value = datosTaller.telefono || "";
+      $("taller-regimen").value = datosTaller.regimen_tributario || "Régimen ordinario";
+      $("taller-responsable-iva").value = datosTaller.responsable_iva === false ? "false" : "true";
 
       var listaEmp = $("lista-empleados");
       listaEmp.innerHTML = empleados.length ? "" : "<p class=\"nota-ayuda\">Todavía no has agregado empleados.</p>";
@@ -1860,6 +1899,31 @@ the data-access layer at all.
       });
     });
   }
+
+  $("btn-guardar-datos-taller").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("datos-taller-error");
+    var nombre = $("taller-nombre").value.trim();
+    var nit = $("taller-nit").value.trim();
+    var direccion = $("taller-direccion").value.trim();
+    var telefono = $("taller-telefono").value.trim();
+    var regimen = $("taller-regimen").value;
+    var responsableIva = $("taller-responsable-iva").value === "true";
+    if (!nombre) {
+      mostrarError("datos-taller-error", "Escribe el nombre del taller.");
+      return;
+    }
+    return restRequest("PATCH", "parametros_taller", {
+      query: "id=eq.1",
+      body: {
+        nombre_taller: nombre,
+        nit: nit || null,
+        direccion: direccion || null,
+        telefono: telefono || null,
+        regimen_tributario: regimen,
+        responsable_iva: responsableIva
+      }
+    }).then(cargarConfiguracion);
+  }, "datos-taller-error"));
 
   $("btn-agregar-empleado").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("empleado-error");
