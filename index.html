@@ -497,48 +497,100 @@ the data-access layer at all.
       </div>
     </section>
 
-    <section id="pantalla-personal" class="pagina oculto">
-      <h1>Personal</h1>
+    <section id="pantalla-personal" class="pagina pagina-ancha oculto">
+      <h1>Gestión de Personal</h1>
+      <div class="nota-ayuda">Alta, edición y listado del personal del taller</div>
       <div id="personal-error" class="mensaje-error"></div>
 
-      <div class="tarjeta">
-        <h2>Vincular cuenta nueva</h2>
-        <div class="nota-ayuda">Primero crea el inicio de sesión (correo y contraseña) en Supabase → Authentication. Copia el ID (UUID) que se genera ahí y pégalo aquí junto con su nombre y rol para activar su acceso.</div>
-        <label for="personal-id">ID de usuario (UUID de Supabase Auth)</label>
-        <input id="personal-id" type="text" placeholder="Ej. 75897980-ef86-4cd3-bdcb-03a63a707b3d">
-        <label for="personal-nombre">Nombre</label>
-        <input id="personal-nombre" type="text">
-        <label for="personal-correo">Correo</label>
-        <input id="personal-correo" type="email">
-        <label for="personal-rol">Rol</label>
-        <select id="personal-rol">
-          <option value="administrador">Administrador</option>
-          <option value="asesor">Asesor</option>
-          <option value="tecnico">Técnico</option>
-          <option value="contador">Contador</option>
-        </select>
-        <button id="btn-vincular-personal">Vincular</button>
-      </div>
+      <button type="button" class="boton-agregar" id="btn-mostrar-form-personal">+ Nuevo personal</button>
 
       <div class="tarjeta">
-        <h2>Agregar personal sin acceso al sistema</h2>
-        <div class="nota-ayuda">Para alguien que no necesita entrar a la aplicación — por ejemplo un patinador o un mensajero. Queda registrado para nómina, pero no puede iniciar sesión.</div>
-        <label for="personal-sin-usuario-nombre">Nombre</label>
-        <input id="personal-sin-usuario-nombre" type="text">
-        <label for="personal-sin-usuario-contrato">Tipo de contrato</label>
-        <select id="personal-sin-usuario-contrato">
-          <option value="ocasional">Ocasional</option>
-          <option value="planta">Planta</option>
-          <option value="aprendiz">Aprendiz</option>
-        </select>
-        <label for="personal-sin-usuario-salario">Salario base (opcional, se puede ajustar luego en Configuración)</label>
-        <input id="personal-sin-usuario-salario" type="number" min="0" step="0.01" value="0">
-        <button id="btn-agregar-personal-sin-usuario">Agregar</button>
+        <div class="tabla-toolbar">
+          <label>Mostrar
+            <select id="personal-tamano">
+              <option value="10">10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="1000">Todos</option>
+            </select>
+            registros
+          </label>
+          <label>Buscar: <input id="personal-buscar" type="text"></label>
+        </div>
+        <div class="tabla-scroll">
+          <table class="tabla-datos" id="tabla-personal">
+            <thead>
+              <tr>
+                <th data-orden="nombre">Nombre</th>
+                <th data-orden="correo">Correo</th>
+                <th data-orden="rol">Rol</th>
+                <th data-orden="estado">Estado</th>
+                <th data-orden="taller">Taller</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="cuerpo-tabla-personal"></tbody>
+          </table>
+        </div>
+        <div class="tabla-pie">
+          <span id="personal-info-paginacion"></span>
+          <span id="personal-paginacion"></span>
+        </div>
       </div>
 
-      <div class="tarjeta">
-        <h2>Personal del taller</h2>
-        <div id="lista-personal"></div>
+      <div class="tarjeta tarjeta-formulario oculto" id="tarjeta-form-personal">
+        <h2 id="personal-form-titulo">Agregar personal</h2>
+        <div class="agenda-controles">
+          <button type="button" class="secundario" id="btn-personal-tab-con-acceso">Con acceso al sistema</button>
+          <button type="button" class="secundario" id="btn-personal-tab-sin-acceso">Sin acceso al sistema</button>
+        </div>
+
+        <div id="personal-form-con-acceso">
+          <div class="nota-ayuda">Primero crea el inicio de sesión (correo y contraseña) en Supabase → Authentication. Copia el ID (UUID) que se genera ahí y pégalo aquí junto con su nombre y rol para activar su acceso.</div>
+          <label for="personal-id">ID de usuario (UUID de Supabase Auth)</label>
+          <input id="personal-id" type="text" placeholder="Ej. 75897980-ef86-4cd3-bdcb-03a63a707b3d">
+          <label for="personal-nombre">Nombre</label>
+          <input id="personal-nombre" type="text">
+          <label for="personal-correo">Correo</label>
+          <input id="personal-correo" type="email">
+          <label for="personal-rol">Rol</label>
+          <select id="personal-rol">
+            <option value="administrador">Administrador</option>
+            <option value="asesor">Asesor</option>
+            <option value="tecnico">Técnico</option>
+            <option value="contador">Contador</option>
+          </select>
+          <label for="personal-estado">Estado</label>
+          <select id="personal-estado">
+            <option value="activo">Activo</option>
+            <option value="inactivo">Inactivo</option>
+          </select>
+          <button id="btn-vincular-personal">Vincular</button>
+        </div>
+
+        <div id="personal-form-sin-acceso" class="oculto">
+          <div class="nota-ayuda">Para alguien que no necesita entrar a la aplicación — por ejemplo un patinador o un mensajero. Queda registrado para nómina, pero no puede iniciar sesión.</div>
+          <label for="personal-sin-usuario-nombre">Nombre</label>
+          <input id="personal-sin-usuario-nombre" type="text">
+          <label for="personal-sin-usuario-contrato">Tipo de contrato</label>
+          <select id="personal-sin-usuario-contrato">
+            <option value="ocasional">Ocasional</option>
+            <option value="planta">Planta</option>
+            <option value="aprendiz">Aprendiz</option>
+          </select>
+          <div id="personal-sin-usuario-salario-grupo">
+            <label for="personal-sin-usuario-salario">Salario base (opcional, se puede ajustar luego en Configuración)</label>
+            <input id="personal-sin-usuario-salario" type="number" min="0" step="0.01" value="0">
+          </div>
+          <label for="personal-sin-usuario-estado">Estado</label>
+          <select id="personal-sin-usuario-estado">
+            <option value="activo">Activo</option>
+            <option value="inactivo">Inactivo</option>
+          </select>
+          <button id="btn-agregar-personal-sin-usuario">Agregar</button>
+        </div>
+
+        <button type="button" class="secundario" id="btn-cancelar-personal">Cancelar</button>
       </div>
     </section>
 
@@ -2206,67 +2258,121 @@ the data-access layer at all.
     });
   }, "proveedor-error"));
 
+  var personalUsuarioEditando = null;
+  var personalEmpleadoEditando = null;
+  var ETIQUETAS_ROL_PERSONAL = { administrador: "Administrador", asesor: "Asesor", tecnico: "Técnico", contador: "Contador" };
+
+  var tablaPersonal = crearTablaGestion({
+    idBuscar: "personal-buscar", idTamano: "personal-tamano", idTabla: "tabla-personal",
+    idCuerpoTabla: "cuerpo-tabla-personal", idInfo: "personal-info-paginacion", idPaginacion: "personal-paginacion",
+    columnas: [
+      { clave: "nombre", obtener: function (p) { return p.nombre; } },
+      { clave: "correo", obtener: function (p) { return p.correo; } },
+      { clave: "rol", obtener: function (p) { return p.rolEtiqueta; } },
+      { clave: "estado", obtener: function (p) { return p.estadoEtiqueta; } },
+      { clave: "taller", obtener: function (p) { return p.taller; } }
+    ],
+    filtro: function (p, texto) {
+      return (p.nombre || "").toLowerCase().indexOf(texto) !== -1 ||
+        (p.correo || "").toLowerCase().indexOf(texto) !== -1 ||
+        (p.rolEtiqueta || "").toLowerCase().indexOf(texto) !== -1;
+    },
+    onEditar: function (p) { cargarPersonalEnFormulario(p); }
+  });
+
   function cargarPersonal() {
     ocultarError("personal-error");
     return Promise.all([
       restRequest("GET", "usuarios", { query: "select=*&order=nombre.asc" }),
-      restRequest("GET", "empleados", { query: "select=id_empleado,nombre,tipo_contrato,activo&id_usuario=is.null&order=nombre.asc" })
+      restRequest("GET", "empleados", { query: "select=id_empleado,nombre,tipo_contrato,activo&id_usuario=is.null&order=nombre.asc" }),
+      restRequest("GET", "parametros_taller", { query: "select=nombre_taller&limit=1" })
     ]).then(function (r) {
       var usuarios = r[0] || [];
       var sinAcceso = r[1] || [];
-      var lista = $("lista-personal");
-      lista.innerHTML = (usuarios.length || sinAcceso.length) ? "" : "<p class=\"nota-ayuda\">No hay personal registrado.</p>";
+      var taller = (r[2] && r[2][0] && r[2][0].nombre_taller) || "Taller Servi Motors";
 
-      usuarios.forEach(function (u) {
-        var fila = document.createElement("div");
-        fila.className = "fila-renglon";
-        fila.innerHTML =
-          "<span>" + u.nombre + " <span class=\"fila-detalle\">(" + u.rol + (u.estado === "activo" ? "" : " · " + u.estado) + ")</span><br>" +
-          "<span class=\"fila-detalle\">" + (u.correo || "—") + "</span></span>";
+      var filas = usuarios.map(function (u) {
+        return {
+          tipo: "usuario", id: u.id_usuario, nombre: u.nombre, correo: u.correo,
+          rol: u.rol, rolEtiqueta: ETIQUETAS_ROL_PERSONAL[u.rol] || u.rol,
+          estado: u.estado, estadoEtiqueta: u.estado === "activo" ? "Activo" : "Inactivo",
+          taller: taller, raw: u
+        };
+      }).concat(sinAcceso.map(function (emp) {
+        return {
+          tipo: "sin_usuario", id: emp.id_empleado, nombre: emp.nombre, correo: null,
+          rol: null, rolEtiqueta: "Sin acceso",
+          estado: emp.activo ? "activo" : "inactivo", estadoEtiqueta: emp.activo ? "Activo" : "Inactivo",
+          taller: taller, raw: emp
+        };
+      }));
 
-        var selRol = document.createElement("select");
-        selRol.style.width = "auto";
-        selRol.style.marginRight = "6px";
-        ["administrador", "asesor", "tecnico", "contador"].forEach(function (r) {
-          var opt = document.createElement("option");
-          opt.value = r; opt.textContent = r;
-          if (r === u.rol) opt.selected = true;
-          selRol.appendChild(opt);
-        });
-        selRol.addEventListener("change", conManejoDeErrores(function () {
-          return restRequest("PATCH", "usuarios", { query: "id_usuario=eq." + u.id_usuario, body: { rol: selRol.value } }).then(cargarPersonal);
-        }, "personal-error"));
-
-        var btnEstado = document.createElement("button");
-        btnEstado.className = "secundario";
-        btnEstado.textContent = u.estado === "activo" ? "Desactivar" : "Activar";
-        btnEstado.addEventListener("click", conManejoDeErrores(function () {
-          return restRequest("PATCH", "usuarios", { query: "id_usuario=eq." + u.id_usuario, body: { estado: u.estado === "activo" ? "inactivo" : "activo" } }).then(cargarPersonal);
-        }, "personal-error"));
-
-        fila.appendChild(selRol);
-        fila.appendChild(btnEstado);
-        lista.appendChild(fila);
-      });
-
-      sinAcceso.forEach(function (emp) {
-        var fila = document.createElement("div");
-        fila.className = "fila-renglon";
-        fila.innerHTML =
-          "<span>" + emp.nombre + " <span class=\"fila-detalle\">(sin acceso al sistema" + (emp.activo ? "" : " · inactivo") + ")</span><br>" +
-          "<span class=\"fila-detalle\">" + emp.tipo_contrato + " · salario se edita en Configuración</span></span>";
-
-        var btnEstado = document.createElement("button");
-        btnEstado.className = "secundario";
-        btnEstado.textContent = emp.activo ? "Desactivar" : "Activar";
-        btnEstado.addEventListener("click", conManejoDeErrores(function () {
-          return restRequest("PATCH", "empleados", { query: "id_empleado=eq." + emp.id_empleado, body: { activo: !emp.activo } }).then(cargarPersonal);
-        }, "personal-error"));
-
-        fila.appendChild(btnEstado);
-        lista.appendChild(fila);
-      });
+      tablaPersonal.establecerDatos(filas);
     });
+  }
+
+  function mostrarFormularioPersonal() { $("tarjeta-form-personal").classList.remove("oculto"); }
+
+  function mostrarTabPersonal(tab) {
+    $("personal-form-con-acceso").classList.toggle("oculto", tab !== "con-acceso");
+    $("personal-form-sin-acceso").classList.toggle("oculto", tab !== "sin-acceso");
+  }
+  $("btn-personal-tab-con-acceso").addEventListener("click", function () { mostrarTabPersonal("con-acceso"); });
+  $("btn-personal-tab-sin-acceso").addEventListener("click", function () { mostrarTabPersonal("sin-acceso"); });
+
+  function reiniciarFormularioPersonal() {
+    personalUsuarioEditando = null;
+    personalEmpleadoEditando = null;
+    $("personal-id").value = "";
+    $("personal-id").disabled = false;
+    $("personal-nombre").value = "";
+    $("personal-correo").value = "";
+    $("personal-rol").value = "administrador";
+    $("personal-estado").value = "activo";
+    $("personal-sin-usuario-nombre").value = "";
+    $("personal-sin-usuario-contrato").value = "ocasional";
+    $("personal-sin-usuario-salario").value = "0";
+    $("personal-sin-usuario-salario-grupo").classList.remove("oculto");
+    $("personal-sin-usuario-estado").value = "activo";
+    $("personal-form-titulo").textContent = "Agregar personal";
+    $("btn-vincular-personal").textContent = "Vincular";
+    $("btn-agregar-personal-sin-usuario").textContent = "Agregar";
+    mostrarTabPersonal("con-acceso");
+    $("tarjeta-form-personal").classList.add("oculto");
+  }
+  $("btn-mostrar-form-personal").addEventListener("click", function () {
+    reiniciarFormularioPersonal();
+    mostrarFormularioPersonal();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+  $("btn-cancelar-personal").addEventListener("click", reiniciarFormularioPersonal);
+
+  function cargarPersonalEnFormulario(p) {
+    mostrarFormularioPersonal();
+    if (p.tipo === "usuario") {
+      personalUsuarioEditando = p.id;
+      personalEmpleadoEditando = null;
+      mostrarTabPersonal("con-acceso");
+      $("personal-id").value = p.id;
+      $("personal-id").disabled = true;
+      $("personal-nombre").value = p.nombre || "";
+      $("personal-correo").value = p.correo || "";
+      $("personal-rol").value = p.rol || "administrador";
+      $("personal-estado").value = p.estado || "activo";
+      $("personal-form-titulo").textContent = "Editar usuario";
+      $("btn-vincular-personal").textContent = "Guardar cambios";
+    } else {
+      personalEmpleadoEditando = p.id;
+      personalUsuarioEditando = null;
+      mostrarTabPersonal("sin-acceso");
+      $("personal-sin-usuario-nombre").value = p.nombre || "";
+      $("personal-sin-usuario-contrato").value = (p.raw && p.raw.tipo_contrato) || "ocasional";
+      $("personal-sin-usuario-salario-grupo").classList.add("oculto");
+      $("personal-sin-usuario-estado").value = p.estado || "activo";
+      $("personal-form-titulo").textContent = "Editar personal sin acceso";
+      $("btn-agregar-personal-sin-usuario").textContent = "Guardar cambios";
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   $("btn-vincular-personal").addEventListener("click", conManejoDeErrores(function () {
@@ -2275,6 +2381,20 @@ the data-access layer at all.
     var nombre = $("personal-nombre").value.trim();
     var correo = $("personal-correo").value.trim();
     var rol = $("personal-rol").value;
+    var estado = $("personal-estado").value;
+
+    if (personalUsuarioEditando) {
+      if (!nombre) {
+        mostrarError("personal-error", "Escribe el nombre.");
+        return;
+      }
+      return restRequest("PATCH", "usuarios", { query: "id_usuario=eq." + personalUsuarioEditando, body: { nombre: nombre, correo: correo || null, rol: rol, estado: estado } })
+        .then(function () {
+          reiniciarFormularioPersonal();
+          return cargarPersonal();
+        });
+    }
+
     var regexUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!regexUuid.test(id)) {
       mostrarError("personal-error", "Pega un ID válido (UUID) desde Supabase Authentication.");
@@ -2284,11 +2404,9 @@ the data-access layer at all.
       mostrarError("personal-error", "Escribe el nombre.");
       return;
     }
-    return restRequest("POST", "usuarios", { body: { id_usuario: id, nombre: nombre, correo: correo || null, rol: rol, estado: "activo" } })
+    return restRequest("POST", "usuarios", { body: { id_usuario: id, nombre: nombre, correo: correo || null, rol: rol, estado: estado } })
       .then(function () {
-        $("personal-id").value = "";
-        $("personal-nombre").value = "";
-        $("personal-correo").value = "";
+        reiniciarFormularioPersonal();
         return cargarPersonal();
       });
   }, "personal-error"));
@@ -2297,15 +2415,24 @@ the data-access layer at all.
     ocultarError("personal-error");
     var nombre = $("personal-sin-usuario-nombre").value.trim();
     var contrato = $("personal-sin-usuario-contrato").value;
-    var salario = parseFloat($("personal-sin-usuario-salario").value) || 0;
+    var estado = $("personal-sin-usuario-estado").value;
     if (!nombre) {
       mostrarError("personal-error", "Escribe el nombre.");
       return;
     }
-    return restRequest("POST", "empleados", { body: { id_usuario: null, nombre: nombre, tipo_contrato: contrato, salario_base: salario } })
+
+    if (personalEmpleadoEditando) {
+      return restRequest("PATCH", "empleados", { query: "id_empleado=eq." + personalEmpleadoEditando, body: { nombre: nombre, tipo_contrato: contrato, activo: estado === "activo" } })
+        .then(function () {
+          reiniciarFormularioPersonal();
+          return cargarPersonal();
+        });
+    }
+
+    var salario = parseFloat($("personal-sin-usuario-salario").value) || 0;
+    return restRequest("POST", "empleados", { body: { id_usuario: null, nombre: nombre, tipo_contrato: contrato, salario_base: salario, activo: estado === "activo" } })
       .then(function () {
-        $("personal-sin-usuario-nombre").value = "";
-        $("personal-sin-usuario-salario").value = "0";
+        reiniciarFormularioPersonal();
         return cargarPersonal();
       });
   }, "personal-error"));
