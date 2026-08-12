@@ -353,11 +353,6 @@ the data-access layer at all.
       <div id="personal-error" class="mensaje-error"></div>
 
       <div class="tarjeta">
-        <h2>Personal del taller</h2>
-        <div id="lista-personal"></div>
-      </div>
-
-      <div class="tarjeta">
         <h2>Vincular cuenta nueva</h2>
         <div class="nota-ayuda">Primero crea el inicio de sesión (correo y contraseña) en Supabase → Authentication. Copia el ID (UUID) que se genera ahí y pégalo aquí junto con su nombre y rol para activar su acceso.</div>
         <label for="personal-id">ID de usuario (UUID de Supabase Auth)</label>
@@ -390,6 +385,11 @@ the data-access layer at all.
         <label for="personal-sin-usuario-salario">Salario base (opcional, se puede ajustar luego en Configuración)</label>
         <input id="personal-sin-usuario-salario" type="number" min="0" step="0.01" value="0">
         <button id="btn-agregar-personal-sin-usuario">Agregar</button>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Personal del taller</h2>
+        <div id="lista-personal"></div>
       </div>
     </section>
 
