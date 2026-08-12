@@ -61,6 +61,10 @@ the data-access layer at all.
     <a href="#" class="nav-link" data-pagina="egreso">💸 Registrar gasto</a>
     <a href="#" class="nav-link oculto" id="nav-contabilidad" data-pagina="contabilidad">📊 Contabilidad</a>
 
+    <div class="nav-seccion">Nómina</div>
+    <a href="#" class="nav-link oculto" id="nav-configuracion" data-pagina="configuracion">⚙️ Configuración</a>
+    <a href="#" class="nav-link oculto" id="nav-nomina" data-pagina="nomina">🧮 Nómina</a>
+
     <button id="btn-logout" class="nav-logout">Cerrar sesión</button>
   </nav>
 
@@ -363,6 +367,78 @@ the data-access layer at all.
       </div>
     </section>
 
+    <section id="pantalla-configuracion" class="pagina oculto">
+      <div class="tarjeta">
+        <h1>Configuración del taller</h1>
+        <h2>Empleados y salario base</h2>
+        <div class="nota-ayuda">Aquí solo se guardan datos fijos (salario base, tipo de contrato). Para procesar un pago usa "Nómina" en el menú — ahí se calcula y liquida cada período sin tocar estos datos.</div>
+        <div id="lista-empleados"></div>
+        <h3>Agregar empleado</h3>
+        <label for="empleado-usuario">Usuario</label>
+        <select id="empleado-usuario"></select>
+        <label for="empleado-salario">Salario base</label>
+        <input id="empleado-salario" type="number" min="0" step="0.01">
+        <label for="empleado-contrato">Tipo de contrato</label>
+        <select id="empleado-contrato">
+          <option value="planta">Planta</option>
+          <option value="ocasional">Ocasional</option>
+          <option value="aprendiz">Aprendiz</option>
+        </select>
+        <button id="btn-agregar-empleado">Agregar</button>
+        <div id="empleado-error" class="mensaje-error"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Préstamos y deducciones</h2>
+        <div id="lista-prestamos"></div>
+        <h3>Registrar préstamo</h3>
+        <label for="prestamo-empleado">Empleado</label>
+        <select id="prestamo-empleado"></select>
+        <label for="prestamo-concepto">Concepto</label>
+        <input id="prestamo-concepto" type="text" placeholder="Ej. Adelanto de nómina">
+        <label for="prestamo-monto">Monto</label>
+        <input id="prestamo-monto" type="number" min="0" step="0.01">
+        <button id="btn-agregar-prestamo">Registrar préstamo</button>
+        <div id="prestamo-error" class="mensaje-error"></div>
+      </div>
+    </section>
+
+    <section id="pantalla-nomina" class="pagina oculto">
+      <div class="tarjeta">
+        <h1>Nómina</h1>
+        <h2>Liquidar período</h2>
+        <div class="nota-ayuda">Calcula comisión (asesor) o variable por hora vendida (técnico) según las órdenes cerradas del período. El salario base viene de Configuración. Revisa antes de registrar — una vez registrada, la liquidación queda fija.</div>
+        <label for="nomina-empleado">Empleado</label>
+        <select id="nomina-empleado"></select>
+        <label for="nomina-inicio">Período — inicio</label>
+        <input id="nomina-inicio" type="date">
+        <label for="nomina-fin">Período — fin</label>
+        <input id="nomina-fin" type="date">
+        <button id="btn-calcular-nomina" class="secundario">Calcular</button>
+        <div id="nomina-error" class="mensaje-error"></div>
+
+        <div id="nomina-resultado" class="oculto">
+          <div id="nomina-resumen" class="info-vehiculo"></div>
+          <label for="nomina-bonificaciones">Bonificaciones (opcional)</label>
+          <input id="nomina-bonificaciones" type="number" min="0" step="0.01" value="0">
+          <label for="nomina-prestamo">Descontar de un préstamo (opcional)</label>
+          <select id="nomina-prestamo"></select>
+          <label for="nomina-deduccion-prestamo">Monto a descontar del préstamo</label>
+          <input id="nomina-deduccion-prestamo" type="number" min="0" step="0.01" value="0">
+          <label for="nomina-otras-deducciones">Otras deducciones</label>
+          <input id="nomina-otras-deducciones" type="number" min="0" step="0.01" value="0">
+          <div id="nomina-total" class="info-vehiculo"></div>
+          <button id="btn-registrar-liquidacion">Registrar liquidación</button>
+          <div id="nomina-exito" class="mensaje-error oculto" style="background:#f0fdf4;color:var(--verde);border-color:#bbf7d0;"></div>
+        </div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Historial de liquidaciones</h2>
+        <div id="lista-liquidaciones"></div>
+      </div>
+    </section>
+
   </main>
 </div>
 
@@ -613,6 +689,8 @@ the data-access layer at all.
         rolActual = filas && filas.length ? filas[0].rol : null;
         var puedeVerContabilidad = rolActual === "administrador" || rolActual === "contador";
         $("nav-contabilidad").classList.toggle("oculto", !puedeVerContabilidad);
+        $("nav-configuracion").classList.toggle("oculto", !puedeVerContabilidad);
+        $("nav-nomina").classList.toggle("oculto", !puedeVerContabilidad);
         var puedeVerInventario = rolActual === "administrador" || rolActual === "asesor" || rolActual === "contador";
         $("nav-inventario").classList.toggle("oculto", !puedeVerInventario);
         return cargarAsesoresYTecnicos();
@@ -625,9 +703,9 @@ the data-access layer at all.
   // =====================================================================
   // NAVEGACIÓN (menú lateral)
   // =====================================================================
-  var PAGINAS = ["inicio", "app", "inventario", "contabilidad", "egreso"];
-  var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", inventario: "Inventario", contabilidad: "Contabilidad", egreso: "Registrar gasto" };
-  var ERROR_POR_PAGINA = { inicio: "inicio-error", inventario: "stock-error", contabilidad: "contab-horas-error", egreso: "egreso-error" };
+  var PAGINAS = ["inicio", "app", "inventario", "contabilidad", "egreso", "configuracion", "nomina"];
+  var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", inventario: "Inventario", contabilidad: "Contabilidad", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina" };
+  var ERROR_POR_PAGINA = { inicio: "inicio-error", inventario: "stock-error", contabilidad: "contab-horas-error", egreso: "egreso-error", configuracion: "empleado-error", nomina: "nomina-error" };
 
   function mostrarPagina(nombre) {
     if (PAGINAS.indexOf(nombre) === -1) nombre = "inicio";
@@ -645,6 +723,8 @@ the data-access layer at all.
     if (nombre === "inicio") promesa = cargarInicio();
     else if (nombre === "inventario") promesa = cargarInventario();
     else if (nombre === "contabilidad") promesa = cargarContabilidad();
+    else if (nombre === "configuracion") promesa = cargarConfiguracion();
+    else if (nombre === "nomina") promesa = cargarNomina();
     else if (nombre === "egreso") {
       ocultarError("egreso-error");
       $("egreso-exito").classList.add("oculto");
@@ -1146,6 +1226,298 @@ the data-access layer at all.
         return cargarContabilidad();
       });
   }, "costo-fijo-error"));
+
+  // =====================================================================
+  // CONFIGURACIÓN DEL TALLER — empleados (salario base) y préstamos
+  // =====================================================================
+  function cargarConfiguracion() {
+    return Promise.all([
+      restRequest("GET", "empleados", { query: "select=*,usuarios(nombre,rol,correo)&order=creado_en.desc" }),
+      restRequest("GET", "usuarios", { query: "select=id_usuario,nombre,rol&estado=eq.activo&order=nombre.asc" }),
+      restRequest("GET", "prestamos", { query: "select=*,empleados(usuarios(nombre))&order=fecha.desc" })
+    ]).then(function (r) {
+      var empleados = r[0] || [];
+      var usuarios = r[1] || [];
+      var prestamos = r[2] || [];
+
+      var listaEmp = $("lista-empleados");
+      listaEmp.innerHTML = empleados.length ? "" : "<p class=\"nota-ayuda\">Todavía no has agregado empleados.</p>";
+      empleados.forEach(function (emp) {
+        var u = emp.usuarios || {};
+        var fila = document.createElement("div");
+        fila.className = "fila-renglon";
+        fila.innerHTML =
+          "<span>" + (u.nombre || "—") + " <span class=\"fila-detalle\">(" + (u.rol || "—") + (emp.activo ? "" : " · inactivo") + ")</span><br>" +
+          "<span class=\"fila-detalle\">" + formatoMoneda(emp.salario_base) + " · " + emp.tipo_contrato + "</span></span>";
+        var btnEditar = document.createElement("button");
+        btnEditar.className = "secundario";
+        btnEditar.textContent = "Editar salario";
+        btnEditar.addEventListener("click", conManejoDeErrores(function () {
+          var nuevo = prompt("Nuevo salario base para " + (u.nombre || "") + ":", emp.salario_base);
+          if (nuevo === null) return;
+          var monto = parseFloat(nuevo);
+          if (!(monto >= 0)) { mostrarError("empleado-error", "Escribe un monto válido."); return; }
+          return restRequest("PATCH", "empleados", { query: "id_empleado=eq." + emp.id_empleado, body: { salario_base: monto } }).then(cargarConfiguracion);
+        }, "empleado-error"));
+        var btnActivo = document.createElement("button");
+        btnActivo.className = "secundario";
+        btnActivo.textContent = emp.activo ? "Desactivar" : "Activar";
+        btnActivo.addEventListener("click", conManejoDeErrores(function () {
+          return restRequest("PATCH", "empleados", { query: "id_empleado=eq." + emp.id_empleado, body: { activo: !emp.activo } }).then(cargarConfiguracion);
+        }, "empleado-error"));
+        fila.appendChild(btnEditar);
+        fila.appendChild(btnActivo);
+        listaEmp.appendChild(fila);
+      });
+
+      var idsConEmpleado = {};
+      empleados.forEach(function (emp) { idsConEmpleado[emp.id_usuario] = true; });
+      var selUsuario = $("empleado-usuario");
+      selUsuario.innerHTML = "";
+      usuarios.filter(function (u) { return !idsConEmpleado[u.id_usuario]; }).forEach(function (u) {
+        var opt = document.createElement("option");
+        opt.value = u.id_usuario; opt.textContent = u.nombre + " (" + u.rol + ")";
+        selUsuario.appendChild(opt);
+      });
+
+      var listaPre = $("lista-prestamos");
+      listaPre.innerHTML = prestamos.length ? "" : "<p class=\"nota-ayuda\">No hay préstamos registrados.</p>";
+      prestamos.forEach(function (p) {
+        var nombreEmp = p.empleados && p.empleados.usuarios ? p.empleados.usuarios.nombre : "—";
+        var fila = document.createElement("div");
+        fila.className = "fila-renglon";
+        fila.innerHTML =
+          "<span>" + nombreEmp + " — " + p.concepto + "<br><span class=\"fila-detalle\">" + p.fecha + " · total " + formatoMoneda(p.monto_total) + "</span></span>" +
+          "<span>" + formatoMoneda(p.saldo_pendiente) + (Number(p.saldo_pendiente) <= 0 ? " (pagado)" : " pendiente") + "</span>";
+        listaPre.appendChild(fila);
+      });
+
+      var selPrestamoEmp = $("prestamo-empleado");
+      selPrestamoEmp.innerHTML = "";
+      empleados.forEach(function (emp) {
+        var u = emp.usuarios || {};
+        var opt = document.createElement("option");
+        opt.value = emp.id_empleado; opt.textContent = u.nombre || "—";
+        selPrestamoEmp.appendChild(opt);
+      });
+    });
+  }
+
+  $("btn-agregar-empleado").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("empleado-error");
+    var idUsuario = $("empleado-usuario").value;
+    var salario = parseFloat($("empleado-salario").value);
+    var contrato = $("empleado-contrato").value;
+    if (!idUsuario) { mostrarError("empleado-error", "No hay usuarios disponibles para agregar (o ya todos son empleados)."); return; }
+    if (!(salario >= 0)) { mostrarError("empleado-error", "Escribe un salario base válido."); return; }
+    return restRequest("POST", "empleados", { body: { id_usuario: idUsuario, salario_base: salario, tipo_contrato: contrato } })
+      .then(function () {
+        $("empleado-salario").value = "";
+        return cargarConfiguracion();
+      });
+  }, "empleado-error"));
+
+  $("btn-agregar-prestamo").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("prestamo-error");
+    var idEmpleado = $("prestamo-empleado").value;
+    var concepto = $("prestamo-concepto").value.trim();
+    var monto = parseFloat($("prestamo-monto").value);
+    if (!idEmpleado) { mostrarError("prestamo-error", "Agrega primero un empleado en Configuración."); return; }
+    if (!concepto || !(monto > 0)) { mostrarError("prestamo-error", "Escribe el concepto y un monto válido."); return; }
+    return restRequest("POST", "prestamos", { body: { id_empleado: idEmpleado, concepto: concepto, monto_total: monto } })
+      .then(function () {
+        $("prestamo-concepto").value = "";
+        $("prestamo-monto").value = "";
+        return cargarConfiguracion();
+      });
+  }, "prestamo-error"));
+
+  // =====================================================================
+  // NÓMINA — liquidar (lee de Configuración, no guarda salarios/porcentajes)
+  // =====================================================================
+  var nominaCalculo = null;
+
+  function primerDiaMes(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+  function ultimoDiaMes(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 0); }
+  function aFechaISO(d) { return d.toISOString().slice(0, 10); }
+
+  function cargarNomina() {
+    ocultarError("nomina-error");
+    $("nomina-resultado").classList.add("oculto");
+    $("nomina-exito").classList.add("oculto");
+    nominaCalculo = null;
+
+    var hoy = new Date();
+    if (!$("nomina-inicio").value) $("nomina-inicio").value = aFechaISO(primerDiaMes(hoy));
+    if (!$("nomina-fin").value) $("nomina-fin").value = aFechaISO(ultimoDiaMes(hoy));
+
+    return Promise.all([
+      restRequest("GET", "empleados", { query: "select=*,usuarios(nombre,rol)&activo=eq.true&order=creado_en.desc" }),
+      restRequest("GET", "liquidaciones", { query: "select=*,empleados(salario_base,usuarios(nombre))&order=periodo_inicio.desc&limit=20" })
+    ]).then(function (r) {
+      var empleados = r[0] || [];
+      var liquidaciones = r[1] || [];
+
+      var sel = $("nomina-empleado");
+      var valorPrevio = sel.value;
+      sel.innerHTML = "";
+      empleados.forEach(function (emp) {
+        var u = emp.usuarios || {};
+        var opt = document.createElement("option");
+        opt.value = emp.id_empleado;
+        opt.setAttribute("data-usuario", emp.id_usuario);
+        opt.setAttribute("data-rol", u.rol || "");
+        opt.setAttribute("data-salario", emp.salario_base);
+        opt.textContent = (u.nombre || "—") + " (" + (u.rol || "—") + ")";
+        sel.appendChild(opt);
+      });
+      if (valorPrevio) sel.value = valorPrevio;
+
+      var lista = $("lista-liquidaciones");
+      lista.innerHTML = liquidaciones.length ? "" : "<p class=\"nota-ayuda\">Todavía no hay liquidaciones registradas.</p>";
+      liquidaciones.forEach(function (l) {
+        var nombreEmp = l.empleados && l.empleados.usuarios ? l.empleados.usuarios.nombre : "—";
+        var fila = document.createElement("div");
+        fila.className = "fila-renglon";
+        fila.innerHTML =
+          "<span>" + nombreEmp + " <span class=\"fila-detalle\">(" + l.periodo_inicio + " a " + l.periodo_fin + ")</span><br>" +
+          "<span class=\"fila-detalle\">Base " + formatoMoneda(l.salario_base) + " + comisiones " + formatoMoneda(l.comisiones) + " + variable " + formatoMoneda(l.variable_tecnico) + " + bonif. " + formatoMoneda(l.bonificaciones) + " − deducciones " + formatoMoneda(Number(l.deduccion_prestamo) + Number(l.otras_deducciones)) + "</span></span>" +
+          "<span><b>" + formatoMoneda(l.total) + "</b></span>";
+        lista.appendChild(fila);
+      });
+    });
+  }
+
+  $("btn-calcular-nomina").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("nomina-error");
+    $("nomina-resultado").classList.add("oculto");
+    $("nomina-exito").classList.add("oculto");
+
+    var selEmp = $("nomina-empleado");
+    var opt = selEmp.options[selEmp.selectedIndex];
+    if (!opt) { mostrarError("nomina-error", "Agrega primero un empleado en Configuración."); return; }
+    var idEmpleado = opt.value;
+    var idUsuario = opt.getAttribute("data-usuario");
+    var rol = opt.getAttribute("data-rol");
+    var salarioBase = parseFloat(opt.getAttribute("data-salario")) || 0;
+    var inicio = $("nomina-inicio").value;
+    var fin = $("nomina-fin").value;
+    if (!inicio || !fin || inicio > fin) { mostrarError("nomina-error", "Escribe un período válido."); return; }
+
+    var finExclusivo = new Date(fin + "T00:00:00");
+    finExclusivo.setDate(finExclusivo.getDate() + 1);
+    var finExclusivoISO = aFechaISO(finExclusivo);
+
+    var filtroRol = rol === "asesor" ? "id_asesor" : (rol === "tecnico" ? "id_tecnico" : null);
+
+    var pedidoOrdenes = filtroRol
+      ? restRequest("GET", "ordenes_trabajo", {
+          query: "select=id_ot,ot_detalle(cantidad,precio_aplicado_cliente,costo_interno,items(tipo))&estado=eq.cerrada&" + filtroRol + "=eq." + idUsuario + "&fecha_cierre=gte." + inicio + "&fecha_cierre=lt." + finExclusivoISO
+        })
+      : Promise.resolve([]);
+
+    var pedidoParametros = restRequest("GET", "parametros_taller", { query: "select=pct_comisiones,pct_variable_tecnico&id=eq.1" });
+    var pedidoPrestamos = restRequest("GET", "prestamos", { query: "select=*&id_empleado=eq." + idEmpleado + "&saldo_pendiente=gt.0&order=fecha.asc" });
+
+    return Promise.all([pedidoOrdenes, pedidoParametros, pedidoPrestamos]).then(function (r) {
+      var ordenes = r[0] || [];
+      var parametros = (r[1] && r[1][0]) || { pct_comisiones: 0, pct_variable_tecnico: 0 };
+      var prestamos = r[2] || [];
+
+      var margenTotal = 0, horas = 0, valorManoObra = 0;
+      ordenes.forEach(function (ot) {
+        (ot.ot_detalle || []).forEach(function (d) {
+          var cant = Number(d.cantidad);
+          margenTotal += cant * Number(d.precio_aplicado_cliente) - cant * Number(d.costo_interno);
+          if (d.items && d.items.tipo === "mano_obra") {
+            horas += cant;
+            valorManoObra += cant * Number(d.precio_aplicado_cliente);
+          }
+        });
+      });
+
+      var comisiones = rol === "asesor" ? margenTotal * Number(parametros.pct_comisiones) : 0;
+      var variableTecnico = rol === "tecnico" ? valorManoObra * Number(parametros.pct_variable_tecnico) : 0;
+
+      nominaCalculo = {
+        id_empleado: idEmpleado,
+        periodo_inicio: inicio,
+        periodo_fin: fin,
+        salario_base: salarioBase,
+        comisiones: comisiones,
+        variable_tecnico: variableTecnico,
+        horas_trabajadas: horas
+      };
+
+      var detalleCalculo = rol === "asesor"
+        ? ("Comisión: " + formatoMoneda(comisiones) + " (margen del período " + formatoMoneda(margenTotal) + " × % comisiones)")
+        : rol === "tecnico"
+        ? ("Variable: " + formatoMoneda(variableTecnico) + " (" + horas.toFixed(2) + " horas vendidas por " + formatoMoneda(valorManoObra) + " × % variable técnico)")
+        : "Este rol no tiene comisión ni variable automática — solo salario base.";
+
+      $("nomina-resumen").innerHTML = "<b>Salario base: " + formatoMoneda(salarioBase) + "</b>" + detalleCalculo;
+
+      var selPrestamo = $("nomina-prestamo");
+      selPrestamo.innerHTML = "<option value=\"\">— Ninguno —</option>";
+      prestamos.forEach(function (p) {
+        var op = document.createElement("option");
+        op.value = p.id_prestamo;
+        op.textContent = p.concepto + " (saldo " + formatoMoneda(p.saldo_pendiente) + ")";
+        selPrestamo.appendChild(op);
+      });
+      $("nomina-bonificaciones").value = 0;
+      $("nomina-deduccion-prestamo").value = 0;
+      $("nomina-otras-deducciones").value = 0;
+      actualizarTotalNomina();
+      $("nomina-resultado").classList.remove("oculto");
+    });
+  }, "nomina-error"));
+
+  function actualizarTotalNomina() {
+    if (!nominaCalculo) return;
+    var bonif = parseFloat($("nomina-bonificaciones").value) || 0;
+    var dedPrestamo = parseFloat($("nomina-deduccion-prestamo").value) || 0;
+    var otras = parseFloat($("nomina-otras-deducciones").value) || 0;
+    var total = nominaCalculo.salario_base + nominaCalculo.comisiones + nominaCalculo.variable_tecnico + bonif - dedPrestamo - otras;
+    $("nomina-total").innerHTML = "<b>Total a liquidar: " + formatoMoneda(total) + "</b>";
+  }
+  ["nomina-bonificaciones", "nomina-deduccion-prestamo", "nomina-otras-deducciones"].forEach(function (id) {
+    $(id).addEventListener("input", actualizarTotalNomina);
+  });
+
+  $("btn-registrar-liquidacion").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("nomina-error");
+    if (!nominaCalculo) return;
+    var idPrestamo = $("nomina-prestamo").value || null;
+    var dedPrestamo = parseFloat($("nomina-deduccion-prestamo").value) || 0;
+    if (dedPrestamo > 0 && !idPrestamo) { mostrarError("nomina-error", "Selecciona el préstamo del que quieres descontar."); return; }
+    if (dedPrestamo <= 0) idPrestamo = null;
+
+    var body = {
+      id_empleado: nominaCalculo.id_empleado,
+      periodo_inicio: nominaCalculo.periodo_inicio,
+      periodo_fin: nominaCalculo.periodo_fin,
+      salario_base: nominaCalculo.salario_base,
+      comisiones: nominaCalculo.comisiones,
+      variable_tecnico: nominaCalculo.variable_tecnico,
+      horas_trabajadas: nominaCalculo.horas_trabajadas,
+      bonificaciones: parseFloat($("nomina-bonificaciones").value) || 0,
+      id_prestamo: idPrestamo,
+      deduccion_prestamo: dedPrestamo,
+      otras_deducciones: parseFloat($("nomina-otras-deducciones").value) || 0,
+      id_usuario_registro: usuarioActualId
+    };
+
+    return restRequest("POST", "liquidaciones", { body: body }).then(function () {
+      $("nomina-exito").textContent = "Liquidación registrada.";
+      $("nomina-exito").classList.remove("oculto");
+      $("nomina-resultado").classList.add("oculto");
+      nominaCalculo = null;
+      $("nomina-inicio").value = "";
+      $("nomina-fin").value = "";
+      return cargarNomina();
+    });
+  }, "nomina-error"));
 
   // =====================================================================
   // ÓRDENES — buscar / crear cliente-vehículo / asignar
