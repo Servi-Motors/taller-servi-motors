@@ -76,6 +76,9 @@ the data-access layer at all.
     <div class="nav-seccion">Análisis</div>
     <a href="#" class="nav-link oculto" id="nav-reportes" data-pagina="reportes">📈 Reportes</a>
 
+    <div class="nav-seccion">Comunicación</div>
+    <a href="#" class="nav-link oculto" id="nav-comunicaciones" data-pagina="comunicaciones">💬 Comunicaciones</a>
+
     <button id="btn-logout" class="nav-logout">Cerrar sesión</button>
   </nav>
 
@@ -854,6 +857,33 @@ the data-access layer at all.
       </div>
     </section>
 
+    <section id="pantalla-comunicaciones" class="pagina pagina-ancha oculto">
+      <h1>Comunicaciones</h1>
+      <div class="nota-ayuda">Cada botón abre WhatsApp con el mensaje ya escrito — tú decides cuándo enviarlo. No se envía nada automáticamente.</div>
+      <div id="comunicaciones-error" class="mensaje-error"></div>
+
+      <div class="tarjeta">
+        <h2>Recordar citas próximas</h2>
+        <div class="nota-ayuda">Citas agendadas o confirmadas para los próximos 7 días.</div>
+        <div id="lista-recordatorios-citas"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Avisar vehículo listo</h2>
+        <div class="nota-ayuda">Órdenes cerradas en los últimos 14 días.</div>
+        <div id="lista-recordatorios-listos"></div>
+      </div>
+
+      <div class="tarjeta tarjeta-formulario">
+        <h2>Mensaje personalizado</h2>
+        <label for="msj-cliente">Cliente</label>
+        <select id="msj-cliente"></select>
+        <label for="msj-texto">Mensaje</label>
+        <textarea id="msj-texto" rows="4" placeholder="Escribe tu mensaje..."></textarea>
+        <button type="button" class="secundario" id="btn-enviar-msj-personalizado">Abrir WhatsApp</button>
+      </div>
+    </section>
+
   </main>
 </div>
 
@@ -898,11 +928,12 @@ the data-access layer at all.
   h2 { font-size: 15px; margin: 0 0 10px; color: var(--gris); }
   h3 { font-size: 13px; margin: 10px 0 6px; text-transform: uppercase; color: var(--gris); letter-spacing: 0.03em; }
   label { display: block; font-size: 13px; font-weight: 600; margin: 8px 0 3px; }
-  input, select {
+  input, select, textarea {
     width: 100%; padding: 10px; font-size: 16px;
     border: 1px solid var(--borde); border-radius: 8px;
     background: var(--tarjeta-bg); color: var(--texto);
   }
+  textarea { font-family: inherit; resize: vertical; }
   button {
     width: 100%; padding: 12px; font-size: 15px; font-weight: 600;
     border: none; border-radius: 8px; background: var(--azul); color: white;
@@ -1191,6 +1222,7 @@ the data-access layer at all.
         $("nav-clientes").classList.toggle("oculto", !puedeVerInventario);
         $("nav-vehiculos").classList.toggle("oculto", !puedeVerInventario);
         $("nav-proveedores").classList.toggle("oculto", !puedeVerInventario);
+        $("nav-comunicaciones").classList.toggle("oculto", !puedeVerInventario);
         $("nav-personal").classList.toggle("oculto", rolActual !== "administrador");
         return cargarAsesoresYTecnicos();
       })
@@ -1202,9 +1234,9 @@ the data-access layer at all.
   // =====================================================================
   // NAVEGACIÓN (menú lateral)
   // =====================================================================
-  var PAGINAS = ["inicio", "app", "agenda", "clientes", "vehiculos", "proveedores", "personal", "inventario", "contabilidad", "egreso", "configuracion", "nomina", "reportes"];
-  var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", agenda: "Agenda", clientes: "Clientes", vehiculos: "Vehículos", proveedores: "Proveedores", personal: "Personal", inventario: "Inventario", contabilidad: "Contabilidad", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes" };
-  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", agenda: "agenda-error", clientes: "clientes-error", vehiculos: "vehiculos-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", contabilidad: "contab-horas-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error" };
+  var PAGINAS = ["inicio", "app", "agenda", "clientes", "vehiculos", "proveedores", "personal", "inventario", "contabilidad", "egreso", "configuracion", "nomina", "reportes", "comunicaciones"];
+  var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", agenda: "Agenda", clientes: "Clientes", vehiculos: "Vehículos", proveedores: "Proveedores", personal: "Personal", inventario: "Inventario", contabilidad: "Contabilidad", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes", comunicaciones: "Comunicaciones" };
+  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", agenda: "agenda-error", clientes: "clientes-error", vehiculos: "vehiculos-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", contabilidad: "contab-horas-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error", comunicaciones: "comunicaciones-error" };
 
   function mostrarPagina(nombre) {
     if (PAGINAS.indexOf(nombre) === -1) nombre = "inicio";
@@ -1231,6 +1263,7 @@ the data-access layer at all.
     else if (nombre === "configuracion") promesa = cargarConfiguracion();
     else if (nombre === "nomina") promesa = cargarNomina();
     else if (nombre === "reportes") promesa = cargarReportes();
+    else if (nombre === "comunicaciones") promesa = cargarComunicaciones();
     else if (nombre === "egreso") {
       ocultarError("egreso-error");
       $("egreso-exito").classList.add("oculto");
@@ -1885,6 +1918,125 @@ the data-access layer at all.
       return cargarAgenda();
     });
   }, "agenda-error"));
+
+  // =====================================================================
+  // COMUNICACIONES — recordatorios por WhatsApp
+  // =====================================================================
+  function telefonoWhatsApp(tel) {
+    var limpio = (tel || "").replace(/\D/g, "");
+    if (!limpio) return null;
+    if (limpio.length === 10) limpio = "57" + limpio;
+    return limpio;
+  }
+
+  function crearBotonWhatsApp(telefono, mensaje) {
+    var numero = telefonoWhatsApp(telefono);
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "secundario";
+    if (!numero) {
+      btn.textContent = "Sin teléfono";
+      btn.disabled = true;
+    } else {
+      btn.textContent = "WhatsApp";
+      btn.addEventListener("click", function () {
+        window.open("https://wa.me/" + numero + "?text=" + encodeURIComponent(mensaje), "_blank");
+      });
+    }
+    return btn;
+  }
+
+  var todosClientesComunicaciones = [];
+
+  function cargarComunicaciones() {
+    ocultarError("comunicaciones-error");
+    var ahora = new Date();
+    var en7dias = new Date(ahora.getTime() + 7 * 24 * 60 * 60 * 1000);
+    var hace14dias = new Date(ahora.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+    return Promise.all([
+      restRequest("GET", "citas", { query: "select=*,clientes(nombre,telefono),vehiculos(placa)&estado=in.(agendada,confirmada)&fecha_hora=gte." + ahora.toISOString() + "&fecha_hora=lte." + en7dias.toISOString() + "&order=fecha_hora.asc&limit=100" }),
+      restRequest("GET", "ordenes_trabajo", { query: "select=id_ot,numero_ot,fecha_cierre,clientes(nombre,telefono),vehiculos(placa,marca,modelo)&estado=eq.cerrada&fecha_cierre=gte." + hace14dias.toISOString() + "&order=fecha_cierre.desc&limit=100" }),
+      restRequest("GET", "clientes", { query: "select=id_cliente,nombre,telefono&order=nombre.asc&limit=500" })
+    ]).then(function (r) {
+      renderizarRecordatoriosCitas(r[0] || []);
+      renderizarRecordatoriosListos(r[1] || []);
+      poblarSelectorClientesComunicaciones(r[2] || []);
+    });
+  }
+
+  function renderizarRecordatoriosCitas(filas) {
+    var cont = $("lista-recordatorios-citas");
+    cont.innerHTML = filas.length ? "" : "<p class=\"nota-ayuda\">No hay citas próximas en los siguientes 7 días.</p>";
+    filas.forEach(function (c) {
+      var veh = c.vehiculos;
+      var cliente = c.clientes;
+      var mensaje = "Hola " + (cliente ? cliente.nombre : "") + ", te recordamos tu cita en Taller Servi Motors el " +
+        formatoFechaHoraCita(c.fecha_hora) + (veh ? " para tu vehículo " + veh.placa : "") +
+        (c.motivo ? " (" + c.motivo + ")" : "") + ". ¡Te esperamos!";
+      var fila = document.createElement("div");
+      fila.className = "fila-renglon";
+      fila.innerHTML =
+        "<span><b>" + (cliente ? cliente.nombre : "Sin cliente") + "</b> <span class=\"fila-detalle\">" + formatoFechaHoraCita(c.fecha_hora) + (veh ? " · " + veh.placa : "") + "</span><br>" +
+        "<span class=\"fila-detalle\">" + (c.motivo || "—") + "</span></span>";
+      fila.appendChild(crearBotonWhatsApp(cliente && cliente.telefono, mensaje));
+      cont.appendChild(fila);
+    });
+  }
+
+  function renderizarRecordatoriosListos(filas) {
+    var cont = $("lista-recordatorios-listos");
+    cont.innerHTML = filas.length ? "" : "<p class=\"nota-ayuda\">No hay órdenes cerradas recientes.</p>";
+    filas.forEach(function (o) {
+      var veh = o.vehiculos;
+      var cliente = o.clientes;
+      var fecha = o.fecha_cierre ? new Date(o.fecha_cierre).toLocaleDateString("es-CO", { day: "numeric", month: "short" }) : "—";
+      var mensaje = "Hola " + (cliente ? cliente.nombre : "") + ", tu vehículo" + (veh ? " " + veh.placa : "") +
+        " ya está listo en Taller Servi Motors. ¡Puedes pasar a recogerlo cuando gustes!";
+      var fila = document.createElement("div");
+      fila.className = "fila-renglon";
+      fila.innerHTML =
+        "<span><b>" + (cliente ? cliente.nombre : "Sin cliente") + "</b> <span class=\"fila-detalle\">OT #" + o.numero_ot + (veh ? " · " + veh.placa : "") + "</span><br>" +
+        "<span class=\"fila-detalle\">Cerrada el " + fecha + "</span></span>";
+      fila.appendChild(crearBotonWhatsApp(cliente && cliente.telefono, mensaje));
+      cont.appendChild(fila);
+    });
+  }
+
+  function poblarSelectorClientesComunicaciones(lista) {
+    todosClientesComunicaciones = lista;
+    var sel = $("msj-cliente");
+    var valorPrevio = sel.value;
+    sel.innerHTML = "";
+    lista.forEach(function (c) {
+      var opt = document.createElement("option");
+      opt.value = c.id_cliente;
+      opt.textContent = c.nombre + (c.telefono ? " — " + c.telefono : " — sin teléfono");
+      sel.appendChild(opt);
+    });
+    if (valorPrevio) sel.value = valorPrevio;
+  }
+
+  $("btn-enviar-msj-personalizado").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("comunicaciones-error");
+    var idCliente = $("msj-cliente").value;
+    var texto = $("msj-texto").value.trim();
+    var cliente = todosClientesComunicaciones.filter(function (c) { return c.id_cliente === idCliente; })[0];
+    if (!cliente) {
+      mostrarError("comunicaciones-error", "Selecciona un cliente.");
+      return;
+    }
+    if (!texto) {
+      mostrarError("comunicaciones-error", "Escribe un mensaje.");
+      return;
+    }
+    var numero = telefonoWhatsApp(cliente.telefono);
+    if (!numero) {
+      mostrarError("comunicaciones-error", "Este cliente no tiene teléfono registrado.");
+      return;
+    }
+    window.open("https://wa.me/" + numero + "?text=" + encodeURIComponent(texto), "_blank");
+  }, "comunicaciones-error"));
 
   // =====================================================================
   // TABLA DE GESTIÓN (búsqueda + orden + paginación) — reutilizable
