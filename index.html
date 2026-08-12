@@ -54,6 +54,7 @@ the data-access layer at all.
 
     <div class="nav-seccion">Gestión</div>
     <a href="#" class="nav-link" data-pagina="app">🧾 Órdenes</a>
+    <a href="#" class="nav-link oculto" id="nav-agenda" data-pagina="agenda">📅 Agenda</a>
     <a href="#" class="nav-link oculto" id="nav-clientes" data-pagina="clientes">🙍 Clientes</a>
     <a href="#" class="nav-link oculto" id="nav-vehiculos" data-pagina="vehiculos">🚗 Vehículos</a>
     <a href="#" class="nav-link oculto" id="nav-proveedores" data-pagina="proveedores">🏭 Proveedores</a>
@@ -262,6 +263,41 @@ the data-access layer at all.
         <button id="btn-volver-items">Volver a la orden</button>
       </div>
 
+    </section>
+
+    <section id="pantalla-agenda" class="pagina oculto">
+      <h1>Agenda</h1>
+      <div id="agenda-error" class="mensaje-error"></div>
+
+      <div class="tarjeta">
+        <h2>Agendar cita</h2>
+        <label for="cita-cliente">Cliente</label>
+        <select id="cita-cliente"></select>
+        <label for="cita-vehiculo">Vehículo (opcional)</label>
+        <select id="cita-vehiculo"><option value="">— No especificar —</option></select>
+        <label for="cita-fecha">Fecha</label>
+        <input id="cita-fecha" type="date">
+        <label for="cita-hora">Hora</label>
+        <input id="cita-hora" type="time" value="08:00">
+        <label for="cita-asesor">Asesor (opcional)</label>
+        <select id="cita-asesor"><option value="">— Sin asignar —</option></select>
+        <label for="cita-motivo">Motivo</label>
+        <input id="cita-motivo" type="text" placeholder="Ej. Cambio de aceite, revisión de frenos">
+        <label for="cita-notas">Notas (opcional)</label>
+        <input id="cita-notas" type="text">
+        <button id="btn-agendar-cita">Agendar cita</button>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Próximas citas</h2>
+        <div class="nota-ayuda">Toca "Convertir en orden" cuando el cliente llegue con el vehículo, para no volver a buscar la placa.</div>
+        <div id="lista-citas-proximas"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Historial</h2>
+        <div id="lista-citas-historial"></div>
+      </div>
     </section>
 
     <section id="pantalla-clientes" class="pagina oculto">
@@ -945,6 +981,7 @@ the data-access layer at all.
         $("nav-reportes").classList.toggle("oculto", !puedeVerContabilidad);
         var puedeVerInventario = rolActual === "administrador" || rolActual === "asesor" || rolActual === "contador";
         $("nav-inventario").classList.toggle("oculto", !puedeVerInventario);
+        $("nav-agenda").classList.toggle("oculto", !puedeVerInventario);
         $("nav-clientes").classList.toggle("oculto", !puedeVerInventario);
         $("nav-vehiculos").classList.toggle("oculto", !puedeVerInventario);
         $("nav-proveedores").classList.toggle("oculto", !puedeVerInventario);
@@ -959,9 +996,9 @@ the data-access layer at all.
   // =====================================================================
   // NAVEGACIÓN (menú lateral)
   // =====================================================================
-  var PAGINAS = ["inicio", "app", "clientes", "vehiculos", "proveedores", "personal", "inventario", "contabilidad", "egreso", "configuracion", "nomina", "reportes"];
-  var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", clientes: "Clientes", vehiculos: "Vehículos", proveedores: "Proveedores", personal: "Personal", inventario: "Inventario", contabilidad: "Contabilidad", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes" };
-  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", clientes: "clientes-error", vehiculos: "vehiculos-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", contabilidad: "contab-horas-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error" };
+  var PAGINAS = ["inicio", "app", "agenda", "clientes", "vehiculos", "proveedores", "personal", "inventario", "contabilidad", "egreso", "configuracion", "nomina", "reportes"];
+  var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", agenda: "Agenda", clientes: "Clientes", vehiculos: "Vehículos", proveedores: "Proveedores", personal: "Personal", inventario: "Inventario", contabilidad: "Contabilidad", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes" };
+  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", agenda: "agenda-error", clientes: "clientes-error", vehiculos: "vehiculos-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", contabilidad: "contab-horas-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error" };
 
   function mostrarPagina(nombre) {
     if (PAGINAS.indexOf(nombre) === -1) nombre = "inicio";
@@ -978,6 +1015,7 @@ the data-access layer at all.
     var promesa = null;
     if (nombre === "inicio") promesa = cargarInicio();
     else if (nombre === "app") promesa = cargarTableroOrdenes();
+    else if (nombre === "agenda") promesa = cargarAgenda();
     else if (nombre === "clientes") promesa = cargarClientes();
     else if (nombre === "vehiculos") promesa = cargarVehiculos();
     else if (nombre === "proveedores") promesa = cargarProveedoresPagina();
@@ -1339,6 +1377,161 @@ the data-access layer at all.
       return cargarInventario();
     });
   }, "stock-error"));
+
+  // =====================================================================
+  // AGENDA — citas
+  // =====================================================================
+  var todosClientesAgenda = [];
+  var todosVehiculosAgenda = [];
+
+  function cargarAgenda() {
+    ocultarError("agenda-error");
+    if (!$("cita-fecha").value) $("cita-fecha").value = aFechaISO(new Date());
+
+    return Promise.all([
+      restRequest("GET", "clientes", { query: "select=id_cliente,nombre&order=nombre.asc&limit=500" }),
+      restRequest("GET", "vehiculos", { query: "select=id_vehiculo,id_cliente,placa,marca,modelo&order=placa.asc&limit=500" }),
+      restRequest("GET", "usuarios", { query: "select=id_usuario,nombre&rol=eq.asesor&estado=eq.activo&order=nombre.asc" }),
+      restRequest("GET", "citas", { query: "select=*,clientes(nombre),vehiculos(placa,marca,modelo),asesor:usuarios!citas_id_asesor_fkey(nombre)&order=fecha_hora.asc&limit=200" })
+    ]).then(function (r) {
+      todosClientesAgenda = r[0] || [];
+      todosVehiculosAgenda = r[1] || [];
+      var asesores = r[2] || [];
+      var citas = r[3] || [];
+
+      var selCliente = $("cita-cliente");
+      var valorPrevioCliente = selCliente.value;
+      selCliente.innerHTML = "";
+      todosClientesAgenda.forEach(function (c) {
+        var opt = document.createElement("option");
+        opt.value = c.id_cliente; opt.textContent = c.nombre;
+        selCliente.appendChild(opt);
+      });
+      if (valorPrevioCliente) selCliente.value = valorPrevioCliente;
+      actualizarVehiculosDeCitaCliente();
+
+      var selAsesor = $("cita-asesor");
+      var valorPrevioAsesor = selAsesor.value;
+      selAsesor.innerHTML = "<option value=\"\">— Sin asignar —</option>";
+      asesores.forEach(function (a) {
+        var opt = document.createElement("option");
+        opt.value = a.id_usuario; opt.textContent = a.nombre;
+        selAsesor.appendChild(opt);
+      });
+      if (valorPrevioAsesor) selAsesor.value = valorPrevioAsesor;
+
+      var proximas = citas.filter(function (c) { return c.estado === "agendada" || c.estado === "confirmada"; });
+      var historial = citas.filter(function (c) { return c.estado === "cancelada" || c.estado === "completada"; });
+
+      renderizarListaCitas($("lista-citas-proximas"), proximas, true);
+      renderizarListaCitas($("lista-citas-historial"), historial, false);
+      if (!historial.length) $("lista-citas-historial").innerHTML = "<p class=\"nota-ayuda\">Sin historial todavía.</p>";
+      if (!proximas.length) $("lista-citas-proximas").innerHTML = "<p class=\"nota-ayuda\">No hay citas próximas.</p>";
+    });
+  }
+
+  function actualizarVehiculosDeCitaCliente() {
+    var idCliente = $("cita-cliente").value;
+    var sel = $("cita-vehiculo");
+    sel.innerHTML = "<option value=\"\">— No especificar —</option>";
+    todosVehiculosAgenda.filter(function (v) { return v.id_cliente === idCliente; }).forEach(function (v) {
+      var opt = document.createElement("option");
+      opt.value = v.id_vehiculo; opt.textContent = v.placa + " — " + [v.marca, v.modelo].filter(Boolean).join(" ");
+      sel.appendChild(opt);
+    });
+  }
+  $("cita-cliente").addEventListener("change", actualizarVehiculosDeCitaCliente);
+
+  function formatoFechaHoraCita(fechaISO) {
+    var d = new Date(fechaISO);
+    return d.toLocaleDateString("es-CO", { weekday: "short", day: "numeric", month: "short" }) + " · " +
+      d.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function renderizarListaCitas(contenedor, filas, mostrarAcciones) {
+    contenedor.innerHTML = "";
+    filas.forEach(function (c) {
+      var veh = c.vehiculos;
+      var fila = document.createElement("div");
+      fila.className = "fila-renglon";
+      var etiquetaEstado = { agendada: "Agendada", confirmada: "Confirmada", cancelada: "Cancelada", completada: "Completada" }[c.estado] || c.estado;
+      fila.innerHTML =
+        "<span><b>" + formatoFechaHoraCita(c.fecha_hora) + "</b> <span class=\"fila-detalle\">(" + etiquetaEstado + ")</span><br>" +
+        (c.clientes ? c.clientes.nombre : "Sin cliente") + (veh ? " · " + veh.placa : "") + "<br>" +
+        "<span class=\"fila-detalle\">" + (c.motivo || "—") + (c.asesor ? " · Asesor: " + c.asesor.nombre : "") + "</span></span>";
+
+      if (mostrarAcciones) {
+        var acciones = document.createElement("span");
+        if (c.estado === "agendada") {
+          var btnConfirmar = document.createElement("button");
+          btnConfirmar.className = "secundario";
+          btnConfirmar.textContent = "Confirmar";
+          btnConfirmar.addEventListener("click", conManejoDeErrores(function () {
+            return restRequest("PATCH", "citas", { query: "id_cita=eq." + c.id_cita, body: { estado: "confirmada" } }).then(cargarAgenda);
+          }, "agenda-error"));
+          acciones.appendChild(btnConfirmar);
+        }
+        var btnConvertir = document.createElement("button");
+        btnConvertir.className = "secundario";
+        btnConvertir.textContent = "Convertir en orden";
+        btnConvertir.addEventListener("click", conManejoDeErrores(function () {
+          return restRequest("PATCH", "citas", { query: "id_cita=eq." + c.id_cita, body: { estado: "completada" } }).then(function () {
+            reiniciarFlujoOrden();
+            mostrarPagina("app");
+            if (veh && veh.placa) {
+              $("buscar-placa").value = veh.placa;
+              $("btn-buscar").click();
+            }
+          });
+        }, "agenda-error"));
+        var btnCancelar = document.createElement("button");
+        btnCancelar.className = "secundario";
+        btnCancelar.textContent = "Cancelar";
+        btnCancelar.addEventListener("click", conManejoDeErrores(function () {
+          return restRequest("PATCH", "citas", { query: "id_cita=eq." + c.id_cita, body: { estado: "cancelada" } }).then(cargarAgenda);
+        }, "agenda-error"));
+        acciones.appendChild(btnConvertir);
+        acciones.appendChild(btnCancelar);
+        fila.appendChild(acciones);
+      }
+      contenedor.appendChild(fila);
+    });
+  }
+
+  $("btn-agendar-cita").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("agenda-error");
+    var idCliente = $("cita-cliente").value;
+    var idVehiculo = $("cita-vehiculo").value || null;
+    var fecha = $("cita-fecha").value;
+    var hora = $("cita-hora").value;
+    var idAsesor = $("cita-asesor").value || null;
+    var motivo = $("cita-motivo").value.trim();
+    var notas = $("cita-notas").value.trim();
+    if (!idCliente) {
+      mostrarError("agenda-error", "Agrega primero un cliente en la pantalla Clientes.");
+      return;
+    }
+    if (!fecha || !hora) {
+      mostrarError("agenda-error", "Escribe la fecha y la hora de la cita.");
+      return;
+    }
+    var fechaHora = new Date(fecha + "T" + hora + ":00").toISOString();
+    return restRequest("POST", "citas", {
+      body: {
+        id_cliente: idCliente,
+        id_vehiculo: idVehiculo,
+        id_asesor: idAsesor,
+        fecha_hora: fechaHora,
+        motivo: motivo || null,
+        notas: notas || null,
+        id_usuario_registro: usuarioActualId
+      }
+    }).then(function () {
+      $("cita-motivo").value = "";
+      $("cita-notas").value = "";
+      return cargarAgenda();
+    });
+  }, "agenda-error"));
 
   // =====================================================================
   // GESTIÓN — Clientes / Vehículos / Proveedores / Personal
