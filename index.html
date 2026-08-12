@@ -375,6 +375,22 @@ the data-access layer at all.
         </select>
         <button id="btn-vincular-personal">Vincular</button>
       </div>
+
+      <div class="tarjeta">
+        <h2>Agregar personal sin acceso al sistema</h2>
+        <div class="nota-ayuda">Para alguien que no necesita entrar a la aplicación — por ejemplo un patinador o un mensajero. Queda registrado para nómina, pero no puede iniciar sesión.</div>
+        <label for="personal-sin-usuario-nombre">Nombre</label>
+        <input id="personal-sin-usuario-nombre" type="text">
+        <label for="personal-sin-usuario-contrato">Tipo de contrato</label>
+        <select id="personal-sin-usuario-contrato">
+          <option value="ocasional">Ocasional</option>
+          <option value="planta">Planta</option>
+          <option value="aprendiz">Aprendiz</option>
+        </select>
+        <label for="personal-sin-usuario-salario">Salario base (opcional, se puede ajustar luego en Configuración)</label>
+        <input id="personal-sin-usuario-salario" type="number" min="0" step="0.01" value="0">
+        <button id="btn-agregar-personal-sin-usuario">Agregar</button>
+      </div>
     </section>
 
     <section id="pantalla-contabilidad" class="pagina oculto">
@@ -1566,10 +1582,16 @@ the data-access layer at all.
 
   function cargarPersonal() {
     ocultarError("personal-error");
-    return restRequest("GET", "usuarios", { query: "select=*&order=nombre.asc" }).then(function (filas) {
+    return Promise.all([
+      restRequest("GET", "usuarios", { query: "select=*&order=nombre.asc" }),
+      restRequest("GET", "empleados", { query: "select=id_empleado,nombre,tipo_contrato,activo&id_usuario=is.null&order=nombre.asc" })
+    ]).then(function (r) {
+      var usuarios = r[0] || [];
+      var sinAcceso = r[1] || [];
       var lista = $("lista-personal");
-      lista.innerHTML = filas.length ? "" : "<p class=\"nota-ayuda\">No hay personal registrado.</p>";
-      filas.forEach(function (u) {
+      lista.innerHTML = (usuarios.length || sinAcceso.length) ? "" : "<p class=\"nota-ayuda\">No hay personal registrado.</p>";
+
+      usuarios.forEach(function (u) {
         var fila = document.createElement("div");
         fila.className = "fila-renglon";
         fila.innerHTML =
@@ -1600,6 +1622,24 @@ the data-access layer at all.
         fila.appendChild(btnEstado);
         lista.appendChild(fila);
       });
+
+      sinAcceso.forEach(function (emp) {
+        var fila = document.createElement("div");
+        fila.className = "fila-renglon";
+        fila.innerHTML =
+          "<span>" + emp.nombre + " <span class=\"fila-detalle\">(sin acceso al sistema" + (emp.activo ? "" : " · inactivo") + ")</span><br>" +
+          "<span class=\"fila-detalle\">" + emp.tipo_contrato + " · salario se edita en Configuración</span></span>";
+
+        var btnEstado = document.createElement("button");
+        btnEstado.className = "secundario";
+        btnEstado.textContent = emp.activo ? "Desactivar" : "Activar";
+        btnEstado.addEventListener("click", conManejoDeErrores(function () {
+          return restRequest("PATCH", "empleados", { query: "id_empleado=eq." + emp.id_empleado, body: { activo: !emp.activo } }).then(cargarPersonal);
+        }, "personal-error"));
+
+        fila.appendChild(btnEstado);
+        lista.appendChild(fila);
+      });
     });
   }
 
@@ -1623,6 +1663,23 @@ the data-access layer at all.
         $("personal-id").value = "";
         $("personal-nombre").value = "";
         $("personal-correo").value = "";
+        return cargarPersonal();
+      });
+  }, "personal-error"));
+
+  $("btn-agregar-personal-sin-usuario").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("personal-error");
+    var nombre = $("personal-sin-usuario-nombre").value.trim();
+    var contrato = $("personal-sin-usuario-contrato").value;
+    var salario = parseFloat($("personal-sin-usuario-salario").value) || 0;
+    if (!nombre) {
+      mostrarError("personal-error", "Escribe el nombre.");
+      return;
+    }
+    return restRequest("POST", "empleados", { body: { id_usuario: null, nombre: nombre, tipo_contrato: contrato, salario_base: salario } })
+      .then(function () {
+        $("personal-sin-usuario-nombre").value = "";
+        $("personal-sin-usuario-salario").value = "0";
         return cargarPersonal();
       });
   }, "personal-error"));
@@ -1822,7 +1879,7 @@ the data-access layer at all.
     return Promise.all([
       restRequest("GET", "empleados", { query: "select=*,usuarios(nombre,rol,correo)&order=creado_en.desc" }),
       restRequest("GET", "usuarios", { query: "select=id_usuario,nombre,rol&estado=eq.activo&order=nombre.asc" }),
-      restRequest("GET", "prestamos", { query: "select=*,empleados(usuarios(nombre))&order=fecha.desc" }),
+      restRequest("GET", "prestamos", { query: "select=*,empleados(nombre,usuarios(nombre))&order=fecha.desc" }),
       restRequest("GET", "parametros_taller", { query: "select=nombre_taller,nit,direccion,telefono,regimen_tributario,responsable_iva&id=eq.1" })
     ]).then(function (r) {
       var empleados = r[0] || [];
@@ -1844,13 +1901,13 @@ the data-access layer at all.
         var fila = document.createElement("div");
         fila.className = "fila-renglon";
         fila.innerHTML =
-          "<span>" + (u.nombre || "—") + " <span class=\"fila-detalle\">(" + (u.rol || "—") + (emp.activo ? "" : " · inactivo") + ")</span><br>" +
+          "<span>" + (u.nombre || emp.nombre || "—") + " <span class=\"fila-detalle\">(" + (u.rol || "sin acceso") + (emp.activo ? "" : " · inactivo") + ")</span><br>" +
           "<span class=\"fila-detalle\">" + formatoMoneda(emp.salario_base) + " · " + emp.tipo_contrato + "</span></span>";
         var btnEditar = document.createElement("button");
         btnEditar.className = "secundario";
         btnEditar.textContent = "Editar salario";
         btnEditar.addEventListener("click", conManejoDeErrores(function () {
-          var nuevo = prompt("Nuevo salario base para " + (u.nombre || "") + ":", emp.salario_base);
+          var nuevo = prompt("Nuevo salario base para " + (u.nombre || emp.nombre || "") + ":", emp.salario_base);
           if (nuevo === null) return;
           var monto = parseFloat(nuevo);
           if (!(monto >= 0)) { mostrarError("empleado-error", "Escribe un monto válido."); return; }
@@ -1880,7 +1937,7 @@ the data-access layer at all.
       var listaPre = $("lista-prestamos");
       listaPre.innerHTML = prestamos.length ? "" : "<p class=\"nota-ayuda\">No hay préstamos registrados.</p>";
       prestamos.forEach(function (p) {
-        var nombreEmp = p.empleados && p.empleados.usuarios ? p.empleados.usuarios.nombre : "—";
+        var nombreEmp = (p.empleados && (p.empleados.nombre || (p.empleados.usuarios && p.empleados.usuarios.nombre))) || "—";
         var fila = document.createElement("div");
         fila.className = "fila-renglon";
         fila.innerHTML =
@@ -1894,7 +1951,7 @@ the data-access layer at all.
       empleados.forEach(function (emp) {
         var u = emp.usuarios || {};
         var opt = document.createElement("option");
-        opt.value = emp.id_empleado; opt.textContent = u.nombre || "—";
+        opt.value = emp.id_empleado; opt.textContent = u.nombre || emp.nombre || "—";
         selPrestamoEmp.appendChild(opt);
       });
     });
@@ -1975,7 +2032,7 @@ the data-access layer at all.
 
     return Promise.all([
       restRequest("GET", "empleados", { query: "select=*,usuarios(nombre,rol)&activo=eq.true&order=creado_en.desc" }),
-      restRequest("GET", "liquidaciones", { query: "select=*,empleados(salario_base,usuarios(nombre))&order=periodo_inicio.desc&limit=20" })
+      restRequest("GET", "liquidaciones", { query: "select=*,empleados(nombre,salario_base,usuarios(nombre))&order=periodo_inicio.desc&limit=20" })
     ]).then(function (r) {
       var empleados = r[0] || [];
       var liquidaciones = r[1] || [];
@@ -1985,12 +2042,13 @@ the data-access layer at all.
       sel.innerHTML = "";
       empleados.forEach(function (emp) {
         var u = emp.usuarios || {};
+        var nombreEmpleado = u.nombre || emp.nombre || "—";
         var opt = document.createElement("option");
         opt.value = emp.id_empleado;
-        opt.setAttribute("data-usuario", emp.id_usuario);
+        opt.setAttribute("data-usuario", emp.id_usuario || "");
         opt.setAttribute("data-rol", u.rol || "");
         opt.setAttribute("data-salario", emp.salario_base);
-        opt.textContent = (u.nombre || "—") + " (" + (u.rol || "—") + ")";
+        opt.textContent = nombreEmpleado + (u.rol ? " (" + u.rol + ")" : " (sin acceso)");
         sel.appendChild(opt);
       });
       if (valorPrevio) sel.value = valorPrevio;
@@ -1998,7 +2056,7 @@ the data-access layer at all.
       var lista = $("lista-liquidaciones");
       lista.innerHTML = liquidaciones.length ? "" : "<p class=\"nota-ayuda\">Todavía no hay liquidaciones registradas.</p>";
       liquidaciones.forEach(function (l) {
-        var nombreEmp = l.empleados && l.empleados.usuarios ? l.empleados.usuarios.nombre : "—";
+        var nombreEmp = (l.empleados && (l.empleados.nombre || (l.empleados.usuarios && l.empleados.usuarios.nombre))) || "—";
         var fila = document.createElement("div");
         fila.className = "fila-renglon";
         fila.innerHTML =
