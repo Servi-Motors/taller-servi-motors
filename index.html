@@ -214,6 +214,7 @@ the data-access layer at all.
         <div id="estado-orden-info" class="nota-ayuda"></div>
         <div id="botones-estado-orden" class="agenda-controles"></div>
         <div id="estado-orden-notificar"></div>
+        <div id="botones-imprimir-orden" class="agenda-controles"></div>
         <div id="autorizacion-pendiente-cont"></div>
 
         <div id="lista-items"></div>
@@ -2999,8 +3000,39 @@ the data-access layer at all.
           "<span>" + nombreEmp + " <span class=\"fila-detalle\">(" + l.periodo_inicio + " a " + l.periodo_fin + ")</span><br>" +
           "<span class=\"fila-detalle\">Base " + formatoMoneda(l.salario_base) + " + comisiones " + formatoMoneda(l.comisiones) + " + variable " + formatoMoneda(l.variable_tecnico) + " + bonif. " + formatoMoneda(l.bonificaciones) + " − deducciones " + formatoMoneda(Number(l.deduccion_prestamo) + Number(l.otras_deducciones)) + "</span></span>" +
           "<span><b>" + formatoMoneda(l.total) + "</b></span>";
+        var btnImprimirRecibo = document.createElement("button");
+        btnImprimirRecibo.type = "button";
+        btnImprimirRecibo.className = "secundario";
+        btnImprimirRecibo.textContent = "Imprimir recibo";
+        btnImprimirRecibo.addEventListener("click", conManejoDeErrores(function () { return imprimirReciboPago(l, nombreEmp); }, "nomina-error"));
+        fila.appendChild(btnImprimirRecibo);
         lista.appendChild(fila);
       });
+    });
+  }
+
+  function imprimirReciboPago(l, nombreEmp) {
+    ocultarError("nomina-error");
+    return obtenerDatosTaller().then(function (taller) {
+      var deducciones = Number(l.deduccion_prestamo) + Number(l.otras_deducciones);
+      var contenido =
+        "<div class=\"datos-doc\">" +
+        "<div class=\"bloque\"><b>Empleado</b>" + nombreEmp + "</div>" +
+        "<div class=\"bloque\"><b>Período</b>" + l.periodo_inicio + " a " + l.periodo_fin + "</div>" +
+        "</div>" +
+        "<table><thead><tr><th>Concepto</th><th>Valor</th></tr></thead><tbody>" +
+        "<tr><td>Salario base</td><td>" + formatoMoneda(l.salario_base) + "</td></tr>" +
+        "<tr><td>Comisiones</td><td>" + formatoMoneda(l.comisiones) + "</td></tr>" +
+        "<tr><td>Variable técnico</td><td>" + formatoMoneda(l.variable_tecnico) + "</td></tr>" +
+        "<tr><td>Bonificaciones</td><td>" + formatoMoneda(l.bonificaciones) + "</td></tr>" +
+        "<tr><td>Deducciones (préstamo + otras)</td><td>−" + formatoMoneda(deducciones) + "</td></tr>" +
+        "</tbody></table>" +
+        "<div class=\"total-final\">Neto pagado: " + formatoMoneda(l.total) + "</div>" +
+        "<div style=\"margin-top:60px;display:flex;justify-content:space-between;\">" +
+        "<div>_____________________<br>Firma taller</div><div>_____________________<br>Firma empleado</div></div>";
+      abrirVentanaImpresion("Recibo de pago — " + nombreEmp, contenido, taller);
+    }).catch(function (err) {
+      mostrarError("nomina-error", "No se pudo preparar el recibo: " + err.message);
     });
   }
 
@@ -3277,6 +3309,14 @@ the data-access layer at all.
         fila.innerHTML =
           "<span>" + c.periodo_inicio + " a " + c.periodo_fin + "<br><span class=\"fila-detalle\">" + c.empleados + " empleado(s) liquidado(s)</span></span>" +
           "<span><b>" + formatoMoneda(c.total) + "</b></span>";
+        var btnImprimirResumen = document.createElement("button");
+        btnImprimirResumen.type = "button";
+        btnImprimirResumen.className = "secundario";
+        btnImprimirResumen.textContent = "Imprimir resumen";
+        btnImprimirResumen.addEventListener("click", conManejoDeErrores(function () {
+          return imprimirResumenNomina(c.periodo_inicio, c.periodo_fin, c.total);
+        }, "reportes-error"));
+        fila.appendChild(btnImprimirResumen);
         tNomina.appendChild(fila);
       });
 
@@ -3302,6 +3342,31 @@ the data-access layer at all.
       });
 
       return cargarProductividadPorMes();
+    });
+  }
+
+  function imprimirResumenNomina(inicio, fin, totalGeneral) {
+    ocultarError("reportes-error");
+    var query = "select=*,empleados(nombre,usuarios(nombre))&periodo_inicio=eq." + inicio + "&periodo_fin=eq." + fin + "&order=creado_en.asc";
+    return Promise.all([
+      restRequest("GET", "liquidaciones", { query: query }),
+      obtenerDatosTaller()
+    ]).then(function (r) {
+      var filas = r[0] || [];
+      var taller = r[1];
+      var filasHtml = filas.map(function (l) {
+        var nombreEmp = (l.empleados && (l.empleados.nombre || (l.empleados.usuarios && l.empleados.usuarios.nombre))) || "—";
+        return "<tr><td>" + nombreEmp + "</td><td>" + formatoMoneda(l.total) + "</td></tr>";
+      }).join("");
+      var contenido =
+        "<div class=\"nota-periodo\">Período: " + inicio + " a " + fin + "</div>" +
+        "<table><thead><tr><th>Empleado</th><th>Total a pagar</th></tr></thead><tbody>" +
+        (filasHtml || "<tr><td colspan=\"2\" style=\"text-align:center;color:#6b7280;\">Sin registros</td></tr>") +
+        "</tbody></table>" +
+        "<div class=\"total-final\">Total del período: " + formatoMoneda(totalGeneral) + "</div>";
+      abrirVentanaImpresion("Cuentas por pagar — Nómina " + inicio + " a " + fin, contenido, taller);
+    }).catch(function (err) {
+      mostrarError("reportes-error", "No se pudo preparar el resumen: " + err.message);
     });
   }
 
@@ -3533,6 +3598,138 @@ the data-access layer at all.
   });
 
   // =====================================================================
+  // IMPRESIÓN — formatos imprimibles con logo del taller
+  // =====================================================================
+  function obtenerDatosTaller() {
+    return restRequest("GET", "parametros_taller", { query: "select=nombre_taller,nit,direccion,telefono,regimen_tributario,responsable_iva&limit=1" })
+      .then(function (r) { return (r && r[0]) || {}; });
+  }
+
+  function abrirVentanaImpresion(titulo, contenidoHtml, datosTaller) {
+    var t = datosTaller || {};
+    var nombreTaller = t.nombre_taller || "Taller Servi Motors";
+    var infoTaller = [t.direccion, t.telefono].filter(Boolean).join(" · ");
+    var infoFiscal = [
+      t.nit ? "NIT: " + t.nit : null,
+      t.regimen_tributario ? "Régimen: " + t.regimen_tributario : null,
+      t.responsable_iva === true ? "Responsable de IVA" : (t.responsable_iva === false ? "No responsable de IVA" : null)
+    ].filter(Boolean).join(" · ");
+
+    var html = "<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"utf-8\"><title>" + titulo + "</title><style>" +
+      "body{font-family:Arial,Helvetica,sans-serif;color:#111827;margin:0;padding:24px;font-size:13px;}" +
+      ".cabecera{display:flex;align-items:center;gap:14px;border-bottom:2px solid #111827;padding-bottom:12px;margin-bottom:16px;}" +
+      ".cabecera img{width:56px;height:56px;object-fit:contain;}" +
+      ".cabecera h1{font-size:18px;margin:0;}" +
+      ".info-taller{font-size:11px;color:#4b5563;margin-top:2px;}" +
+      "h2{font-size:15px;margin:0 0 12px;}" +
+      "table{width:100%;border-collapse:collapse;margin:8px 0;font-size:12px;}" +
+      "th,td{border:1px solid #d1d5db;padding:6px 8px;text-align:left;}" +
+      "th{background:#f3f4f6;}" +
+      ".total-final{font-size:15px;font-weight:700;text-align:right;margin-top:8px;}" +
+      ".datos-doc{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:14px;font-size:12px;}" +
+      ".bloque{min-width:200px;line-height:1.6;}" +
+      ".bloque b{display:block;margin-bottom:2px;}" +
+      ".nota-periodo{color:#4b5563;margin-bottom:10px;}" +
+      ".btn-imprimir{margin-bottom:16px;padding:10px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer;}" +
+      "@media print{.btn-imprimir{display:none;}body{padding:0;}}" +
+      "</style></head><body>" +
+      "<button class=\"btn-imprimir\" onclick=\"window.print()\">Imprimir / Guardar PDF</button>" +
+      "<div class=\"cabecera\">" + (LOGO_TALLER_BASE64 ? "<img src=\"" + LOGO_TALLER_BASE64 + "\" alt=\"Logo\">" : "") +
+      "<div><h1>" + nombreTaller + "</h1>" +
+      "<div class=\"info-taller\">" + infoTaller + "</div>" +
+      "<div class=\"info-taller\">" + infoFiscal + "</div>" +
+      "</div></div>" +
+      "<h2>" + titulo + "</h2>" +
+      contenidoHtml +
+      "</body></html>";
+
+    var ventana = window.open("", "_blank");
+    if (!ventana) {
+      alert("Tu navegador bloqueó la ventana de impresión. Permite ventanas emergentes para este sitio e inténtalo de nuevo.");
+      return;
+    }
+    ventana.document.open();
+    ventana.document.write(html);
+    ventana.document.close();
+  }
+
+  function construirTablaItemsImpresion(items) {
+    var filasHtml = items.map(function (it) {
+      var subtotal = it.cantidad * it.precio_aplicado_cliente;
+      return "<tr><td>" + it.items.nombre + "</td><td>" + it.cantidad + "</td><td>" + formatoMoneda(it.precio_aplicado_cliente) + "</td><td>" + formatoMoneda(subtotal) + "</td></tr>";
+    }).join("");
+    var total = items.reduce(function (acc, it) { return acc + it.cantidad * it.precio_aplicado_cliente; }, 0);
+    return "<table><thead><tr><th>Descripción</th><th>Cant.</th><th>Precio unit.</th><th>Subtotal</th></tr></thead><tbody>" +
+      (filasHtml || "<tr><td colspan=\"4\" style=\"text-align:center;color:#6b7280;\">Sin ítems</td></tr>") +
+      "</tbody></table><div class=\"total-final\">Total: " + formatoMoneda(total) + "</div>";
+  }
+
+  function construirEncabezadoOrdenImpresion(orden) {
+    var c = orden.clientes || {};
+    var v = orden.vehiculos || {};
+    return "<div class=\"datos-doc\">" +
+      "<div class=\"bloque\"><b>Cliente</b>" + (c.nombre || "—") +
+      (c.documento ? "<br>Doc: " + c.documento : "") +
+      (c.telefono ? "<br>Tel: " + c.telefono : "") +
+      (c.direccion ? "<br>" + c.direccion : "") + "</div>" +
+      "<div class=\"bloque\"><b>Vehículo</b>" + (v.placa || "—") +
+      "<br>" + [v.marca, v.modelo, v.anio].filter(Boolean).join(" ") +
+      (v.kilometraje ? "<br>" + v.kilometraje + " km" : "") + "</div>" +
+      "<div class=\"bloque\"><b>Orden</b>OT-" + orden.numero_ot +
+      "<br>Fecha: " + formatoFechaCorta(new Date(orden.fecha_apertura)) +
+      (orden.fecha_cierre ? "<br>Cierre: " + formatoFechaCorta(new Date(orden.fecha_cierre)) : "") + "</div>" +
+      "<div class=\"bloque\"><b>Atendido por</b>" +
+      (orden.asesor ? "Asesor: " + orden.asesor.nombre : "") +
+      (orden.tecnico ? "<br>Técnico: " + orden.tecnico.nombre : "") + "</div>" +
+      "</div>";
+  }
+
+  function imprimirOrdenActual(modo) {
+    ocultarError("item-error");
+    var queryOrden = "select=numero_ot,estado,fecha_apertura,fecha_cierre,clientes(nombre,telefono,direccion,documento),vehiculos(placa,marca,modelo,anio,kilometraje),asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre)&id_ot=eq." + ordenActual.id_ot;
+    var queryItems = "select=cantidad,precio_aplicado_cliente,estado_autorizacion,items(nombre)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
+
+    return Promise.all([
+      restRequest("GET", "ordenes_trabajo", { query: queryOrden }),
+      restRequest("GET", "ot_detalle", { query: queryItems }),
+      obtenerDatosTaller()
+    ]).then(function (r) {
+      var orden = r[0] && r[0][0];
+      var items = r[1] || [];
+      var taller = r[2];
+      if (!orden) {
+        mostrarError("item-error", "No se pudo cargar la orden para imprimir.");
+        return;
+      }
+      var titulo = modo === "factura" ? "Factura — OT-" + orden.numero_ot : "Cotización / Orden de trabajo — OT-" + orden.numero_ot;
+      var contenido = construirEncabezadoOrdenImpresion(orden) + construirTablaItemsImpresion(items);
+      abrirVentanaImpresion(titulo, contenido, taller);
+    }).catch(function (err) {
+      mostrarError("item-error", "No se pudo preparar la impresión: " + err.message);
+    });
+  }
+
+  function renderizarBotonesImprimir() {
+    var cont = $("botones-imprimir-orden");
+    cont.innerHTML = "";
+    var btnCot = document.createElement("button");
+    btnCot.type = "button";
+    btnCot.className = "secundario";
+    btnCot.textContent = "Imprimir cotización / orden";
+    btnCot.addEventListener("click", conManejoDeErrores(function () { return imprimirOrdenActual("cotizacion"); }, "item-error"));
+    cont.appendChild(btnCot);
+
+    if (ordenActual.estado === "cerrada") {
+      var btnFac = document.createElement("button");
+      btnFac.type = "button";
+      btnFac.className = "secundario";
+      btnFac.textContent = "Imprimir factura";
+      btnFac.addEventListener("click", conManejoDeErrores(function () { return imprimirOrdenActual("factura"); }, "item-error"));
+      cont.appendChild(btnFac);
+    }
+  }
+
+  // =====================================================================
   // ÍTEMS DE LA ORDEN
   // =====================================================================
   function mensajeParaEstadoOrden(nuevoEstado) {
@@ -3608,6 +3805,8 @@ the data-access layer at all.
       }, "item-error"));
       cont.appendChild(btnCancelar);
     }
+
+    renderizarBotonesImprimir();
   }
 
   function renderizarAutorizacionPendiente(hayPendientes, monto) {
