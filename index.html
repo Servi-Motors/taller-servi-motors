@@ -124,9 +124,17 @@ the data-access layer at all.
 
     <section id="pantalla-app" class="pagina oculto">
 
+      <h1>Órdenes</h1>
+      <div id="tablero-error" class="mensaje-error"></div>
+      <div class="tarjeta">
+        <h2>Tablero de órdenes</h2>
+        <div class="nota-ayuda">Toca una orden para seguir trabajando en ella. Más recientes primero en cada columna.</div>
+        <div id="tablero-ordenes" class="tablero-ordenes"></div>
+      </div>
+
       <div id="tarjeta-buscar" class="tarjeta">
-        <h1>Abrir Orden de Trabajo</h1>
-        <h2>Paso 1: busca el vehículo por placa</h2>
+        <h2>Abrir nueva orden</h2>
+        <h3>Paso 1: busca el vehículo por placa</h3>
         <label for="buscar-placa">Placa</label>
         <input id="buscar-placa" type="text" placeholder="Ej. ABC123" style="text-transform:uppercase">
         <button id="btn-buscar">Buscar vehículo</button>
@@ -606,6 +614,15 @@ the data-access layer at all.
   .kpi-etiqueta { font-size: 13px; color: var(--gris); margin-top: 4px; }
   .grid-graficos { display: grid; grid-template-columns: 1.3fr 1fr; gap: 12px; }
 
+  .tablero-ordenes { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+  .kanban-columna { background: var(--gris-claro); border-radius: 10px; padding: 8px; min-width: 200px; max-width: 220px; flex-shrink: 0; display: flex; flex-direction: column; }
+  .kanban-columna h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: var(--gris); margin: 0 0 8px; padding: 0 2px; }
+  .kanban-lista { overflow-y: auto; max-height: 420px; display: flex; flex-direction: column; gap: 6px; }
+  .kanban-tarjeta { background: var(--tarjeta-bg); border-radius: 8px; padding: 8px 10px; font-size: 12px; cursor: pointer; border: 1px solid var(--borde); line-height: 1.5; }
+  .kanban-tarjeta:hover { border-color: var(--azul); }
+  .kanban-tarjeta b { display: block; font-size: 13px; }
+  .kanban-vacio { font-size: 12px; color: var(--gris); padding: 4px 2px; }
+
   @media (max-width: 900px) {
     #shell { display: block; }
     #barra-movil {
@@ -774,7 +791,7 @@ the data-access layer at all.
   // =====================================================================
   var PAGINAS = ["inicio", "app", "inventario", "contabilidad", "egreso", "configuracion", "nomina", "reportes"];
   var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", inventario: "Inventario", contabilidad: "Contabilidad", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes" };
-  var ERROR_POR_PAGINA = { inicio: "inicio-error", inventario: "stock-error", contabilidad: "contab-horas-error", egreso: "egreso-error", configuracion: "empleado-error", nomina: "nomina-error", reportes: "reportes-error" };
+  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", inventario: "stock-error", contabilidad: "contab-horas-error", egreso: "egreso-error", configuracion: "empleado-error", nomina: "nomina-error", reportes: "reportes-error" };
 
   function mostrarPagina(nombre) {
     if (PAGINAS.indexOf(nombre) === -1) nombre = "inicio";
@@ -790,6 +807,7 @@ the data-access layer at all.
 
     var promesa = null;
     if (nombre === "inicio") promesa = cargarInicio();
+    else if (nombre === "app") promesa = cargarTableroOrdenes();
     else if (nombre === "inventario") promesa = cargarInventario();
     else if (nombre === "contabilidad") promesa = cargarContabilidad();
     else if (nombre === "configuracion") promesa = cargarConfiguracion();
@@ -844,6 +862,73 @@ the data-access layer at all.
       $(id).classList.add("oculto");
     });
     $("tarjeta-buscar").classList.remove("oculto");
+  }
+
+  // =====================================================================
+  // TABLERO DE ÓRDENES (kanban por estado)
+  // =====================================================================
+  var ESTADOS_TABLERO = [
+    { clave: "pendiente_autorizacion", etiqueta: "Pendiente autorización" },
+    { clave: "abierta", etiqueta: "Abierta" },
+    { clave: "en_proceso", etiqueta: "En proceso" },
+    { clave: "cerrada", etiqueta: "Cerrada" },
+    { clave: "cancelada", etiqueta: "Cancelada" }
+  ];
+
+  function cargarTableroOrdenes() {
+    ocultarError("tablero-error");
+    var query = "select=id_ot,numero_ot,estado,fecha_apertura,vehiculos(placa,marca,modelo),clientes(nombre)," +
+      "asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre)" +
+      "&order=fecha_apertura.desc&limit=100";
+    return restRequest("GET", "ordenes_trabajo", { query: query }).then(function (ordenes) {
+      ordenes = ordenes || [];
+      var contenedor = $("tablero-ordenes");
+      contenedor.innerHTML = "";
+      ESTADOS_TABLERO.forEach(function (col) {
+        var filas = ordenes.filter(function (o) { return o.estado === col.clave; });
+        var divCol = document.createElement("div");
+        divCol.className = "kanban-columna";
+        var h3 = document.createElement("h3");
+        h3.textContent = col.etiqueta + " (" + filas.length + ")";
+        divCol.appendChild(h3);
+        var lista = document.createElement("div");
+        lista.className = "kanban-lista";
+        if (!filas.length) {
+          var vacio = document.createElement("div");
+          vacio.className = "kanban-vacio";
+          vacio.textContent = "Sin órdenes.";
+          lista.appendChild(vacio);
+        }
+        filas.forEach(function (o) {
+          var veh = o.vehiculos || {};
+          var cli = o.clientes || {};
+          var tarjeta = document.createElement("div");
+          tarjeta.className = "kanban-tarjeta";
+          tarjeta.innerHTML =
+            "<b>OT-" + o.numero_ot + " · " + (veh.placa || "—") + "</b>" +
+            (cli.nombre || "—") + "<br>" +
+            "<span class=\"fila-detalle\">" + [veh.marca, veh.modelo].filter(Boolean).join(" ") + "</span><br>" +
+            "<span class=\"fila-detalle\">Técnico: " + (o.tecnico ? o.tecnico.nombre : "—") + "</span><br>" +
+            "<span class=\"fila-detalle\">" + (o.fecha_apertura ? o.fecha_apertura.slice(0, 10) : "") + "</span>";
+          tarjeta.addEventListener("click", conManejoDeErrores(function () {
+            return abrirOrdenExistente(o.id_ot, o.numero_ot);
+          }, "tablero-error"));
+          lista.appendChild(tarjeta);
+        });
+        divCol.appendChild(lista);
+        contenedor.appendChild(divCol);
+      });
+    });
+  }
+
+  function abrirOrdenExistente(idOt, numeroOt) {
+    ordenActual = { id_ot: idOt, numero_ot: numeroOt };
+    ["tarjeta-buscar", "tarjeta-encontrado", "tarjeta-nuevo", "tarjeta-asignar", "tarjeta-exito", "tarjeta-firma", "tarjeta-firma-exito"].forEach(function (id) {
+      $(id).classList.add("oculto");
+    });
+    $("tarjeta-items").classList.remove("oculto");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return cargarItemsDeOrden();
   }
 
   $("btn-inicio-nueva-orden").addEventListener("click", function () {
@@ -1974,6 +2059,7 @@ the data-access layer at all.
       $("tarjeta-asignar").classList.add("oculto");
       $("texto-exito").innerHTML = "✅ Orden <b>OT-" + ordenCreada.numero_ot + "</b> abierta correctamente.";
       $("tarjeta-exito").classList.remove("oculto");
+      cargarTableroOrdenes().catch(function (err) { console.error(err); });
     }).catch(function (err) {
       mostrarError("orden-error", "No se pudo abrir la orden: " + err.message);
     });
@@ -1981,6 +2067,7 @@ the data-access layer at all.
 
   $("btn-otra-orden").addEventListener("click", function () {
     reiniciarFlujoOrden();
+    cargarTableroOrdenes().catch(function (err) { console.error(err); });
     window.scrollTo({ top: 0, behavior: "smooth" });
   });
 
