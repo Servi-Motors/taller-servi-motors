@@ -126,13 +126,13 @@ the data-access layer at all.
 
       <h1>Órdenes</h1>
       <div id="tablero-error" class="mensaje-error"></div>
-      <div class="tarjeta">
+      <div id="tarjeta-tablero-ordenes" class="tarjeta">
         <h2>Tablero de órdenes</h2>
         <div class="nota-ayuda">Toca una orden para seguir trabajando en ella. Más recientes primero en cada columna.</div>
         <div id="tablero-ordenes" class="tablero-ordenes"></div>
       </div>
 
-      <div id="tarjeta-buscar" class="tarjeta">
+      <div id="tarjeta-buscar" class="tarjeta tarjeta-formulario">
         <h2>Abrir nueva orden</h2>
         <h3>Paso 1: busca el vehículo por placa</h3>
         <label for="buscar-placa">Placa</label>
@@ -141,14 +141,14 @@ the data-access layer at all.
         <div id="buscar-error" class="mensaje-error"></div>
       </div>
 
-      <div id="tarjeta-encontrado" class="tarjeta oculto">
+      <div id="tarjeta-encontrado" class="tarjeta tarjeta-formulario oculto">
         <h2>Vehículo encontrado</h2>
         <div id="info-vehiculo-encontrado" class="info-vehiculo"></div>
         <button id="btn-usar-encontrado">Continuar con este vehículo</button>
         <button id="btn-no-es-este" class="secundario">No es este / registrar otro</button>
       </div>
 
-      <div id="tarjeta-nuevo" class="tarjeta oculto">
+      <div id="tarjeta-nuevo" class="tarjeta tarjeta-formulario oculto">
         <h2>Vehículo no registrado — datos del cliente y vehículo</h2>
 
         <h3>Cliente</h3>
@@ -182,7 +182,7 @@ the data-access layer at all.
         <div id="nuevo-error" class="mensaje-error"></div>
       </div>
 
-      <div id="tarjeta-asignar" class="tarjeta oculto">
+      <div id="tarjeta-asignar" class="tarjeta tarjeta-formulario oculto">
         <h2>Paso 2: asigna responsables y abre la orden</h2>
         <label for="select-asesor">Asesor</label>
         <select id="select-asesor"></select>
@@ -192,13 +192,13 @@ the data-access layer at all.
         <div id="orden-error" class="mensaje-error"></div>
       </div>
 
-      <div id="tarjeta-exito" class="tarjeta oculto">
+      <div id="tarjeta-exito" class="tarjeta tarjeta-formulario oculto">
         <div id="texto-exito"></div>
         <button id="btn-ir-items">Agregar ítems a esta orden</button>
         <button id="btn-otra-orden" class="secundario">Abrir otra orden</button>
       </div>
 
-      <div id="tarjeta-items" class="tarjeta oculto">
+      <div id="tarjeta-items" class="tarjeta tarjeta-formulario oculto">
         <h1>Ítems de la orden</h1>
         <h2 id="items-subtitulo"></h2>
         <div id="lista-items"></div>
@@ -234,7 +234,7 @@ the data-access layer at all.
         <button id="btn-ir-firma" class="secundario">Solicitar firma de autorización</button>
       </div>
 
-      <div id="tarjeta-firma" class="tarjeta oculto">
+      <div id="tarjeta-firma" class="tarjeta tarjeta-formulario oculto">
         <h1>Firma de autorización</h1>
         <h2>El cliente autoriza el trabajo antes de que el técnico lo ejecute</h2>
         <div id="firma-resumen" class="info-vehiculo"></div>
@@ -251,7 +251,7 @@ the data-access layer at all.
         <div id="firma-error" class="mensaje-error"></div>
       </div>
 
-      <div id="tarjeta-firma-exito" class="tarjeta oculto">
+      <div id="tarjeta-firma-exito" class="tarjeta tarjeta-formulario oculto">
         <div id="texto-firma-exito"></div>
         <button id="btn-volver-items">Volver a la orden</button>
       </div>
@@ -607,6 +607,24 @@ the data-access layer at all.
 
   #contenido-principal { flex: 1; padding: 22px; min-width: 0; }
   .pagina:not(.pagina-ancha) { max-width: 560px; }
+  .pagina-ancha { max-width: 1500px; }
+  .tarjeta-formulario { max-width: 560px; }
+
+  /* En pantallas anchas (PC / tablet en horizontal), aprovecha el espacio:
+     las páginas de listas y formularios pasan a 2 columnas. */
+  @media (min-width: 1000px) {
+    .pagina:not(.pagina-ancha) {
+      max-width: 1040px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: start;
+      gap: 12px;
+    }
+    .pagina:not(.pagina-ancha) > .tarjeta { margin-bottom: 0; }
+    .pagina:not(.pagina-ancha) > h1,
+    .pagina:not(.pagina-ancha) > .mensaje-error,
+    #tarjeta-tablero-ordenes { grid-column: 1 / -1; }
+  }
 
   .grid-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
   .tarjeta-kpi { background: var(--tarjeta-bg); border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
