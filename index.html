@@ -4819,16 +4819,35 @@ the data-access layer at all.
     return '<span style="color:' + colorEstadoLinea(f.estado_autorizacion) + ';font-weight:600;">' + f.estado_autorizacion + '</span>';
   }
 
+  // Un ítem "pendiente" se puede editar libremente (el cliente todavía no
+  // firmó nada sobre él). Un ítem ya "autorizado" también se puede editar,
+  // pero el cambio lo regresa a "pendiente" — así el sistema pide una firma
+  // nueva antes de darlo por confirmado otra vez. Uno "rechazado" ya no se toca.
   function botonEditarPrecio(f) {
-    if (f.estado_autorizacion !== "pendiente") return "";
+    if (f.estado_autorizacion === "rechazado") return "";
+    var esAdminOAsesor = rolActual === "administrador" || rolActual === "asesor";
+    if (!esAdminOAsesor) return "";
+    var texto = f.estado_autorizacion === "autorizado" ? "Editar precio (pide nueva firma)" : "Editar precio";
     return ' <button type="button" style="width:auto;margin:4px 0 0;padding:4px 8px;font-size:11px;" onclick="window.editarPrecioLinea(\'' +
-      f.id_detalle + '\', ' + f.precio_aplicado_cliente + ')">Editar precio</button>';
+      f.id_detalle + '\', ' + f.precio_aplicado_cliente + ', \'' + f.estado_autorizacion + '\')">' + texto + '</button>';
+  }
+
+  // Igual que arriba: si ya estaba autorizado, "eliminar" no borra de una vez
+  // — primero lo regresa a "pendiente" para pedir una firma nueva. Ya en
+  // pendiente, un segundo clic sí lo elimina de verdad (y devuelve el stock).
+  function botonEliminarLinea(f) {
+    if (f.estado_autorizacion === "rechazado") return "";
+    var esAdminOAsesor = rolActual === "administrador" || rolActual === "asesor";
+    if (!esAdminOAsesor) return "";
+    var texto = f.estado_autorizacion === "autorizado" ? "Quitar (pide nueva firma)" : "Eliminar";
+    return ' <button type="button" style="width:auto;margin:4px 0 0;padding:4px 8px;font-size:11px;color:var(--rojo);" onclick="window.eliminarLineaOrden(\'' +
+      f.id_detalle + '\')">' + texto + '</button>';
   }
 
   function renderizarTablaManoObra(filas) {
     var html = filas.map(function (f) {
       return "<tr><td>" + (f.codigo || "—") + "</td><td>" + f.items.nombre + "</td><td>" + f.cantidad + "</td><td>" + formatoMoneda(f.precio_aplicado_cliente) + "</td>" +
-        "<td>" + celdaDescuentoLinea(f) + "</td><td class=\"celda-numero\">" + formatoMoneda(totalLineaOrden(f)) + "</td><td>" + celdaEstadoLinea(f) + "</td></tr>";
+        "<td>" + celdaDescuentoLinea(f) + "</td><td class=\"celda-numero\">" + formatoMoneda(totalLineaOrden(f)) + "</td><td>" + celdaEstadoLinea(f) + botonEliminarLinea(f) + "</td></tr>";
     }).join("");
     $("cuerpo-mano-obra").innerHTML = html || "<tr><td colspan=\"7\" class=\"tabla-vacia\">Sin ítems de mano de obra todavía.</td></tr>";
   }
@@ -4839,7 +4858,7 @@ the data-access layer at all.
     var html = filas.map(function (f) {
       return "<tr><td>" + (ETIQUETAS_TIPO_ITEM[f.items.tipo] || f.items.tipo) + "</td><td>" + (f.codigo || "—") + "</td><td>" + f.cantidad + "</td><td>" + f.items.nombre + "</td><td>—</td>" +
         "<td>" + formatoMoneda(f.costo_interno) + "</td><td>" + celdaDescuentoLinea(f) + "</td>" +
-        "<td class=\"celda-numero\">" + formatoMoneda(totalLineaOrden(f)) + botonEditarPrecio(f) + "</td><td>" + celdaEstadoLinea(f) + "</td></tr>";
+        "<td class=\"celda-numero\">" + formatoMoneda(totalLineaOrden(f)) + botonEditarPrecio(f) + botonEliminarLinea(f) + "</td><td>" + celdaEstadoLinea(f) + "</td></tr>";
     }).join("");
     $("cuerpo-partes").innerHTML = html || "<tr><td colspan=\"9\" class=\"tabla-vacia\">Sin repuestos ni insumos todavía.</td></tr>";
   }
@@ -4847,7 +4866,7 @@ the data-access layer at all.
   function renderizarTablaExternos(filas) {
     var html = filas.map(function (f) {
       return "<tr><td>" + f.items.nombre + "</td><td>" + formatoMoneda(f.costo_interno) + "</td><td>" + celdaDescuentoLinea(f) + "</td>" +
-        "<td class=\"celda-numero\">" + formatoMoneda(totalLineaOrden(f)) + botonEditarPrecio(f) + "</td><td>" + celdaEstadoLinea(f) + "</td></tr>";
+        "<td class=\"celda-numero\">" + formatoMoneda(totalLineaOrden(f)) + botonEditarPrecio(f) + botonEliminarLinea(f) + "</td><td>" + celdaEstadoLinea(f) + "</td></tr>";
     }).join("");
     $("cuerpo-externos").innerHTML = html || "<tr><td colspan=\"5\" class=\"tabla-vacia\">Sin trabajos externos todavía.</td></tr>";
   }
@@ -5008,7 +5027,7 @@ the data-access layer at all.
             if (!window.confirm("¿Eliminar esta foto de evidencia?")) return;
             return restRequest("DELETE", "evidencias_ot", { query: "id_evidencia=eq." + f.id_evidencia })
               .then(function () { return cargarEvidencias(etapa); });
-          }, "item-error"));
+          }, ERROR_POR_ETAPA_EVIDENCIA[etapa] || "item-error"));
           mini.appendChild(btnEliminar);
         }
         galeria.appendChild(mini);
@@ -5076,7 +5095,10 @@ the data-access layer at all.
     });
   };
 
-  window.editarPrecioLinea = function (idDetalle, precioActual) {
+  // Si el ítem ya estaba autorizado, cambiar el precio lo regresa a
+  // "pendiente" — el sistema vuelve a pedir firma del cliente (in situ o por
+  // WhatsApp) antes de contarlo como confirmado con el nuevo valor.
+  window.editarPrecioLinea = function (idDetalle, precioActual, estadoActual) {
     var nuevo = window.prompt("Nuevo precio para el cliente en esta línea:", precioActual);
     if (nuevo === null) return;
     var nuevoPrecio = parseFloat(nuevo);
@@ -5084,12 +5106,72 @@ the data-access layer at all.
       mostrarError("item-error", "El precio debe ser un número válido.");
       return;
     }
-    restRequest("PATCH", "ot_detalle?id_detalle=eq." + idDetalle, {
-      body: { precio_aplicado_cliente: nuevoPrecio }
-    }).then(function () {
+    if (estadoActual === "autorizado" && !window.confirm("El cliente ya autorizó este ítem con el precio anterior. Al cambiarlo, quedará pendiente de una firma nueva. ¿Continuar?")) {
+      return;
+    }
+    var body = { precio_aplicado_cliente: nuevoPrecio };
+    if (estadoActual === "autorizado") body.estado_autorizacion = "pendiente";
+    restRequest("PATCH", "ot_detalle?id_detalle=eq." + idDetalle, { body: body })
+      .then(function () {
+        return cargarItemsDeOrden();
+      }).catch(function (err) {
+        mostrarError("item-error", "No se pudo actualizar el precio: " + err.message);
+      });
+  };
+
+  // Quitar un ítem "pendiente" lo borra de una vez (el cliente nunca firmó
+  // sobre él, así que no hace falta pedirle nada) y devuelve el stock si
+  // controlaba inventario. Quitar un ítem ya "autorizado" NO lo borra de
+  // inmediato: lo regresa a "pendiente" para pedir una firma nueva primero;
+  // una vez ahí, un segundo clic sí lo elimina del todo.
+  window.eliminarLineaOrden = function (idDetalle) {
+    restRequest("GET", "ot_detalle", {
+      query: "select=id_detalle,id_item,cantidad,estado_autorizacion,items(stock_gestionado)&id_detalle=eq." + idDetalle
+    }).then(function (filas) {
+      var fila = filas && filas[0];
+      if (!fila) throw new Error("No se encontró el ítem.");
+      if (fila.estado_autorizacion === "rechazado") throw new Error("Este ítem ya fue quitado.");
+
+      if (fila.estado_autorizacion === "autorizado") {
+        if (!window.confirm("El cliente ya autorizó este ítem. Se marcará como pendiente para pedirle una firma nueva; si confirma que ya no lo quiere, podrás eliminarlo del todo desde aquí. ¿Continuar?")) {
+          return "cancelado";
+        }
+        return restRequest("PATCH", "ot_detalle", { query: "id_detalle=eq." + idDetalle, body: { estado_autorizacion: "pendiente" } })
+          .then(function () {
+            return restRequest("POST", "historial_ot", {
+              body: { id_ot: ordenActual.id_ot, accion: "Ítem ya autorizado se marcó pendiente para pedir una firma nueva", id_usuario: usuarioActualId }
+            });
+          })
+          .then(function () { return "hecho"; });
+      }
+
+      if (!window.confirm("¿Eliminar este ítem de la orden? Esta acción no se puede deshacer.")) {
+        return "cancelado";
+      }
+      var restaurarStock = (fila.items && fila.items.stock_gestionado)
+        ? restRequest("POST", "movimientos_inventario", {
+            body: {
+              id_item: fila.id_item,
+              tipo: "entrada",
+              cantidad: fila.cantidad,
+              id_ot: ordenActual.id_ot,
+              id_usuario_registro: usuarioActualId
+            }
+          })
+        : Promise.resolve();
+      return restaurarStock
+        .then(function () { return restRequest("DELETE", "ot_detalle", { query: "id_detalle=eq." + idDetalle }); })
+        .then(function () {
+          return restRequest("POST", "historial_ot", {
+            body: { id_ot: ordenActual.id_ot, accion: "Ítem eliminado de la orden (agregado por error)", id_usuario: usuarioActualId }
+          });
+        })
+        .then(function () { return "hecho"; });
+    }).then(function (resultado) {
+      if (resultado === "cancelado") return;
       return cargarItemsDeOrden();
     }).catch(function (err) {
-      mostrarError("item-error", "No se pudo actualizar el precio: " + err.message);
+      mostrarError("item-error", "No se pudo actualizar el ítem: " + err.message);
     });
   };
 
