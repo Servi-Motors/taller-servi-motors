@@ -797,6 +797,16 @@ the data-access layer at all.
           <option value="true">Sí, responsable de IVA</option>
           <option value="false">No responsable de IVA</option>
         </select>
+
+        <h3>Jornada laboral</h3>
+        <div class="nota-ayuda">Se usa para calcular la fecha de entrega estimada según las horas cotizadas (no cuenta horas ni días fuera de este horario).</div>
+        <label for="taller-hora-inicio">Hora de inicio</label>
+        <input id="taller-hora-inicio" type="time">
+        <label for="taller-hora-fin">Hora de fin</label>
+        <input id="taller-hora-fin" type="time">
+        <label><input type="checkbox" id="taller-trabaja-sabado" style="width:auto;"> Trabajamos sábados</label>
+        <label><input type="checkbox" id="taller-trabaja-domingo" style="width:auto;"> Trabajamos domingos</label>
+
         <button id="btn-guardar-datos-taller">Guardar datos del taller</button>
         <div id="datos-taller-error" class="mensaje-error"></div>
       </div>
@@ -2934,7 +2944,7 @@ the data-access layer at all.
       restRequest("GET", "empleados", { query: "select=*,usuarios(nombre,rol,correo)&order=creado_en.desc" }),
       restRequest("GET", "usuarios", { query: "select=id_usuario,nombre,rol&estado=eq.activo&order=nombre.asc" }),
       restRequest("GET", "prestamos", { query: "select=*,empleados(nombre,usuarios(nombre))&order=fecha.desc" }),
-      restRequest("GET", "parametros_taller", { query: "select=nombre_taller,nit,direccion,telefono,regimen_tributario,responsable_iva&id=eq.1" })
+      restRequest("GET", "parametros_taller", { query: "select=nombre_taller,nit,direccion,telefono,regimen_tributario,responsable_iva,hora_inicio_jornada,hora_fin_jornada,trabaja_sabado,trabaja_domingo&id=eq.1" })
     ]).then(function (r) {
       var empleados = r[0] || [];
       var usuarios = r[1] || [];
@@ -2947,6 +2957,10 @@ the data-access layer at all.
       $("taller-telefono").value = datosTaller.telefono || "";
       $("taller-regimen").value = datosTaller.regimen_tributario || "Régimen ordinario";
       $("taller-responsable-iva").value = datosTaller.responsable_iva === false ? "false" : "true";
+      $("taller-hora-inicio").value = (datosTaller.hora_inicio_jornada || "08:00:00").slice(0, 5);
+      $("taller-hora-fin").value = (datosTaller.hora_fin_jornada || "18:00:00").slice(0, 5);
+      $("taller-trabaja-sabado").checked = datosTaller.trabaja_sabado !== false;
+      $("taller-trabaja-domingo").checked = datosTaller.trabaja_domingo === true;
 
       var listaEmp = $("lista-empleados");
       listaEmp.innerHTML = empleados.length ? "" : "<p class=\"nota-ayuda\">Todavía no has agregado empleados.</p>";
@@ -3019,8 +3033,16 @@ the data-access layer at all.
     var telefono = $("taller-telefono").value.trim();
     var regimen = $("taller-regimen").value;
     var responsableIva = $("taller-responsable-iva").value === "true";
+    var horaInicio = $("taller-hora-inicio").value;
+    var horaFin = $("taller-hora-fin").value;
+    var trabajaSabado = $("taller-trabaja-sabado").checked;
+    var trabajaDomingo = $("taller-trabaja-domingo").checked;
     if (!nombre) {
       mostrarError("datos-taller-error", "Escribe el nombre del taller.");
+      return;
+    }
+    if (!horaInicio || !horaFin || horaFin <= horaInicio) {
+      mostrarError("datos-taller-error", "Revisa la jornada laboral: la hora de fin debe ser después de la hora de inicio.");
       return;
     }
     return restRequest("PATCH", "parametros_taller", {
@@ -3031,7 +3053,11 @@ the data-access layer at all.
         direccion: direccion || null,
         telefono: telefono || null,
         regimen_tributario: regimen,
-        responsable_iva: responsableIva
+        responsable_iva: responsableIva,
+        hora_inicio_jornada: horaInicio,
+        hora_fin_jornada: horaFin,
+        trabaja_sabado: trabajaSabado,
+        trabaja_domingo: trabajaDomingo
       }
     }).then(cargarConfiguracion);
   }, "datos-taller-error"));
@@ -3720,8 +3746,73 @@ the data-access layer at all.
   // IMPRESIÓN — formatos imprimibles con logo del taller
   // =====================================================================
   function obtenerDatosTaller() {
-    return restRequest("GET", "parametros_taller", { query: "select=nombre_taller,nit,direccion,telefono,regimen_tributario,responsable_iva,pct_iva&limit=1" })
+    return restRequest("GET", "parametros_taller", { query: "select=nombre_taller,nit,direccion,telefono,regimen_tributario,responsable_iva,pct_iva,hora_inicio_jornada,hora_fin_jornada,trabaja_sabado,trabaja_domingo&limit=1" })
       .then(function (r) { return (r && r[0]) || {}; });
+  }
+
+  // Suma horasACobrar (decimales) a partir de fechaInicio, contando solo dentro
+  // de la jornada laboral configurada (hora de inicio/fin y qué días se trabaja).
+  // Si fechaInicio cae fuera de horario o en un día no laboral, arranca a contar
+  // desde el siguiente inicio de jornada válido.
+  function sumarHorasLaborales(fechaInicio, horasACobrar, taller) {
+    var horaInicioStr = (taller.hora_inicio_jornada || "08:00:00").slice(0, 5);
+    var horaFinStr = (taller.hora_fin_jornada || "18:00:00").slice(0, 5);
+    var hIni = parseInt(horaInicioStr.split(":")[0], 10), mIni = parseInt(horaInicioStr.split(":")[1], 10);
+    var hFin = parseInt(horaFinStr.split(":")[0], 10), mFin = parseInt(horaFinStr.split(":")[1], 10);
+    var trabajaSabado = taller.trabaja_sabado !== false;
+    var trabajaDomingo = taller.trabaja_domingo === true;
+
+    if (hFin * 60 + mFin <= hIni * 60 + mIni) return null; // jornada mal configurada
+
+    function esDiaLaboral(d) {
+      var dow = d.getDay(); // 0=domingo, 6=sábado
+      if (dow === 0) return trabajaDomingo;
+      if (dow === 6) return trabajaSabado;
+      return true;
+    }
+    function inicioJornada(d) { var r = new Date(d); r.setHours(hIni, mIni, 0, 0); return r; }
+    function finJornada(d) { var r = new Date(d); r.setHours(hFin, mFin, 0, 0); return r; }
+
+    // Avanza el cursor hasta el próximo momento dentro de un día y horario laboral.
+    function avanzarAJornadaValida(d) {
+      var r = new Date(d);
+      var guard = 0;
+      while (guard < 3650) {
+        guard++;
+        if (!esDiaLaboral(r)) {
+          r.setDate(r.getDate() + 1);
+          r.setHours(hIni, mIni, 0, 0);
+          continue;
+        }
+        if (r < inicioJornada(r)) { r = inicioJornada(r); }
+        if (r >= finJornada(r)) {
+          r.setDate(r.getDate() + 1);
+          r.setHours(hIni, mIni, 0, 0);
+          continue;
+        }
+        return r;
+      }
+      return r;
+    }
+
+    var restanteMin = Math.max(0, horasACobrar) * 60;
+    var cursor = avanzarAJornadaValida(fechaInicio);
+    var guard = 0;
+    while (restanteMin > 0 && guard < 3650) {
+      guard++;
+      var finHoy = finJornada(cursor);
+      var disponibleHoyMin = (finHoy.getTime() - cursor.getTime()) / 60000;
+      if (restanteMin <= disponibleHoyMin) {
+        cursor = new Date(cursor.getTime() + restanteMin * 60000);
+        restanteMin = 0;
+      } else {
+        restanteMin -= disponibleHoyMin;
+        cursor.setDate(cursor.getDate() + 1);
+        cursor.setHours(hIni, mIni, 0, 0);
+        cursor = avanzarAJornadaValida(cursor);
+      }
+    }
+    return cursor;
   }
 
   // Convierte un monto en pesos a su forma escrita en español (para el
@@ -3851,7 +3942,11 @@ the data-access layer at all.
     ventana.document.close();
   }
 
-  function construirEncabezadoDocImpresion(orden, modo) {
+  function formatoFechaHoraCorta(d) {
+    return formatoFechaCorta(d) + " " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  }
+
+  function construirEncabezadoDocImpresion(orden, modo, fechaEntregaEstimada) {
     var c = orden.clientes || {};
     var v = orden.vehiculos || {};
     var esFactura = modo === "factura";
@@ -3860,9 +3955,9 @@ the data-access layer at all.
       "<br>Fecha: " + formatoFechaCorta(new Date(orden.fecha_apertura)) +
       (esFactura ? "<br>Forma de pago: Contado" : "") +
       (orden.fecha_cierre ? "<br>Cierre: " + formatoFechaCorta(new Date(orden.fecha_cierre)) : "") + "</div>" +
-      "<div class=\"bloque\"><b>Atendido por</b>" +
-      (orden.asesor ? "Asesor: " + orden.asesor.nombre : "—") +
-      (orden.tecnico ? "<br>Técnico: " + orden.tecnico.nombre : "") + "</div>" +
+      "<div class=\"bloque\"><b>Asesor</b>" +
+      (orden.asesor ? orden.asesor.nombre : "—") +
+      (fechaEntregaEstimada ? "<br><b style=\"margin-top:6px;\">Entrega estimada</b>" + formatoFechaHoraCorta(fechaEntregaEstimada) : "") + "</div>" +
       "</div>" +
       "<div class=\"fila-datos-ancha\"><b>Datos del cliente</b>" +
       [c.nombre || "—", c.documento ? "Cédula/NIT: " + c.documento : null, c.telefono ? "Tel: " + c.telefono : null, c.direccion || null]
@@ -3940,7 +4035,7 @@ the data-access layer at all.
 
   function imprimirOrdenActual(modo) {
     ocultarError("item-error");
-    var queryOrden = "select=numero_ot,estado,fecha_apertura,fecha_cierre,diagnostico,clientes(nombre,telefono,direccion,documento),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje),asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre)&id_ot=eq." + ordenActual.id_ot;
+    var queryOrden = "select=numero_ot,estado,fecha_apertura,fecha_cierre,diagnostico,clientes(nombre,telefono,direccion,documento),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje),asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre)&id_ot=eq." + ordenActual.id_ot;
     var queryItems = "select=cantidad,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
 
     return Promise.all([
@@ -3959,8 +4054,16 @@ the data-access layer at all.
       var itemsPartes = items.filter(function (it) { return it.items.tipo === "repuesto" || it.items.tipo === "insumo"; });
       var itemsExternos = items.filter(function (it) { return it.items.tipo === "trabajo_externo"; });
 
+      // Fecha de entrega estimada = fecha y hora de ingreso + suma de las horas
+      // de mano de obra cotizadas, contando solo dentro de la jornada laboral
+      // configurada en Configuración (no cuenta horas ni días fuera de horario).
+      var totalHorasMO = itemsMO.reduce(function (a, it) { return a + Number(it.cantidad); }, 0);
+      var fechaEntregaEstimada = (totalHorasMO > 0 && !orden.fecha_cierre)
+        ? sumarHorasLaborales(new Date(orden.fecha_apertura), totalHorasMO, taller)
+        : null;
+
       var titulo = modo === "factura" ? "Factura — OT-" + orden.numero_ot : "Presupuesto / Cotización — OT-" + orden.numero_ot;
-      var contenido = construirEncabezadoDocImpresion(orden, modo) +
+      var contenido = construirEncabezadoDocImpresion(orden, modo, fechaEntregaEstimada) +
         construirTablaManoObraImpresion(itemsMO) +
         construirTablaPartesImpresion(itemsPartes) +
         construirTablaExternosImpresion(itemsExternos) +
