@@ -327,7 +327,7 @@ the data-access layer at all.
             <tbody id="cuerpo-externos"></tbody>
             <tfoot>
               <tr class="fila-agregar">
-                <td><input id="ex-nombre" type="text" placeholder="Ej. Servicio de grúa"></td>
+                <td><input id="ex-nombre" type="text" placeholder="Ej. Servicio de grúa" list="lista-trabajos-externos" autocomplete="off"><datalist id="lista-trabajos-externos"></datalist></td>
                 <td><input id="ex-costo" type="number" min="0" step="0.01"></td>
                 <td><input id="ex-descuento" type="number" min="0" max="100" step="0.01" value="0"></td>
                 <td colspan="2"><button type="button" id="btn-agregar-externo">+ Agregar</button></td>
@@ -1536,7 +1536,12 @@ the data-access layer at all.
     });
     $("tarjeta-items").classList.remove("oculto");
     window.scrollTo({ top: 0, behavior: "smooth" });
-    return cargarItemsDeOrden();
+    // Estos dos pasos son indispensables antes de poder agregar ítems: sin ellos
+    // "Agregar mano de obra" falla (precio no cargado) y el selector de stock
+    // queda vacío. Antes solo se ejecutaban al crear una orden desde cero; al
+    // abrir una orden ya existente desde el tablero, quedaban sin ejecutar.
+    reiniciarSelectorStockPartes();
+    return Promise.all([cargarPrecioManoObraActual(), cargarItemsStockPara($("pa-tipo").value), cargarCatalogoTrabajosExternos()]).then(cargarItemsDeOrden);
   }
 
   $("btn-inicio-nueva-orden").addEventListener("click", function () {
@@ -4545,9 +4550,12 @@ the data-access layer at all.
     $("pa-costo").disabled = false;
   }
 
+  // Lista para elegir un repuesto/insumo ya usado antes, en vez de escribirlo
+  // de nuevo cada vez. Incluye tanto los que llevan control de stock (dice
+  // cuánto hay) como los que no (solo quedaron guardados de una orden anterior).
   function cargarItemsStockPara(tipo) {
     return restRequest("GET", "items", {
-      query: "select=id_item,nombre,costo,stock_actual&stock_gestionado=eq.true&tipo=eq." + tipo + "&order=nombre.asc"
+      query: "select=id_item,nombre,costo,stock_actual,stock_gestionado&tipo=eq." + tipo + "&order=nombre.asc"
     }).then(function (items) {
       itemsStockDisponibles = items || [];
       var sel = $("pa-stock");
@@ -4555,11 +4563,36 @@ the data-access layer at all.
       itemsStockDisponibles.forEach(function (it) {
         var opt = document.createElement("option");
         opt.value = it.id_item;
-        opt.textContent = it.nombre + " (hay " + it.stock_actual + ")";
+        opt.textContent = it.nombre + (it.stock_gestionado ? " (hay " + it.stock_actual + ")" : " (sin stock controlado)");
         sel.appendChild(opt);
       });
     });
   }
+
+  // Igual que arriba, pero para trabajos externos (grúa, pintura, etc.), que
+  // no manejan stock: se muestra como sugerencia al escribir el nombre.
+  var trabajosExternosCache = [];
+
+  function cargarCatalogoTrabajosExternos() {
+    return restRequest("GET", "items", {
+      query: "select=id_item,nombre,costo&tipo=eq.trabajo_externo&order=nombre.asc"
+    }).then(function (items) {
+      trabajosExternosCache = items || [];
+      var lista = $("lista-trabajos-externos");
+      lista.innerHTML = "";
+      trabajosExternosCache.forEach(function (it) {
+        var opt = document.createElement("option");
+        opt.value = it.nombre;
+        lista.appendChild(opt);
+      });
+    });
+  }
+
+  $("ex-nombre").addEventListener("input", function () {
+    var texto = $("ex-nombre").value.trim();
+    var match = trabajosExternosCache.find(function (it) { return it.nombre === texto; });
+    if (match) $("ex-costo").value = match.costo;
+  });
 
   var precioHoraEquilibrioActual = null;
 
@@ -4587,7 +4620,7 @@ the data-access layer at all.
     $("tarjeta-exito").classList.add("oculto");
     $("tarjeta-items").classList.remove("oculto");
     reiniciarSelectorStockPartes();
-    return Promise.all([cargarPrecioManoObraActual(), cargarItemsStockPara($("pa-tipo").value)]).then(cargarItemsDeOrden);
+    return Promise.all([cargarPrecioManoObraActual(), cargarItemsStockPara($("pa-tipo").value), cargarCatalogoTrabajosExternos()]).then(cargarItemsDeOrden);
   }, "item-error"));
 
   $("pa-tipo").addEventListener("change", conManejoDeErrores(function () {
@@ -4614,19 +4647,21 @@ the data-access layer at all.
 
   // Crea (si hace falta) el ítem en el catálogo y agrega la línea a la orden.
   // Compartido por las 3 tablas (mano de obra, repuestos/insumos, externos).
+  // opts.idExistente: reutiliza un ítem ya guardado en el catálogo (evita duplicados).
+  // opts.descontarDeStock: solo true cuando ese ítem SÍ lleva control de inventario.
   function agregarLineaOrden(opts) {
-    var obtenerIdItem = opts.idStockExistente
-      ? Promise.resolve(opts.idStockExistente)
+    var obtenerIdItem = opts.idExistente
+      ? Promise.resolve(opts.idExistente)
       : restRequest("POST", "items", { body: { tipo: opts.tipo, nombre: opts.nombre, costo: opts.costo } })
           .then(function (items) { return items[0].id_item; });
 
     return obtenerIdItem.then(function (idItem) {
-      // Si se usa stock existente, se descuenta PRIMERO — así, si no
+      // Si el ítem lleva control de stock, se descuenta PRIMERO — así, si no
       // alcanza el stock, el ítem nunca llega a agregarse a la orden.
-      var descontarStock = opts.idStockExistente
+      var descontarStock = opts.descontarDeStock
         ? restRequest("POST", "movimientos_inventario", {
             body: {
-              id_item: opts.idStockExistente,
+              id_item: idItem,
               tipo: "salida",
               cantidad: opts.cantidad,
               id_ot: ordenActual.id_ot,
@@ -4693,7 +4728,9 @@ the data-access layer at all.
     var nombre = $("pa-nombre").value.trim();
     var costo = parseFloat($("pa-costo").value);
     var descuento = parseFloat($("pa-descuento").value) || 0;
-    var idStockExistente = $("pa-stock").value || null;
+    var idExistente = $("pa-stock").value || null;
+    var itemExistente = idExistente ? itemsStockDisponibles.filter(function (it) { return it.id_item === idExistente; })[0] : null;
+    var descontarDeStock = !!(itemExistente && itemExistente.stock_gestionado);
 
     if (!nombre || !(costo >= 0) || !(cantidad > 0)) {
       mostrarError("item-error", "Completa nombre, costo y cantidad correctamente.");
@@ -4704,7 +4741,7 @@ the data-access layer at all.
       return;
     }
 
-    return agregarLineaOrden({ tipo: tipo, nombre: nombre, costo: costo, cantidad: cantidad, codigo: codigo, descuento: descuento, idStockExistente: idStockExistente })
+    return agregarLineaOrden({ tipo: tipo, nombre: nombre, costo: costo, cantidad: cantidad, codigo: codigo, descuento: descuento, idExistente: idExistente, descontarDeStock: descontarDeStock })
       .then(function () {
         $("pa-nombre").value = "";
         $("pa-costo").value = "";
@@ -4734,12 +4771,14 @@ the data-access layer at all.
       return;
     }
 
-    return agregarLineaOrden({ tipo: "trabajo_externo", nombre: nombre, costo: costo, cantidad: 1, descuento: descuento })
+    var matchExterno = trabajosExternosCache.find(function (it) { return it.nombre === nombre; });
+
+    return agregarLineaOrden({ tipo: "trabajo_externo", nombre: nombre, costo: costo, cantidad: 1, descuento: descuento, idExistente: matchExterno ? matchExterno.id_item : null, descontarDeStock: false })
       .then(function () {
         $("ex-nombre").value = "";
         $("ex-costo").value = "";
         $("ex-descuento").value = "0";
-        return cargarItemsDeOrden();
+        return cargarCatalogoTrabajosExternos().then(cargarItemsDeOrden);
       })
       .catch(function (err) {
         mostrarError("item-error", "No se pudo agregar: " + err.message);
