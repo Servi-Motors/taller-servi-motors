@@ -792,14 +792,23 @@ the data-access layer at all.
 
         <label for="contab-horas-mes">Horas de mano de obra disponibles al mes</label>
         <input id="contab-horas-mes" type="number" min="0" step="0.01">
-        <label for="contab-pct-tecnico">% variable pagado a técnicos (sobre la venta de la hora)</label>
+        <label for="contab-pct-tecnico">% variable técnico (solo para estimar el precio de equilibrio)</label>
         <input id="contab-pct-tecnico" type="number" min="0" max="99.99" step="0.01" placeholder="Ej. 25.714">
         <label for="contab-pct-comisiones">% comisiones / bonificaciones</label>
         <input id="contab-pct-comisiones" type="number" min="0" max="99.99" step="0.01" placeholder="Ej. 4">
         <label for="contab-pct-datafono">% costo de datáfono</label>
         <input id="contab-pct-datafono" type="number" min="0" max="99.99" step="0.01" placeholder="Ej. 3.5">
-        <div class="nota-ayuda">Estos tres se descuentan de cada hora vendida (no son costos fijos), por eso el precio de equilibrio los cubre aparte del costo fijo.</div>
-        <div id="contab-solo-admin-nota" class="nota-ayuda oculto">Solo el administrador puede modificar estos valores — determinan el precio de mano de obra que se cobra en las órdenes.</div>
+        <div class="nota-ayuda">Estos tres se descuentan de cada hora vendida (no son costos fijos), por eso el precio de equilibrio los cubre aparte del costo fijo. El % variable técnico ya no es lo que se le paga al técnico — solo sirve para calcular cuánto debe costar la hora. El pago real del técnico se define abajo.</div>
+
+        <label for="contab-tramo-horas-tecnico">Pago a técnico — horas con tarifa base (por período liquidado)</label>
+        <input id="contab-tramo-horas-tecnico" type="number" min="0" step="0.01" placeholder="Ej. 20">
+        <label for="contab-tarifa-hora-base">Pago a técnico — tarifa por hora hasta ese tope ($)</label>
+        <input id="contab-tarifa-hora-base" type="number" min="0" step="0.01" placeholder="Ej. 22000">
+        <label for="contab-tarifa-hora-extra">Pago a técnico — tarifa por hora que exceda el tope ($)</label>
+        <input id="contab-tarifa-hora-extra" type="number" min="0" step="0.01" placeholder="Ej. 28000">
+        <div class="nota-ayuda">Así se le paga realmente al técnico en Nómina: si en el período vende hasta este tope de horas, cada una se paga a la tarifa base; las horas que superen el tope se pagan a la tarifa mayor.</div>
+
+        <div id="contab-solo-admin-nota" class="nota-ayuda oculto">Solo el administrador puede modificar estos valores — determinan el precio de mano de obra que se cobra en las órdenes y el pago variable a técnicos.</div>
         <button id="btn-guardar-horas">Guardar</button>
         <div id="contab-horas-error" class="mensaje-error"></div>
       </div>
@@ -2988,7 +2997,7 @@ the data-access layer at all.
     return Promise.all([
       restRequest("POST", "rpc/calcular_costo_hora_equilibrio", { body: {} }),
       restRequest("POST", "rpc/calcular_precio_hora_equilibrio", { body: {} }),
-      restRequest("GET", "parametros_taller", { query: "select=horas_disponibles_mes,pct_variable_tecnico,pct_comisiones,pct_datafono,precio_mano_obra&id=eq.1" }),
+      restRequest("GET", "parametros_taller", { query: "select=horas_disponibles_mes,pct_variable_tecnico,pct_comisiones,pct_datafono,precio_mano_obra,tramo_horas_tecnico,tarifa_hora_tecnico_base,tarifa_hora_tecnico_extra&id=eq.1" }),
       restRequest("GET", "costos_fijos_mensuales", { query: "select=*&order=creado_en.desc" }),
       restRequest("GET", "egresos", { query: "select=*,ordenes_trabajo(numero_ot)&order=fecha.desc,creado_en.desc&limit=20" }),
       restRequest("GET", "vista_resultado_mensual", { query: "select=*&limit=1" })
@@ -3017,9 +3026,12 @@ the data-access layer at all.
       $("contab-precio-mano-obra").value = (parametros && parametros.precio_mano_obra !== null && parametros.precio_mano_obra !== undefined)
         ? parametros.precio_mano_obra
         : "";
+      $("contab-tramo-horas-tecnico").value = parametros ? parametros.tramo_horas_tecnico : "";
+      $("contab-tarifa-hora-base").value = parametros ? parametros.tarifa_hora_tecnico_base : "";
+      $("contab-tarifa-hora-extra").value = parametros ? parametros.tarifa_hora_tecnico_extra : "";
 
       var esAdministrador = rolActual === "administrador";
-      ["contab-horas-mes", "contab-pct-tecnico", "contab-pct-comisiones", "contab-pct-datafono", "contab-precio-mano-obra"].forEach(function (id) {
+      ["contab-horas-mes", "contab-pct-tecnico", "contab-pct-comisiones", "contab-pct-datafono", "contab-precio-mano-obra", "contab-tramo-horas-tecnico", "contab-tarifa-hora-base", "contab-tarifa-hora-extra"].forEach(function (id) {
         $(id).disabled = !esAdministrador;
       });
       $("btn-guardar-horas").classList.toggle("oculto", !esAdministrador);
@@ -3083,6 +3095,9 @@ the data-access layer at all.
     var pctTecnico = parseFloat($("contab-pct-tecnico").value) || 0;
     var pctComisiones = parseFloat($("contab-pct-comisiones").value) || 0;
     var pctDatafono = parseFloat($("contab-pct-datafono").value) || 0;
+    var tramoHoras = parseFloat($("contab-tramo-horas-tecnico").value);
+    var tarifaBase = parseFloat($("contab-tarifa-hora-base").value);
+    var tarifaExtra = parseFloat($("contab-tarifa-hora-extra").value);
     if (!(horas >= 0)) {
       mostrarError("contab-horas-error", "Escribe un número de horas válido.");
       return;
@@ -3091,13 +3106,20 @@ the data-access layer at all.
       mostrarError("contab-horas-error", "La suma de los tres porcentajes debe ser menor a 100%.");
       return;
     }
+    if (!(tramoHoras >= 0) || !(tarifaBase >= 0) || !(tarifaExtra >= 0)) {
+      mostrarError("contab-horas-error", "Completa las horas y tarifas del pago a técnico con valores válidos (0 o mayor).");
+      return;
+    }
     return restRequest("PATCH", "parametros_taller", {
       query: "id=eq.1",
       body: {
         horas_disponibles_mes: horas,
         pct_variable_tecnico: pctTecnico / 100,
         pct_comisiones: pctComisiones / 100,
-        pct_datafono: pctDatafono / 100
+        pct_datafono: pctDatafono / 100,
+        tramo_horas_tecnico: tramoHoras,
+        tarifa_hora_tecnico_base: tarifaBase,
+        tarifa_hora_tecnico_extra: tarifaExtra
       }
     }).then(cargarContabilidad);
   }, "contab-horas-error"));
@@ -3433,7 +3455,7 @@ the data-access layer at all.
         fila.className = "fila-renglon";
         fila.innerHTML =
           "<span>" + nombreEmp + " <span class=\"fila-detalle\">(" + l.periodo_inicio + " a " + l.periodo_fin + ")</span><br>" +
-          "<span class=\"fila-detalle\">Base " + formatoMoneda(l.salario_base) + " + comisiones " + formatoMoneda(l.comisiones) + " + variable " + formatoMoneda(l.variable_tecnico) + " + bonif. " + formatoMoneda(l.bonificaciones) + " − deducciones " + formatoMoneda(Number(l.deduccion_prestamo) + Number(l.otras_deducciones)) + "</span></span>" +
+          "<span class=\"fila-detalle\">Base " + formatoMoneda(l.salario_base) + " + comisiones " + formatoMoneda(l.comisiones) + " + variable " + formatoMoneda(l.variable_tecnico) + (Number(l.horas_tramo_base) > 0 || Number(l.horas_tramo_extra) > 0 ? " (" + Number(l.horas_tramo_base).toFixed(2) + "h base + " + Number(l.horas_tramo_extra).toFixed(2) + "h extra)" : "") + " + bonif. " + formatoMoneda(l.bonificaciones) + " − deducciones " + formatoMoneda(Number(l.deduccion_prestamo) + Number(l.otras_deducciones)) + "</span></span>" +
           "<span><b>" + formatoMoneda(l.total) + "</b></span>";
         var btnImprimirRecibo = document.createElement("button");
         btnImprimirRecibo.type = "button";
@@ -3450,6 +3472,12 @@ the data-access layer at all.
     ocultarError("nomina-error");
     return obtenerDatosTaller().then(function (taller) {
       var deducciones = Number(l.deduccion_prestamo) + Number(l.otras_deducciones);
+      var horasBase = Number(l.horas_tramo_base) || 0;
+      var horasExtra = Number(l.horas_tramo_extra) || 0;
+      var filasVariable = (horasBase > 0 || horasExtra > 0)
+        ? "<tr><td>&nbsp;&nbsp;· " + horasBase.toFixed(2) + " horas a tarifa base (" + formatoMoneda(l.tarifa_hora_base) + "/h)</td><td>" + formatoMoneda(horasBase * Number(l.tarifa_hora_base)) + "</td></tr>" +
+          (horasExtra > 0 ? "<tr><td>&nbsp;&nbsp;· " + horasExtra.toFixed(2) + " horas excedentes (" + formatoMoneda(l.tarifa_hora_extra) + "/h)</td><td>" + formatoMoneda(horasExtra * Number(l.tarifa_hora_extra)) + "</td></tr>" : "")
+        : "";
       var contenido =
         "<div class=\"datos-doc\">" +
         "<div class=\"bloque\"><b>Empleado</b>" + nombreEmp + "</div>" +
@@ -3459,8 +3487,10 @@ the data-access layer at all.
         "<tr><td>Salario base</td><td>" + formatoMoneda(l.salario_base) + "</td></tr>" +
         "<tr><td>Comisiones</td><td>" + formatoMoneda(l.comisiones) + "</td></tr>" +
         "<tr><td>Variable técnico</td><td>" + formatoMoneda(l.variable_tecnico) + "</td></tr>" +
+        filasVariable +
         "<tr><td>Bonificaciones</td><td>" + formatoMoneda(l.bonificaciones) + "</td></tr>" +
-        "<tr><td>Deducciones (préstamo + otras)</td><td>−" + formatoMoneda(deducciones) + "</td></tr>" +
+        "<tr><td>Deducción préstamo</td><td>−" + formatoMoneda(l.deduccion_prestamo) + "</td></tr>" +
+        "<tr><td>Otras deducciones</td><td>−" + formatoMoneda(l.otras_deducciones) + "</td></tr>" +
         "</tbody></table>" +
         "<div class=\"total-final\">Neto pagado: " + formatoMoneda(l.total) + "</div>" +
         "<div style=\"margin-top:60px;display:flex;justify-content:space-between;\">" +
@@ -3499,12 +3529,12 @@ the data-access layer at all.
         })
       : Promise.resolve([]);
 
-    var pedidoParametros = restRequest("GET", "parametros_taller", { query: "select=pct_comisiones,pct_variable_tecnico&id=eq.1" });
+    var pedidoParametros = restRequest("GET", "parametros_taller", { query: "select=pct_comisiones,tramo_horas_tecnico,tarifa_hora_tecnico_base,tarifa_hora_tecnico_extra&id=eq.1" });
     var pedidoPrestamos = restRequest("GET", "prestamos", { query: "select=*&id_empleado=eq." + idEmpleado + "&saldo_pendiente=gt.0&order=fecha.asc" });
 
     return Promise.all([pedidoOrdenes, pedidoParametros, pedidoPrestamos]).then(function (r) {
       var ordenes = r[0] || [];
-      var parametros = (r[1] && r[1][0]) || { pct_comisiones: 0, pct_variable_tecnico: 0 };
+      var parametros = (r[1] && r[1][0]) || { pct_comisiones: 0, tramo_horas_tecnico: 0, tarifa_hora_tecnico_base: 0, tarifa_hora_tecnico_extra: 0 };
       var prestamos = r[2] || [];
 
       var margenTotal = 0, horas = 0, valorManoObra = 0;
@@ -3519,8 +3549,14 @@ the data-access layer at all.
         });
       });
 
+      var tramoHoras = Number(parametros.tramo_horas_tecnico);
+      var tarifaBase = Number(parametros.tarifa_hora_tecnico_base);
+      var tarifaExtra = Number(parametros.tarifa_hora_tecnico_extra);
+      var horasTramoBase = rol === "tecnico" ? Math.min(horas, tramoHoras) : 0;
+      var horasTramoExtra = rol === "tecnico" ? Math.max(0, horas - tramoHoras) : 0;
+
       var comisiones = rol === "asesor" ? margenTotal * Number(parametros.pct_comisiones) : 0;
-      var variableTecnico = rol === "tecnico" ? valorManoObra * Number(parametros.pct_variable_tecnico) : 0;
+      var variableTecnico = rol === "tecnico" ? (horasTramoBase * tarifaBase + horasTramoExtra * tarifaExtra) : 0;
 
       nominaCalculo = {
         id_empleado: idEmpleado,
@@ -3528,6 +3564,10 @@ the data-access layer at all.
         periodo_fin: fin,
         salario_base: salarioBase,
         comisiones: comisiones,
+        horas_tramo_base: horasTramoBase,
+        horas_tramo_extra: horasTramoExtra,
+        tarifa_hora_base: rol === "tecnico" ? tarifaBase : 0,
+        tarifa_hora_extra: rol === "tecnico" ? tarifaExtra : 0,
         variable_tecnico: variableTecnico,
         horas_trabajadas: horas
       };
@@ -3535,7 +3575,9 @@ the data-access layer at all.
       var detalleCalculo = rol === "asesor"
         ? ("Comisión: " + formatoMoneda(comisiones) + " (margen del período " + formatoMoneda(margenTotal) + " × % comisiones)")
         : rol === "tecnico"
-        ? ("Variable: " + formatoMoneda(variableTecnico) + " (" + horas.toFixed(2) + " horas vendidas por " + formatoMoneda(valorManoObra) + " × % variable técnico)")
+        ? ("Variable: " + formatoMoneda(variableTecnico) + " — " + horas.toFixed(2) + " horas vendidas en total"
+            + "<br>&nbsp;&nbsp;" + horasTramoBase.toFixed(2) + " h × " + formatoMoneda(tarifaBase) + " = " + formatoMoneda(horasTramoBase * tarifaBase)
+            + (horasTramoExtra > 0 ? "<br>&nbsp;&nbsp;" + horasTramoExtra.toFixed(2) + " h excedentes × " + formatoMoneda(tarifaExtra) + " = " + formatoMoneda(horasTramoExtra * tarifaExtra) : ""))
         : "Este rol no tiene comisión ni variable automática — solo salario base.";
 
       $("nomina-resumen").innerHTML = "<b>Salario base: " + formatoMoneda(salarioBase) + "</b>" + detalleCalculo;
@@ -3583,6 +3625,10 @@ the data-access layer at all.
       salario_base: nominaCalculo.salario_base,
       comisiones: nominaCalculo.comisiones,
       variable_tecnico: nominaCalculo.variable_tecnico,
+      horas_tramo_base: nominaCalculo.horas_tramo_base,
+      horas_tramo_extra: nominaCalculo.horas_tramo_extra,
+      tarifa_hora_base: nominaCalculo.tarifa_hora_base,
+      tarifa_hora_extra: nominaCalculo.tarifa_hora_extra,
       horas_trabajadas: nominaCalculo.horas_trabajadas,
       bonificaciones: parseFloat($("nomina-bonificaciones").value) || 0,
       id_prestamo: idPrestamo,
