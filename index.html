@@ -4741,13 +4741,21 @@ the data-access layer at all.
       mostrarError("item-error", "El cliente no tiene teléfono registrado.");
       return;
     }
-    return restRequest("POST", "rpc/generar_token_firma", { body: { p_id_ot: ordenActual.id_ot } })
+    var queryPendientes = "select=cantidad,precio_aplicado_cliente&id_ot=eq." + ordenActual.id_ot + "&estado_autorizacion=eq.pendiente";
+    return restRequest("GET", "ot_detalle", { query: queryPendientes }).then(function (filas) {
+      var total = (filas || []).reduce(function (acc, f) { return acc + f.cantidad * f.precio_aplicado_cliente; }, 0);
+      if (total <= 0) {
+        mostrarError("item-error", "No hay ítems pendientes de autorización.");
+        return;
+      }
+      return restRequest("POST", "rpc/generar_token_firma", { body: { p_id_ot: ordenActual.id_ot } })
       .then(function (r) {
         if (!r || !r.token) throw new Error("No se pudo generar el enlace de firma.");
         var url = "https://servi-motors.github.io/taller-servi-motors/?firmar=" + r.token;
         var mensaje = "Hola " + (ordenActual.clienteNombre || "") + ", para continuar con el trabajo en tu vehículo (OT-" + ordenActual.numero_ot + ") necesitamos tu autorización. Ingresa a este enlace y firma: " + url;
         window.open("https://wa.me/" + numero + "?text=" + encodeURIComponent(mensaje), "_blank");
       });
+    });
   }, "item-error"));
 
   $("btn-confirmar-firma").addEventListener("click", conManejoDeErrores(function () {
@@ -4875,9 +4883,11 @@ the data-access layer at all.
         $("fr-total").textContent = formatoMoneda(resumen.total);
         inicializarCanvasRemota();
       })
-      .catch(function () {
+      .catch(function (err) {
         $("firma-remota-cargando").classList.add("oculto");
         $("firma-remota-invalido").classList.remove("oculto");
+        var p = document.querySelector("#firma-remota-invalido p:last-child");
+        if (p && err && err.message) p.textContent = err.message;
       });
   }
 
