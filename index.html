@@ -279,8 +279,12 @@ the data-access layer at all.
 
           <label>Fotos de evidencia (mínimo 4)</label>
           <div id="evidencias-recepcion-galeria" class="galeria-evidencias"></div>
-          <input type="file" id="evidencias-recepcion-input" accept="image/*" capture="environment" multiple>
-          <button type="button" class="secundario" id="btn-subir-evidencias-recepcion">Subir fotos</button>
+          <div class="agenda-controles">
+            <button type="button" class="secundario" id="btn-camara-recepcion">📷 Tomar foto</button>
+            <button type="button" class="secundario" id="btn-archivo-recepcion">📁 Elegir archivos</button>
+          </div>
+          <input type="file" id="evidencias-recepcion-camara" accept="image/*" capture="environment" class="oculto">
+          <input type="file" id="evidencias-recepcion-archivo" accept="image/*" multiple class="oculto">
           <div id="evidencias-recepcion-contador" class="nota-ayuda"></div>
 
           <div class="agenda-controles" style="margin-top:10px;">
@@ -298,8 +302,12 @@ the data-access layer at all.
 
           <label>Fotos de evidencia (mínimo 4)</label>
           <div id="evidencias-diagnostico-galeria" class="galeria-evidencias"></div>
-          <input type="file" id="evidencias-diagnostico-input" accept="image/*" capture="environment" multiple>
-          <button type="button" class="secundario" id="btn-subir-evidencias-diagnostico">Subir fotos</button>
+          <div class="agenda-controles">
+            <button type="button" class="secundario" id="btn-camara-diagnostico">📷 Tomar foto</button>
+            <button type="button" class="secundario" id="btn-archivo-diagnostico">📁 Elegir archivos</button>
+          </div>
+          <input type="file" id="evidencias-diagnostico-camara" accept="image/*" capture="environment" class="oculto">
+          <input type="file" id="evidencias-diagnostico-archivo" accept="image/*" multiple class="oculto">
           <div id="evidencias-diagnostico-contador" class="nota-ayuda"></div>
 
           <button type="button" id="btn-enviar-autorizacion" style="margin-top:8px;">Enviar a autorización</button>
@@ -310,16 +318,24 @@ the data-access layer at all.
         <div id="orden-evidencias-proceso" class="oculto">
           <h3>Fotos de evidencia — En proceso (mínimo 4)</h3>
           <div id="evidencias-en_proceso-galeria" class="galeria-evidencias"></div>
-          <input type="file" id="evidencias-en_proceso-input" accept="image/*" capture="environment" multiple>
-          <button type="button" class="secundario" id="btn-subir-evidencias-en_proceso">Subir fotos</button>
+          <div class="agenda-controles">
+            <button type="button" class="secundario" id="btn-camara-en_proceso">📷 Tomar foto</button>
+            <button type="button" class="secundario" id="btn-archivo-en_proceso">📁 Elegir archivos</button>
+          </div>
+          <input type="file" id="evidencias-en_proceso-camara" accept="image/*" capture="environment" class="oculto">
+          <input type="file" id="evidencias-en_proceso-archivo" accept="image/*" multiple class="oculto">
           <div id="evidencias-en_proceso-contador" class="nota-ayuda"></div>
         </div>
 
         <div id="orden-evidencias-calidad" class="oculto">
           <h3>Fotos de evidencia — Control de calidad (mínimo 4)</h3>
           <div id="evidencias-control_calidad-galeria" class="galeria-evidencias"></div>
-          <input type="file" id="evidencias-control_calidad-input" accept="image/*" capture="environment" multiple>
-          <button type="button" class="secundario" id="btn-subir-evidencias-control_calidad">Subir fotos</button>
+          <div class="agenda-controles">
+            <button type="button" class="secundario" id="btn-camara-control_calidad">📷 Tomar foto</button>
+            <button type="button" class="secundario" id="btn-archivo-control_calidad">📁 Elegir archivos</button>
+          </div>
+          <input type="file" id="evidencias-control_calidad-camara" accept="image/*" capture="environment" class="oculto">
+          <input type="file" id="evidencias-control_calidad-archivo" accept="image/*" multiple class="oculto">
           <div id="evidencias-control_calidad-contador" class="nota-ayuda"></div>
         </div>
 
@@ -4607,10 +4623,10 @@ the data-access layer at all.
   var ETAPAS_EVIDENCIA = ["recepcion", "diagnostico", "en_proceso", "control_calidad"];
   var MINIMO_EVIDENCIAS = 4;
   var UI_EVIDENCIAS = {
-    recepcion: { galeria: "evidencias-recepcion-galeria", input: "evidencias-recepcion-input", boton: "btn-subir-evidencias-recepcion", contador: "evidencias-recepcion-contador" },
-    diagnostico: { galeria: "evidencias-diagnostico-galeria", input: "evidencias-diagnostico-input", boton: "btn-subir-evidencias-diagnostico", contador: "evidencias-diagnostico-contador" },
-    en_proceso: { galeria: "evidencias-en_proceso-galeria", input: "evidencias-en_proceso-input", boton: "btn-subir-evidencias-en_proceso", contador: "evidencias-en_proceso-contador" },
-    control_calidad: { galeria: "evidencias-control_calidad-galeria", input: "evidencias-control_calidad-input", boton: "btn-subir-evidencias-control_calidad", contador: "evidencias-control_calidad-contador" }
+    recepcion: { galeria: "evidencias-recepcion-galeria", camara: "evidencias-recepcion-camara", archivo: "evidencias-recepcion-archivo", btnCamara: "btn-camara-recepcion", btnArchivo: "btn-archivo-recepcion", contador: "evidencias-recepcion-contador" },
+    diagnostico: { galeria: "evidencias-diagnostico-galeria", camara: "evidencias-diagnostico-camara", archivo: "evidencias-diagnostico-archivo", btnCamara: "btn-camara-diagnostico", btnArchivo: "btn-archivo-diagnostico", contador: "evidencias-diagnostico-contador" },
+    en_proceso: { galeria: "evidencias-en_proceso-galeria", camara: "evidencias-en_proceso-camara", archivo: "evidencias-en_proceso-archivo", btnCamara: "btn-camara-en_proceso", btnArchivo: "btn-archivo-en_proceso", contador: "evidencias-en_proceso-contador" },
+    control_calidad: { galeria: "evidencias-control_calidad-galeria", camara: "evidencias-control_calidad-camara", archivo: "evidencias-control_calidad-archivo", btnCamara: "btn-camara-control_calidad", btnArchivo: "btn-archivo-control_calidad", contador: "evidencias-control_calidad-contador" }
   };
   var conteoEvidenciasPorEtapa = {};
 
@@ -4672,15 +4688,10 @@ the data-access layer at all.
     });
   }
 
-  function subirEvidencias(etapa) {
+  function subirEvidencias(etapa, input) {
     ocultarError("item-error");
-    var ui = UI_EVIDENCIAS[etapa];
-    var input = $(ui.input);
     var archivos = Array.prototype.slice.call(input.files || []);
-    if (!archivos.length) {
-      mostrarError("item-error", "Selecciona al menos una foto para subir.");
-      return Promise.resolve();
-    }
+    if (!archivos.length) return Promise.resolve();
     var subidas = archivos.map(function (archivo) {
       var ruta = ordenActual.id_ot + "/" + etapa + "/" + Date.now() + "-" + Math.random().toString(36).slice(2) + ".jpg";
       return fetch(SUPABASE_URL + "/storage/v1/object/evidencias/" + ruta, {
@@ -4698,14 +4709,20 @@ the data-access layer at all.
       input.value = "";
       return cargarEvidencias(etapa);
     }).catch(function (err) {
+      input.value = "";
       mostrarError("item-error", err.message);
     });
   }
 
+  // Cada etapa tiene dos formas de agregar fotos: abrir la cámara directo
+  // (una foto por toque, ideal para ir documentando ahí mismo) o elegir
+  // varios archivos ya existentes en el celular/tablet a la vez.
   ETAPAS_EVIDENCIA.forEach(function (etapa) {
-    $(UI_EVIDENCIAS[etapa].boton).addEventListener("click", conManejoDeErrores(function () {
-      return subirEvidencias(etapa);
-    }, "item-error"));
+    var ui = UI_EVIDENCIAS[etapa];
+    $(ui.btnCamara).addEventListener("click", function () { $(ui.camara).click(); });
+    $(ui.btnArchivo).addEventListener("click", function () { $(ui.archivo).click(); });
+    $(ui.camara).addEventListener("change", conManejoDeErrores(function () { return subirEvidencias(etapa, $(ui.camara)); }, "item-error"));
+    $(ui.archivo).addEventListener("change", conManejoDeErrores(function () { return subirEvidencias(etapa, $(ui.archivo)); }, "item-error"));
   });
 
   window.guardarDescuentoLinea = function (idDetalle, valor) {
