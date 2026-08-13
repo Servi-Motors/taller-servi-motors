@@ -947,9 +947,25 @@ the data-access layer at all.
           <option value="true">Sí, responsable de IVA</option>
           <option value="false">No responsable de IVA</option>
         </select>
+        <label for="taller-prefijo-ot">Prefijo para número de OT</label>
+        <input id="taller-prefijo-ot" type="text" placeholder="Ej. OT-">
+        <label for="taller-prefijo-factura">Prefijo para número de factura</label>
+        <input id="taller-prefijo-factura" type="text" placeholder="Ej. FV-">
 
         <button id="btn-guardar-datos-taller">Guardar datos del taller</button>
         <div id="datos-taller-error" class="mensaje-error"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Numeración inicial</h2>
+        <div class="nota-ayuda">Usa esto solo una vez, al empezar a usar la app, para que la numeración de OT o de facturas continúe donde va tu sistema actual (por ejemplo, si tu última factura real fue la 1458, pon 1459 para que la siguiente factura de la app sea esa). Cambiarlo después puede repetir o saltar números.</div>
+        <label for="config-siguiente-ot">Próximo número de OT</label>
+        <input id="config-siguiente-ot" type="number" min="1" step="1">
+        <button id="btn-guardar-siguiente-ot">Establecer próximo número de OT</button>
+        <label for="config-siguiente-factura">Próximo número de factura</label>
+        <input id="config-siguiente-factura" type="number" min="1" step="1">
+        <button id="btn-guardar-siguiente-factura">Establecer próximo número de factura</button>
+        <div id="numeracion-error" class="mensaje-error"></div>
       </div>
 
       <div class="tarjeta tarjeta-orden-ancha">
@@ -1359,6 +1375,8 @@ the data-access layer at all.
   var accessToken = null;
   var usuarioActualId = null;
   var rolActual = null;
+  var prefijoOT = "";
+  var prefijoFactura = "";
   var vehiculoSeleccionado = null;
   var clientesCacheOrden = [];
   var clienteExistenteIdOrden = null;
@@ -1489,6 +1507,13 @@ the data-access layer at all.
         $("nav-proveedores").classList.toggle("oculto", !puedeVerInventario);
         $("nav-comunicaciones").classList.toggle("oculto", !puedeVerInventario);
         $("nav-personal").classList.toggle("oculto", rolActual !== "administrador");
+        return restRequest("GET", "parametros_taller", { query: "select=prefijo_ot,prefijo_factura&limit=1" });
+      })
+      .then(function (filasParam) {
+        if (filasParam && filasParam.length) {
+          prefijoOT = filasParam[0].prefijo_ot || "";
+          prefijoFactura = filasParam[0].prefijo_factura || "";
+        }
         return cargarAsesoresYTecnicos();
       })
       .then(function () {
@@ -1625,7 +1650,7 @@ the data-access layer at all.
           var tarjeta = document.createElement("div");
           tarjeta.className = "kanban-tarjeta";
           tarjeta.innerHTML =
-            "<b>OT-" + o.numero_ot + " · " + (veh.placa || "—") + "</b>" +
+            "<b>" + prefijoOT + o.numero_ot + " · " + (veh.placa || "—") + "</b>" +
             (cli.nombre || "—") + "<br>" +
             "<span class=\"fila-detalle\">" + [veh.marca, veh.modelo].filter(Boolean).join(" ") + "</span><br>" +
             "<span class=\"fila-detalle\">Técnico: " + (o.tecnico ? o.tecnico.nombre : "—") + "</span><br>" +
@@ -2906,7 +2931,7 @@ the data-access layer at all.
         opt.value = o.id_ot;
         var vehiculo = o.vehiculos ? o.vehiculos.placa : "";
         var cliente = o.clientes ? o.clientes.nombre : "";
-        opt.textContent = "OT-" + o.numero_ot + " · " + vehiculo + " · " + cliente + " (" + o.estado + ")";
+        opt.textContent = prefijoOT + o.numero_ot + " · " + vehiculo + " · " + cliente + " (" + o.estado + ")";
         sel.appendChild(opt);
       });
     });
@@ -3031,7 +3056,7 @@ the data-access layer at all.
       egresos.forEach(function (eg) {
         var fila = document.createElement("div");
         fila.className = "fila-renglon";
-        var orden = eg.ordenes_trabajo ? " · OT-" + eg.ordenes_trabajo.numero_ot : "";
+        var orden = eg.ordenes_trabajo ? " · " + prefijoOT + eg.ordenes_trabajo.numero_ot : "";
         fila.innerHTML =
           "<span>" + eg.concepto + " <span class=\"fila-detalle\">(" + eg.categoria + ")</span><br><span class=\"fila-detalle\">" + eg.fecha + (eg.proveedor ? " · " + eg.proveedor : "") + orden + "</span></span>" +
           "<span>" + formatoMoneda(eg.monto) + "</span>";
@@ -3122,7 +3147,7 @@ the data-access layer at all.
       restRequest("GET", "empleados", { query: "select=*,usuarios(nombre,rol,correo)&order=creado_en.desc" }),
       restRequest("GET", "usuarios", { query: "select=id_usuario,nombre,rol&estado=eq.activo&order=nombre.asc" }),
       restRequest("GET", "prestamos", { query: "select=*,empleados(nombre,usuarios(nombre))&order=fecha.desc" }),
-      restRequest("GET", "parametros_taller", { query: "select=nombre_taller,nit,direccion,telefono,regimen_tributario,responsable_iva,horarios_semana&id=eq.1" })
+      restRequest("GET", "parametros_taller", { query: "select=nombre_taller,nit,direccion,telefono,regimen_tributario,responsable_iva,horarios_semana,prefijo_ot,prefijo_factura&id=eq.1" })
     ]).then(function (r) {
       var empleados = r[0] || [];
       var usuarios = r[1] || [];
@@ -3135,6 +3160,8 @@ the data-access layer at all.
       $("taller-telefono").value = datosTaller.telefono || "";
       $("taller-regimen").value = datosTaller.regimen_tributario || "Régimen ordinario";
       $("taller-responsable-iva").value = datosTaller.responsable_iva === false ? "false" : "true";
+      $("taller-prefijo-ot").value = datosTaller.prefijo_ot || "";
+      $("taller-prefijo-factura").value = datosTaller.prefijo_factura || "";
       renderizarTablaJornada(datosTaller.horarios_semana || {});
 
       var listaEmp = $("lista-empleados");
@@ -3208,6 +3235,8 @@ the data-access layer at all.
     var telefono = $("taller-telefono").value.trim();
     var regimen = $("taller-regimen").value;
     var responsableIva = $("taller-responsable-iva").value === "true";
+    var prefOT = $("taller-prefijo-ot").value.trim();
+    var prefFactura = $("taller-prefijo-factura").value.trim();
     if (!nombre) {
       mostrarError("datos-taller-error", "Escribe el nombre del taller.");
       return;
@@ -3220,10 +3249,50 @@ the data-access layer at all.
         direccion: direccion || null,
         telefono: telefono || null,
         regimen_tributario: regimen,
-        responsable_iva: responsableIva
+        responsable_iva: responsableIva,
+        prefijo_ot: prefOT,
+        prefijo_factura: prefFactura
       }
-    }).then(cargarConfiguracion);
+    }).then(function () {
+      prefijoOT = prefOT;
+      prefijoFactura = prefFactura;
+      return cargarConfiguracion();
+    });
   }, "datos-taller-error"));
+
+  $("btn-guardar-siguiente-ot").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("numeracion-error");
+    var valor = parseInt($("config-siguiente-ot").value, 10);
+    if (!valor || valor < 1) {
+      mostrarError("numeracion-error", "Escribe un número de OT válido (1 o mayor).");
+      return;
+    }
+    if (!confirm("¿Confirmas que el próximo número de OT sea " + valor + "? Esta acción no se debe repetir.")) {
+      return;
+    }
+    return restRequest("POST", "rpc/establecer_siguiente_numero_ot", { body: { p_siguiente: valor } })
+      .then(function () {
+        $("config-siguiente-ot").value = "";
+        alert("Listo. El próximo número de OT será " + valor + ".");
+      });
+  }, "numeracion-error"));
+
+  $("btn-guardar-siguiente-factura").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("numeracion-error");
+    var valor = parseInt($("config-siguiente-factura").value, 10);
+    if (!valor || valor < 1) {
+      mostrarError("numeracion-error", "Escribe un número de factura válido (1 o mayor).");
+      return;
+    }
+    if (!confirm("¿Confirmas que el próximo número de factura sea " + valor + "? Esta acción no se debe repetir.")) {
+      return;
+    }
+    return restRequest("POST", "rpc/establecer_siguiente_numero_factura", { body: { p_siguiente: valor } })
+      .then(function () {
+        $("config-siguiente-factura").value = "";
+        alert("Listo. El próximo número de factura será " + valor + ".");
+      });
+  }, "numeracion-error"));
 
   // =====================================================================
   // JORNADA LABORAL — horario configurable día a día (turno mañana / tarde)
@@ -3651,7 +3720,7 @@ the data-access layer at all.
         var fila = document.createElement("div");
         fila.className = "fila-renglon";
         fila.innerHTML =
-          "<span>OT-" + o.numero_ot + " <span class=\"fila-detalle\">(" + (o.fecha_cierre ? o.fecha_cierre.slice(0, 10) : "—") + ")</span><br>" +
+          "<span>" + prefijoOT + o.numero_ot + " <span class=\"fila-detalle\">(" + (o.fecha_cierre ? o.fecha_cierre.slice(0, 10) : "—") + ")</span><br>" +
           "<span class=\"fila-detalle\">Asesor: " + (o.asesor_nombre || "—") + " · Técnico: " + (o.tecnico_nombre || "—") + "</span></span>" +
           "<span>Ingreso " + formatoMoneda(o.ingreso) + "<br>Margen " + formatoMoneda(o.margen) + (o.margen_pct === null || o.margen_pct === undefined ? "" : " (" + (o.margen_pct * 100).toFixed(0) + "%)") + "</span>";
         tRent.appendChild(fila);
@@ -4003,7 +4072,7 @@ the data-access layer at all.
     }).then(function () {
       ordenActual = { id_ot: ordenCreada.id_ot, numero_ot: ordenCreada.numero_ot };
       $("tarjeta-asignar").classList.add("oculto");
-      $("texto-exito").innerHTML = "✅ Orden <b>OT-" + ordenCreada.numero_ot + "</b> creada correctamente.";
+      $("texto-exito").innerHTML = "✅ Orden <b>" + prefijoOT + ordenCreada.numero_ot + "</b> creada correctamente.";
       $("tarjeta-exito").classList.remove("oculto");
       cargarTableroOrdenes().catch(function (err) { console.error(err); });
     }).catch(function (err) {
@@ -4237,7 +4306,7 @@ the data-access layer at all.
     var lineaFecha = fechaAutorizacionInicial
       ? "Fecha de ingreso: " + formatoFechaHoraCorta(fechaAutorizacionInicial)
       : "Fecha: " + formatoFechaCorta(new Date(orden.fecha_apertura));
-    var numeroDoc = (esFactura && orden.numero_factura) ? orden.numero_factura : orden.numero_ot;
+    var numeroDoc = (esFactura && orden.numero_factura) ? (prefijoFactura + orden.numero_factura) : (prefijoOT + orden.numero_ot);
     return "<div class=\"datos-doc\">" +
       "<div class=\"bloque\"><b>" + (esFactura ? "Factura" : "Presupuesto / Orden") + "</b>N.º " + numeroDoc +
       "<br>" + lineaFecha +
@@ -4357,7 +4426,7 @@ the data-access layer at all.
         ? sumarHorasLaborales(fechaAutorizacionInicial, totalHorasMO, taller.horarios_semana)
         : null;
 
-      var titulo = modo === "factura" ? "Factura — OT-" + orden.numero_ot : "Presupuesto / Cotización — OT-" + orden.numero_ot;
+      var titulo = modo === "factura" ? "Factura — " + prefijoOT + orden.numero_ot : "Presupuesto / Cotización — " + prefijoOT + orden.numero_ot;
       var contenido = construirEncabezadoDocImpresion(orden, modo, fechaEntregaEstimada, fechaAutorizacionInicial) +
         construirTablaManoObraImpresion(itemsMO) +
         construirTablaPartesImpresion(itemsPartes) +
@@ -4399,8 +4468,8 @@ the data-access layer at all.
     filas.forEach(function (f) {
       var tr = document.createElement("tr");
       tr.innerHTML =
-        "<td>" + (f.numero_factura || "—") + "</td>" +
-        "<td>OT-" + f.numero_ot + "</td>" +
+        "<td>" + (f.numero_factura ? prefijoFactura + f.numero_factura : "—") + "</td>" +
+        "<td>" + prefijoOT + f.numero_ot + "</td>" +
         "<td>" + (f.fecha_cierre ? formatoFechaCorta(new Date(f.fecha_cierre)) : "—") + "</td>" +
         "<td>" + (f.cliente_nombre || "—") + "</td>" +
         "<td>" + (f.vehiculo_placa || "—") + " " + [f.marca, f.modelo].filter(Boolean).join(" ") + "</td>" +
@@ -4467,7 +4536,7 @@ the data-access layer at all.
         " ya está listo en Taller Servi Motors. ¡Puedes pasar a recogerlo cuando gustes!";
     }
     if (nuevoEstado === "cancelada") {
-      return "Hola " + ordenActual.clienteNombre + ", tu orden OT-" + ordenActual.numero_ot + " en Taller Servi Motors fue cancelada. Cualquier duda, contáctanos.";
+      return "Hola " + ordenActual.clienteNombre + ", tu orden " + prefijoOT + ordenActual.numero_ot + " en Taller Servi Motors fue cancelada. Cualquier duda, contáctanos.";
     }
     if (nuevoEstado === "en_proceso") {
       return "Hola " + ordenActual.clienteNombre + ", tu vehículo" + (ordenActual.vehiculoPlaca ? " " + ordenActual.vehiculoPlaca : "") +
@@ -4671,7 +4740,7 @@ the data-access layer at all.
       var tallerCfg = (r[2] && r[2][0]) || {};
       ordenActual.pctIva = tallerCfg.pct_iva || 0;
 
-      $("items-subtitulo").textContent = "Orden OT-" + ordenActual.numero_ot;
+      $("items-subtitulo").textContent = "Orden " + prefijoOT + ordenActual.numero_ot;
       $("firma-exito-notificar").innerHTML = "";
 
       if (orden) {
@@ -5219,7 +5288,7 @@ the data-access layer at all.
       .then(function (r) {
         if (!r || !r.token) throw new Error("No se pudo generar el enlace de firma.");
         var url = "https://servi-motors.github.io/taller-servi-motors/?firmar=" + r.token;
-        var mensaje = "Hola " + (ordenActual.clienteNombre || "") + ", para continuar con el trabajo en tu vehículo (OT-" + ordenActual.numero_ot + ") necesitamos tu autorización. Ingresa a este enlace y firma: " + url;
+        var mensaje = "Hola " + (ordenActual.clienteNombre || "") + ", para continuar con el trabajo en tu vehículo (" + prefijoOT + ordenActual.numero_ot + ") necesitamos tu autorización. Ingresa a este enlace y firma: " + url;
         window.open("https://wa.me/" + numero + "?text=" + encodeURIComponent(mensaje), "_blank");
       });
     });
