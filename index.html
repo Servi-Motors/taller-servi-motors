@@ -104,6 +104,7 @@ the data-access layer at all.
     <div class="nav-seccion">Contabilidad</div>
     <a href="#" class="nav-link" data-pagina="egreso">💸 Registrar gasto</a>
     <a href="#" class="nav-link oculto" id="nav-contabilidad" data-pagina="contabilidad">📊 Contabilidad</a>
+    <a href="#" class="nav-link oculto" id="nav-facturacion" data-pagina="facturacion">🧾 Facturación</a>
 
     <div class="nav-seccion">Configuración</div>
     <a href="#" class="nav-link oculto" id="nav-configuracion" data-pagina="configuracion">⚙️ Configuración</a>
@@ -892,6 +893,35 @@ the data-access layer at all.
       </div>
     </section>
 
+    <section id="pantalla-facturacion" class="pagina pagina-ancha oculto">
+      <h1>Facturación</h1>
+      <div class="nota-ayuda">Órdenes ya cerradas, con su número de factura y estado de pago.</div>
+      <div id="facturacion-error" class="mensaje-error"></div>
+
+      <div class="tarjeta">
+        <div class="tabla-toolbar">
+          <label>Buscar <input id="facturacion-buscar" type="text" placeholder="Cliente, placa o N.º"></label>
+        </div>
+        <div class="tabla-scroll">
+          <table class="tabla-datos" id="tabla-facturacion">
+            <thead>
+              <tr>
+                <th>N.º Factura</th>
+                <th>OT</th>
+                <th>Fecha cierre</th>
+                <th>Cliente</th>
+                <th>Vehículo</th>
+                <th>Total</th>
+                <th>Pago</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="cuerpo-tabla-facturacion"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <section id="pantalla-configuracion" class="pagina oculto">
       <h1>Configuración del taller</h1>
       <div id="config-error" class="mensaje-error"></div>
@@ -1449,6 +1479,8 @@ the data-access layer at all.
         $("nav-configuracion").classList.toggle("oculto", !puedeVerContabilidad);
         $("nav-nomina").classList.toggle("oculto", !puedeVerContabilidad);
         $("nav-reportes").classList.toggle("oculto", !puedeVerContabilidad);
+        var puedeVerFacturacion = rolActual === "administrador" || rolActual === "asesor" || rolActual === "contador";
+        $("nav-facturacion").classList.toggle("oculto", !puedeVerFacturacion);
         var puedeVerInventario = rolActual === "administrador" || rolActual === "asesor" || rolActual === "contador";
         $("nav-inventario").classList.toggle("oculto", !puedeVerInventario);
         $("nav-agenda").classList.toggle("oculto", !puedeVerInventario);
@@ -1467,9 +1499,9 @@ the data-access layer at all.
   // =====================================================================
   // NAVEGACIÓN (menú lateral)
   // =====================================================================
-  var PAGINAS = ["inicio", "app", "agenda", "clientes", "vehiculos", "proveedores", "personal", "inventario", "contabilidad", "egreso", "configuracion", "nomina", "reportes", "comunicaciones"];
-  var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", agenda: "Agenda", clientes: "Clientes", vehiculos: "Vehículos", proveedores: "Proveedores", personal: "Personal", inventario: "Inventario", contabilidad: "Contabilidad", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes", comunicaciones: "Comunicaciones" };
-  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", agenda: "agenda-error", clientes: "clientes-error", vehiculos: "vehiculos-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", contabilidad: "contab-horas-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error", comunicaciones: "comunicaciones-error" };
+  var PAGINAS = ["inicio", "app", "agenda", "clientes", "vehiculos", "proveedores", "personal", "inventario", "contabilidad", "facturacion", "egreso", "configuracion", "nomina", "reportes", "comunicaciones"];
+  var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", agenda: "Agenda", clientes: "Clientes", vehiculos: "Vehículos", proveedores: "Proveedores", personal: "Personal", inventario: "Inventario", contabilidad: "Contabilidad", facturacion: "Facturación", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes", comunicaciones: "Comunicaciones" };
+  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", agenda: "agenda-error", clientes: "clientes-error", vehiculos: "vehiculos-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", contabilidad: "contab-horas-error", facturacion: "facturacion-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error", comunicaciones: "comunicaciones-error" };
 
   function mostrarPagina(nombre) {
     if (PAGINAS.indexOf(nombre) === -1) nombre = "inicio";
@@ -1493,6 +1525,7 @@ the data-access layer at all.
     else if (nombre === "personal") promesa = cargarPersonal();
     else if (nombre === "inventario") promesa = cargarInventario();
     else if (nombre === "contabilidad") promesa = cargarContabilidad();
+    else if (nombre === "facturacion") promesa = cargarFacturacion();
     else if (nombre === "configuracion") promesa = cargarConfiguracion();
     else if (nombre === "nomina") promesa = cargarNomina();
     else if (nombre === "reportes") promesa = cargarReportes();
@@ -4204,10 +4237,11 @@ the data-access layer at all.
     var lineaFecha = fechaAutorizacionInicial
       ? "Fecha de ingreso: " + formatoFechaHoraCorta(fechaAutorizacionInicial)
       : "Fecha: " + formatoFechaCorta(new Date(orden.fecha_apertura));
+    var numeroDoc = (esFactura && orden.numero_factura) ? orden.numero_factura : orden.numero_ot;
     return "<div class=\"datos-doc\">" +
-      "<div class=\"bloque\"><b>" + (esFactura ? "Factura" : "Presupuesto / Orden") + "</b>N.º " + orden.numero_ot +
+      "<div class=\"bloque\"><b>" + (esFactura ? "Factura" : "Presupuesto / Orden") + "</b>N.º " + numeroDoc +
       "<br>" + lineaFecha +
-      (esFactura ? "<br>Forma de pago: Contado" : "") +
+      (esFactura ? "<br>Estado: " + (orden.estado_pago === "pagada" ? "Pagada" : "Pendiente de pago") : "") +
       (orden.fecha_cierre ? "<br>Cierre: " + formatoFechaCorta(new Date(orden.fecha_cierre)) : "") + "</div>" +
       "<div class=\"bloque\"><b>Asesor</b>" +
       (orden.asesor ? orden.asesor.nombre : "—") +
@@ -4287,9 +4321,10 @@ the data-access layer at all.
       "<div class=\"firma-linea\">Firma: ____________________________________ &nbsp;&nbsp;&nbsp; Fecha: __________</div>";
   }
 
-  function imprimirOrdenActual(modo) {
-    ocultarError("item-error");
-    var queryOrden = "select=numero_ot,estado,fecha_apertura,fecha_cierre,diagnostico,clientes(nombre,telefono,direccion,documento),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje),asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre)&id_ot=eq." + ordenActual.id_ot;
+  function imprimirOrdenActual(modo, idError) {
+    idError = idError || "item-error";
+    ocultarError(idError);
+    var queryOrden = "select=numero_ot,estado,fecha_apertura,fecha_cierre,diagnostico,numero_factura,estado_pago,clientes(nombre,telefono,direccion,documento),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje),asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre)&id_ot=eq." + ordenActual.id_ot;
     var queryItems = "select=cantidad,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
     var queryAutorizacionInicial = "select=fecha_hora&id_ot=eq." + ordenActual.id_ot + "&tipo=eq.inicial&limit=1";
 
@@ -4304,7 +4339,7 @@ the data-access layer at all.
       var taller = r[2];
       var autorizacionInicial = r[3] && r[3][0];
       if (!orden) {
-        mostrarError("item-error", "No se pudo cargar la orden para imprimir.");
+        mostrarError(idError, "No se pudo cargar la orden para imprimir.");
         return;
       }
       var itemsMO = items.filter(function (it) { return it.items.tipo === "mano_obra"; });
@@ -4331,9 +4366,77 @@ the data-access layer at all.
         construirTextoLegalImpresion(modo);
       abrirVentanaImpresion(titulo, contenido, taller);
     }).catch(function (err) {
-      mostrarError("item-error", "No se pudo preparar la impresión: " + err.message);
+      mostrarError(idError, "No se pudo preparar la impresión: " + err.message);
     });
   }
+
+  // =====================================================================
+  // FACTURACIÓN — órdenes cerradas, número de factura y estado de pago
+  // =====================================================================
+  var datosFacturacion = [];
+
+  function cargarFacturacion() {
+    ocultarError("facturacion-error");
+    return restRequest("GET", "vista_facturacion", { query: "select=*&order=numero_factura.desc" }).then(function (filas) {
+      datosFacturacion = filas || [];
+      renderizarTablaFacturacion();
+    });
+  }
+
+  function renderizarTablaFacturacion() {
+    var texto = $("facturacion-buscar").value.trim().toLowerCase();
+    var filas = !texto ? datosFacturacion : datosFacturacion.filter(function (f) {
+      return (f.cliente_nombre || "").toLowerCase().indexOf(texto) !== -1 ||
+        (f.vehiculo_placa || "").toLowerCase().indexOf(texto) !== -1 ||
+        String(f.numero_factura || "").indexOf(texto) !== -1 ||
+        String(f.numero_ot || "").indexOf(texto) !== -1;
+    });
+
+    var esAdminOAsesor = rolActual === "administrador" || rolActual === "asesor";
+    var tbody = $("cuerpo-tabla-facturacion");
+    tbody.innerHTML = filas.length ? "" : "<tr><td colspan=\"8\" class=\"tabla-vacia\">Sin resultados.</td></tr>";
+
+    filas.forEach(function (f) {
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + (f.numero_factura || "—") + "</td>" +
+        "<td>OT-" + f.numero_ot + "</td>" +
+        "<td>" + (f.fecha_cierre ? formatoFechaCorta(new Date(f.fecha_cierre)) : "—") + "</td>" +
+        "<td>" + (f.cliente_nombre || "—") + "</td>" +
+        "<td>" + (f.vehiculo_placa || "—") + " " + [f.marca, f.modelo].filter(Boolean).join(" ") + "</td>" +
+        "<td class=\"celda-numero\">" + formatoMoneda(f.total) + "</td>" +
+        "<td style=\"color:" + (f.estado_pago === "pagada" ? "var(--verde)" : "#b45309") + ";font-weight:600;\">" + (f.estado_pago === "pagada" ? "Pagada" : "Pendiente") + "</td>";
+
+      var tdAcciones = document.createElement("td");
+      var btnVer = document.createElement("button");
+      btnVer.type = "button";
+      btnVer.className = "secundario";
+      btnVer.textContent = "Ver / imprimir";
+      btnVer.addEventListener("click", conManejoDeErrores(function () {
+        ordenActual = { id_ot: f.id_ot, numero_ot: f.numero_ot };
+        return imprimirOrdenActual("factura", "facturacion-error");
+      }, "facturacion-error"));
+      tdAcciones.appendChild(btnVer);
+
+      if (f.estado_pago !== "pagada" && esAdminOAsesor) {
+        var btnPagada = document.createElement("button");
+        btnPagada.type = "button";
+        btnPagada.className = "secundario";
+        btnPagada.textContent = "Marcar como pagada";
+        btnPagada.addEventListener("click", conManejoDeErrores(function () {
+          return restRequest("PATCH", "ordenes_trabajo", {
+            query: "id_ot=eq." + f.id_ot,
+            body: { estado_pago: "pagada", fecha_pago: new Date().toISOString() }
+          }).then(function () { return cargarFacturacion(); });
+        }, "facturacion-error"));
+        tdAcciones.appendChild(btnPagada);
+      }
+      tr.appendChild(tdAcciones);
+      tbody.appendChild(tr);
+    });
+  }
+
+  $("facturacion-buscar").addEventListener("input", renderizarTablaFacturacion);
 
   function renderizarBotonesImprimir() {
     var cont = $("botones-imprimir-orden");
