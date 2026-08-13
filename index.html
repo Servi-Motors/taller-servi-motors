@@ -36,6 +36,44 @@ the data-access layer at all.
   </section>
 </div>
 
+<div id="pantalla-firma-remota" class="oculto">
+  <section class="tarjeta">
+    <h1 class="marca-flex marca-login"><img class="logo-taller logo-taller-grande" alt="Logo"> Taller Servi Motors</h1>
+
+    <div id="firma-remota-cargando"><p>Cargando datos de la orden…</p></div>
+
+    <div id="firma-remota-invalido" class="oculto">
+      <h2>Enlace no válido</h2>
+      <p>Este enlace de firma no es válido o ya expiró. Comunícate con el taller para solicitar uno nuevo.</p>
+    </div>
+
+    <div id="firma-remota-contenido" class="oculto">
+      <h2>Autorización de trabajo — OT-<span id="fr-numero-ot"></span></h2>
+      <p id="fr-vehiculo" class="info-vehiculo"></p>
+      <table>
+        <thead><tr><th>Descripción</th><th>Cant.</th><th>Precio</th></tr></thead>
+        <tbody id="fr-items-cuerpo"></tbody>
+      </table>
+      <p><b>Total a autorizar: <span id="fr-total"></span></b></p>
+
+      <label for="fr-nombre">Nombre de quien autoriza</label>
+      <input id="fr-nombre" type="text" placeholder="Nombre completo" autocomplete="off">
+      <label for="fr-documento">Documento de identidad</label>
+      <input id="fr-documento" type="text" placeholder="Cédula (opcional)" autocomplete="off">
+
+      <label for="firma-remota-canvas">Firma (dibuja con el dedo o el mouse)</label>
+      <canvas id="firma-remota-canvas" style="width:100%;height:150px;border:1px solid var(--borde);border-radius:8px;touch-action:none;background:#fff;display:block;"></canvas>
+      <button id="btn-fr-limpiar" type="button" class="secundario">Limpiar firma</button>
+      <button id="btn-fr-confirmar" type="button">Confirmar autorización</button>
+      <div id="firma-remota-error" class="mensaje-error"></div>
+    </div>
+
+    <div id="firma-remota-exito" class="oculto">
+      <p>✅ Autorización registrada correctamente. Gracias, ya puedes cerrar esta ventana.</p>
+    </div>
+  </section>
+</div>
+
 <div id="shell" class="oculto">
 
   <header id="barra-movil">
@@ -293,6 +331,7 @@ the data-access layer at all.
         <div id="orden-totales" class="info-vehiculo"></div>
 
         <button id="btn-ir-firma" class="secundario">Solicitar firma de autorización</button>
+        <button id="btn-enviar-firma-whatsapp" class="secundario">Enviar enlace de firma por WhatsApp</button>
       </div>
 
       <div id="tarjeta-firma" class="tarjeta tarjeta-formulario oculto">
@@ -1008,6 +1047,10 @@ the data-access layer at all.
     color: var(--texto);
   }
   #contenedor-login { max-width: 480px; margin: 0 auto; padding: 12px; }
+  #pantalla-firma-remota { max-width: 480px; margin: 0 auto; padding: 12px; }
+  #pantalla-firma-remota table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 13px; }
+  #pantalla-firma-remota th, #pantalla-firma-remota td { padding: 4px 2px; border-bottom: 1px solid var(--borde); text-align: left; }
+  #pantalla-firma-remota th:last-child, #pantalla-firma-remota td:last-child { text-align: right; }
   .tarjeta {
     background: var(--tarjeta-bg);
     border-radius: 12px;
@@ -4004,13 +4047,19 @@ the data-access layer at all.
     return formatoFechaCorta(d) + " " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
   }
 
-  function construirEncabezadoDocImpresion(orden, modo, fechaEntregaEstimada) {
+  function construirEncabezadoDocImpresion(orden, modo, fechaEntregaEstimada, fechaAutorizacionInicial) {
     var c = orden.clientes || {};
     var v = orden.vehiculos || {};
     var esFactura = modo === "factura";
+    // Antes de que el cliente autorice, esto es solo una cotización: la fecha que
+    // se muestra es la de generación. Una vez autorizada (ya es una orden), la
+    // fecha de ingreso pasa a ser la fecha y hora en que el cliente autorizó.
+    var lineaFecha = fechaAutorizacionInicial
+      ? "Fecha de ingreso: " + formatoFechaHoraCorta(fechaAutorizacionInicial)
+      : "Fecha: " + formatoFechaCorta(new Date(orden.fecha_apertura));
     return "<div class=\"datos-doc\">" +
       "<div class=\"bloque\"><b>" + (esFactura ? "Factura" : "Presupuesto / Orden") + "</b>N.º " + orden.numero_ot +
-      "<br>Fecha: " + formatoFechaCorta(new Date(orden.fecha_apertura)) +
+      "<br>" + lineaFecha +
       (esFactura ? "<br>Forma de pago: Contado" : "") +
       (orden.fecha_cierre ? "<br>Cierre: " + formatoFechaCorta(new Date(orden.fecha_cierre)) : "") + "</div>" +
       "<div class=\"bloque\"><b>Asesor</b>" +
@@ -4095,15 +4144,18 @@ the data-access layer at all.
     ocultarError("item-error");
     var queryOrden = "select=numero_ot,estado,fecha_apertura,fecha_cierre,diagnostico,clientes(nombre,telefono,direccion,documento),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje),asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre)&id_ot=eq." + ordenActual.id_ot;
     var queryItems = "select=cantidad,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
+    var queryAutorizacionInicial = "select=fecha_hora&id_ot=eq." + ordenActual.id_ot + "&tipo=eq.inicial&limit=1";
 
     return Promise.all([
       restRequest("GET", "ordenes_trabajo", { query: queryOrden }),
       restRequest("GET", "ot_detalle", { query: queryItems }),
-      obtenerDatosTaller()
+      obtenerDatosTaller(),
+      restRequest("GET", "autorizaciones_ot", { query: queryAutorizacionInicial })
     ]).then(function (r) {
       var orden = r[0] && r[0][0];
       var items = (r[1] || []).filter(function (it) { return it.estado_autorizacion !== "rechazado"; });
       var taller = r[2];
+      var autorizacionInicial = r[3] && r[3][0];
       if (!orden) {
         mostrarError("item-error", "No se pudo cargar la orden para imprimir.");
         return;
@@ -4112,16 +4164,19 @@ the data-access layer at all.
       var itemsPartes = items.filter(function (it) { return it.items.tipo === "repuesto" || it.items.tipo === "insumo"; });
       var itemsExternos = items.filter(function (it) { return it.items.tipo === "trabajo_externo"; });
 
-      // Fecha de entrega estimada = fecha y hora de ingreso + suma de las horas
-      // de mano de obra cotizadas, contando solo dentro de la jornada laboral
-      // configurada en Configuración (no cuenta horas ni días fuera de horario).
+      // Mientras el cliente no haya autorizado (abierta / pendiente_autorizacion), esto
+      // es solo una cotización: no se calcula fecha de entrega todavía. Una vez autorizada
+      // (en_proceso), la fecha de ingreso real pasa a ser la de esa autorización, y la
+      // entrega estimada se calcula desde ahí + las horas de mano de obra cotizadas,
+      // contando solo dentro de la jornada laboral configurada en Configuración.
+      var fechaAutorizacionInicial = autorizacionInicial ? new Date(autorizacionInicial.fecha_hora) : null;
       var totalHorasMO = itemsMO.reduce(function (a, it) { return a + Number(it.cantidad); }, 0);
-      var fechaEntregaEstimada = (totalHorasMO > 0 && !orden.fecha_cierre)
-        ? sumarHorasLaborales(new Date(orden.fecha_apertura), totalHorasMO, taller.horarios_semana)
+      var fechaEntregaEstimada = (fechaAutorizacionInicial && orden.estado === "en_proceso" && totalHorasMO > 0)
+        ? sumarHorasLaborales(fechaAutorizacionInicial, totalHorasMO, taller.horarios_semana)
         : null;
 
       var titulo = modo === "factura" ? "Factura — OT-" + orden.numero_ot : "Presupuesto / Cotización — OT-" + orden.numero_ot;
-      var contenido = construirEncabezadoDocImpresion(orden, modo, fechaEntregaEstimada) +
+      var contenido = construirEncabezadoDocImpresion(orden, modo, fechaEntregaEstimada, fechaAutorizacionInicial) +
         construirTablaManoObraImpresion(itemsMO) +
         construirTablaPartesImpresion(itemsPartes) +
         construirTablaExternosImpresion(itemsExternos) +
@@ -4679,6 +4734,22 @@ the data-access layer at all.
     });
   }, "item-error"));
 
+  $("btn-enviar-firma-whatsapp").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("item-error");
+    var numero = telefonoWhatsApp(ordenActual.clienteTelefono);
+    if (!numero) {
+      mostrarError("item-error", "El cliente no tiene teléfono registrado.");
+      return;
+    }
+    return restRequest("POST", "rpc/generar_token_firma", { body: { p_id_ot: ordenActual.id_ot } })
+      .then(function (r) {
+        if (!r || !r.token) throw new Error("No se pudo generar el enlace de firma.");
+        var url = location.origin + location.pathname + "?firmar=" + r.token;
+        var mensaje = "Hola " + (ordenActual.clienteNombre || "") + ", para continuar con el trabajo en tu vehículo (OT-" + ordenActual.numero_ot + ") necesitamos tu autorización. Ingresa a este enlace y firma: " + url;
+        window.open("https://wa.me/" + numero + "?text=" + encodeURIComponent(mensaje), "_blank");
+      });
+  }, "item-error"));
+
   $("btn-confirmar-firma").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("firma-error");
     var nombreFirmante = $("firma-nombre").value.trim();
@@ -4733,6 +4804,121 @@ the data-access layer at all.
     $("tarjeta-items").classList.remove("oculto");
     return cargarItemsDeOrden();
   }, "item-error"));
+
+  // =====================================================================
+  // FIRMA REMOTA POR WHATSAPP (página pública, sin login, activada por ?firmar=token)
+  // =====================================================================
+  var canvasRemota, ctxRemota, dibujandoRemota = false, tokenFirmaRemotaActual = null;
+
+  function inicializarCanvasRemota() {
+    canvasRemota = $("firma-remota-canvas");
+    var rect = canvasRemota.getBoundingClientRect();
+    canvasRemota.width = rect.width;
+    canvasRemota.height = rect.height;
+    ctxRemota = canvasRemota.getContext("2d");
+    ctxRemota.strokeStyle = "#111827";
+    ctxRemota.lineWidth = 2;
+    ctxRemota.lineCap = "round";
+
+    function posicion(e) {
+      var r = canvasRemota.getBoundingClientRect();
+      var punto = e.touches && e.touches.length ? e.touches[0] : e;
+      return { x: punto.clientX - r.left, y: punto.clientY - r.top };
+    }
+    function empezar(e) { dibujandoRemota = true; var p = posicion(e); ctxRemota.beginPath(); ctxRemota.moveTo(p.x, p.y); e.preventDefault(); }
+    function mover(e) { if (!dibujandoRemota) return; var p = posicion(e); ctxRemota.lineTo(p.x, p.y); ctxRemota.stroke(); e.preventDefault(); }
+    function terminar() { dibujandoRemota = false; }
+
+    canvasRemota.addEventListener("mousedown", empezar);
+    canvasRemota.addEventListener("mousemove", mover);
+    window.addEventListener("mouseup", terminar);
+    canvasRemota.addEventListener("touchstart", empezar, { passive: false });
+    canvasRemota.addEventListener("touchmove", mover, { passive: false });
+    canvasRemota.addEventListener("touchend", terminar);
+  }
+
+  function firmaRemotaEstaVacia() {
+    if (!canvasRemota) return true;
+    var datos = ctxRemota.getImageData(0, 0, canvasRemota.width, canvasRemota.height).data;
+    for (var i = 3; i < datos.length; i += 4) {
+      if (datos[i] !== 0) return false;
+    }
+    return true;
+  }
+
+  function iniciarFirmaRemota(token) {
+    $("contenedor-login").classList.add("oculto");
+    $("pantalla-firma-remota").classList.remove("oculto");
+
+    return restRequest("POST", "rpc/obtener_resumen_firma_remota", { body: { p_token: token } })
+      .then(function (resumen) {
+        if (!resumen) throw new Error("Enlace inválido");
+        $("firma-remota-cargando").classList.add("oculto");
+        $("firma-remota-contenido").classList.remove("oculto");
+        $("fr-numero-ot").textContent = resumen.numero_ot || "";
+        $("fr-vehiculo").textContent = resumen.vehiculo || "";
+        var cuerpo = $("fr-items-cuerpo");
+        cuerpo.innerHTML = "";
+        (resumen.items || []).forEach(function (it) {
+          var tr = document.createElement("tr");
+          var tdNombre = document.createElement("td");
+          tdNombre.textContent = it.nombre || "";
+          var tdCantidad = document.createElement("td");
+          tdCantidad.textContent = it.cantidad;
+          var tdPrecio = document.createElement("td");
+          tdPrecio.textContent = formatoMoneda(it.precio);
+          tr.appendChild(tdNombre);
+          tr.appendChild(tdCantidad);
+          tr.appendChild(tdPrecio);
+          cuerpo.appendChild(tr);
+        });
+        $("fr-total").textContent = formatoMoneda(resumen.total);
+        inicializarCanvasRemota();
+      })
+      .catch(function () {
+        $("firma-remota-cargando").classList.add("oculto");
+        $("firma-remota-invalido").classList.remove("oculto");
+      });
+  }
+
+  $("btn-fr-limpiar").addEventListener("click", function () {
+    if (ctxRemota) ctxRemota.clearRect(0, 0, canvasRemota.width, canvasRemota.height);
+  });
+
+  $("btn-fr-confirmar").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("firma-remota-error");
+    var nombreFirmante = $("fr-nombre").value.trim();
+    var documento = $("fr-documento").value.trim();
+    if (!nombreFirmante) {
+      mostrarError("firma-remota-error", "Escribe el nombre de quien autoriza.");
+      return;
+    }
+    if (firmaRemotaEstaVacia()) {
+      mostrarError("firma-remota-error", "No se capturó ninguna firma. Dibújala en el recuadro.");
+      return;
+    }
+    var firmaDataUrl = canvasRemota.toDataURL("image/png");
+    return restRequest("POST", "rpc/registrar_autorizacion_remota", {
+      body: {
+        p_token: tokenFirmaRemotaActual,
+        p_nombre_firmante: nombreFirmante,
+        p_documento_firmante: documento || null,
+        p_firma_imagen: firmaDataUrl
+      }
+    }).then(function () {
+      $("firma-remota-contenido").classList.add("oculto");
+      $("firma-remota-exito").classList.remove("oculto");
+    }).catch(function (err) {
+      mostrarError("firma-remota-error", err.message);
+    });
+  }, "firma-remota-error"));
+
+  var parametrosUrl = new URLSearchParams(location.search);
+  var tokenEnUrl = parametrosUrl.get("firmar");
+  if (tokenEnUrl) {
+    tokenFirmaRemotaActual = tokenEnUrl;
+    iniciarFirmaRemota(tokenEnUrl);
+  }
 
 })();
 </script>
