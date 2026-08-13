@@ -3978,8 +3978,9 @@ the data-access layer at all.
   var precioHoraEquilibrioActual = null;
 
   $("item-tipo").addEventListener("change", conManejoDeErrores(function () {
-    var esManoObra = this.value === "mano_obra";
-    var esRepuestoOInsumo = this.value === "repuesto" || this.value === "insumo";
+    var tipoSeleccionado = $("item-tipo").value;
+    var esManoObra = tipoSeleccionado === "mano_obra";
+    var esRepuestoOInsumo = tipoSeleccionado === "repuesto" || tipoSeleccionado === "insumo";
     $("label-item-costo").textContent = "Costo (lo que te cuesta a ti, no lo que cobras)";
     $("grupo-costo").classList.toggle("oculto", esManoObra);
     $("grupo-precio-manual").classList.toggle("oculto", !esManoObra);
@@ -3991,7 +3992,7 @@ the data-access layer at all.
       $("nota-costo-hora").classList.add("oculto");
     }
     if (esRepuestoOInsumo) {
-      return cargarItemsStockPara(this.value);
+      return cargarItemsStockPara(tipoSeleccionado);
     }
     if (!esManoObra) return;
     // Para mano de obra solo se piden nombre y horas: el precio (y por lo
