@@ -200,8 +200,15 @@ the data-access layer at all.
         <h2>Vehículo no registrado — datos del cliente y vehículo</h2>
 
         <h3>Cliente</h3>
+        <label for="nuevo-cliente-buscar">¿El cliente ya está registrado? Búscalo aquí</label>
+        <input id="nuevo-cliente-buscar" type="text" placeholder="Escribe el nombre o teléfono..." list="lista-clientes-orden" autocomplete="off">
+        <datalist id="lista-clientes-orden"></datalist>
+        <div id="nuevo-cliente-encontrado-nota" class="nota-ayuda oculto"></div>
+
         <label for="nuevo-cliente-nombre">Nombre</label>
         <input id="nuevo-cliente-nombre" type="text" placeholder="Nombre completo">
+        <label for="nuevo-cliente-documento">Cédula / NIT</label>
+        <input id="nuevo-cliente-documento" type="text" placeholder="Opcional">
         <label for="nuevo-cliente-tipo">Tipo</label>
         <select id="nuevo-cliente-tipo">
           <option value="particular">Particular</option>
@@ -211,6 +218,8 @@ the data-access layer at all.
         <input id="nuevo-cliente-telefono" type="tel" placeholder="300 000 0000">
         <label for="nuevo-cliente-correo">Correo</label>
         <input id="nuevo-cliente-correo" type="email" placeholder="cliente@correo.com">
+        <label for="nuevo-cliente-direccion">Dirección</label>
+        <input id="nuevo-cliente-direccion" type="text" placeholder="Opcional">
 
         <h3>Vehículo</h3>
         <label for="nuevo-vehiculo-placa">Placa</label>
@@ -1245,6 +1254,8 @@ the data-access layer at all.
   var usuarioActualId = null;
   var rolActual = null;
   var vehiculoSeleccionado = null;
+  var clientesCacheOrden = [];
+  var clienteExistenteIdOrden = null;
   var ordenActual = null; // { id_ot, numero_ot }
   var canvas, ctx, dibujando = false;
   var graficoMensual = null;
@@ -3721,6 +3732,7 @@ the data-access layer at all.
         $("tarjeta-encontrado").classList.remove("oculto");
       } else {
         $("nuevo-vehiculo-placa").value = placa;
+        prepararTarjetaNuevoCliente();
         $("tarjeta-nuevo").classList.remove("oculto");
       }
     }).catch(function (err) {
@@ -3737,16 +3749,61 @@ the data-access layer at all.
   $("btn-no-es-este").addEventListener("click", function () {
     $("tarjeta-encontrado").classList.add("oculto");
     $("nuevo-vehiculo-placa").value = $("buscar-placa").value.trim().toUpperCase();
+    prepararTarjetaNuevoCliente();
     $("tarjeta-nuevo").classList.remove("oculto");
+  });
+
+  // Búsqueda de cliente ya existente al registrar un vehículo nuevo,
+  // para no crear clientes duplicados cada vez.
+  function prepararTarjetaNuevoCliente() {
+    clienteExistenteIdOrden = null;
+    $("nuevo-cliente-buscar").value = "";
+    $("nuevo-cliente-encontrado-nota").classList.add("oculto");
+    ["nuevo-cliente-nombre", "nuevo-cliente-documento", "nuevo-cliente-telefono", "nuevo-cliente-correo", "nuevo-cliente-direccion"].forEach(function (id) { $(id).value = ""; });
+    $("nuevo-cliente-tipo").value = "particular";
+    return restRequest("GET", "clientes", { query: "select=id_cliente,nombre,documento,tipo,telefono,correo,direccion&order=nombre.asc&limit=1000" })
+      .then(function (filas) {
+        clientesCacheOrden = filas || [];
+        var lista = $("lista-clientes-orden");
+        lista.innerHTML = "";
+        clientesCacheOrden.forEach(function (c) {
+          var opt = document.createElement("option");
+          opt.value = c.nombre + (c.telefono ? " — " + c.telefono : "");
+          lista.appendChild(opt);
+        });
+      });
+  }
+
+  $("nuevo-cliente-buscar").addEventListener("input", function () {
+    var texto = $("nuevo-cliente-buscar").value;
+    var match = clientesCacheOrden.find(function (c) {
+      return texto === (c.nombre + (c.telefono ? " — " + c.telefono : ""));
+    });
+    if (match) {
+      clienteExistenteIdOrden = match.id_cliente;
+      $("nuevo-cliente-nombre").value = match.nombre || "";
+      $("nuevo-cliente-documento").value = match.documento || "";
+      $("nuevo-cliente-tipo").value = match.tipo || "particular";
+      $("nuevo-cliente-telefono").value = match.telefono || "";
+      $("nuevo-cliente-correo").value = match.correo || "";
+      $("nuevo-cliente-direccion").value = match.direccion || "";
+      $("nuevo-cliente-encontrado-nota").textContent = "Cliente existente seleccionado — se usará este cliente en vez de crear uno nuevo.";
+      $("nuevo-cliente-encontrado-nota").classList.remove("oculto");
+    } else {
+      clienteExistenteIdOrden = null;
+      $("nuevo-cliente-encontrado-nota").classList.add("oculto");
+    }
   });
 
   $("btn-registrar-nuevo").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("nuevo-error");
 
     var nombre = $("nuevo-cliente-nombre").value.trim();
+    var documento = $("nuevo-cliente-documento").value.trim();
     var tipo = $("nuevo-cliente-tipo").value;
     var telefono = $("nuevo-cliente-telefono").value.trim();
     var correo = $("nuevo-cliente-correo").value.trim();
+    var direccion = $("nuevo-cliente-direccion").value.trim();
     var placa = $("nuevo-vehiculo-placa").value.trim().toUpperCase();
     var vin = $("nuevo-vehiculo-vin").value.trim().toUpperCase();
     var marca = $("nuevo-vehiculo-marca").value.trim();
@@ -3765,21 +3822,27 @@ the data-access layer at all.
       return;
     }
 
-    var clienteCreado;
-    return restRequest("POST", "clientes", {
-      body: { nombre: nombre, tipo: tipo, telefono: telefono || null, correo: correo || null }
-    }).then(function (clientes) {
-      clienteCreado = clientes[0];
+    var clienteBody = { nombre: nombre, documento: documento || null, tipo: tipo, telefono: telefono || null, correo: correo || null, direccion: direccion || null };
+    var idClienteFinal;
+    var pedidoCliente = clienteExistenteIdOrden
+      ? restRequest("PATCH", "clientes", { query: "id_cliente=eq." + clienteExistenteIdOrden, body: clienteBody }).then(function () {
+          idClienteFinal = clienteExistenteIdOrden;
+        })
+      : restRequest("POST", "clientes", { body: clienteBody }).then(function (clientes) {
+          idClienteFinal = clientes[0].id_cliente;
+        });
+
+    return pedidoCliente.then(function () {
       return restRequest("POST", "vehiculos", {
         body: {
-          id_cliente: clienteCreado.id_cliente,
+          id_cliente: idClienteFinal,
           placa: placa, vin: vin || null, marca: marca || null, modelo: modelo || null,
           anio: anio, color: color || null, tipo_carroceria: tipoCarroceria || null, kilometraje: km
         }
       });
     }).then(function (vehiculos) {
       var vehiculoCreado = vehiculos[0];
-      vehiculoSeleccionado = { id_vehiculo: vehiculoCreado.id_vehiculo, id_cliente: clienteCreado.id_cliente };
+      vehiculoSeleccionado = { id_vehiculo: vehiculoCreado.id_vehiculo, id_cliente: idClienteFinal };
       $("tarjeta-nuevo").classList.add("oculto");
       $("tarjeta-asignar").classList.remove("oculto");
       window.scrollTo({ top: 0, behavior: "smooth" });
