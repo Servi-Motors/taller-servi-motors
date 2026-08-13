@@ -4744,7 +4744,7 @@ the data-access layer at all.
     return restRequest("POST", "rpc/generar_token_firma", { body: { p_id_ot: ordenActual.id_ot } })
       .then(function (r) {
         if (!r || !r.token) throw new Error("No se pudo generar el enlace de firma.");
-        var url = location.origin + location.pathname + "?firmar=" + r.token;
+        var url = "https://servi-motors.github.io/taller-servi-motors/?firmar=" + r.token;
         var mensaje = "Hola " + (ordenActual.clienteNombre || "") + ", para continuar con el trabajo en tu vehículo (OT-" + ordenActual.numero_ot + ") necesitamos tu autorización. Ingresa a este enlace y firma: " + url;
         window.open("https://wa.me/" + numero + "?text=" + encodeURIComponent(mensaje), "_blank");
       });
