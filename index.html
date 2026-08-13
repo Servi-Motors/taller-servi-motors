@@ -270,6 +270,59 @@ the data-access layer at all.
 
         <div id="orden-datos-cliente-vehiculo" class="datos-orden-grid"></div>
 
+        <div id="orden-recepcion" class="oculto">
+          <h3>Recepción</h3>
+          <label for="orden-presupuesto-tentativo">Presupuesto tentativo (opcional)</label>
+          <input id="orden-presupuesto-tentativo" type="number" min="0" step="1000" placeholder="Ej. 200000">
+          <button type="button" class="secundario" id="btn-guardar-presupuesto-tentativo">Guardar presupuesto tentativo</button>
+          <div class="nota-ayuda">Es solo un estimado inicial; puede cambiar una vez se haga el diagnóstico.</div>
+
+          <label>Fotos de evidencia (mínimo 4)</label>
+          <div id="evidencias-recepcion-galeria" class="galeria-evidencias"></div>
+          <input type="file" id="evidencias-recepcion-input" accept="image/*" capture="environment" multiple>
+          <button type="button" class="secundario" id="btn-subir-evidencias-recepcion">Subir fotos</button>
+          <div id="evidencias-recepcion-contador" class="nota-ayuda"></div>
+
+          <div class="agenda-controles" style="margin-top:10px;">
+            <button type="button" id="btn-enviar-diagnostico">Enviar a diagnóstico</button>
+            <button type="button" class="secundario" id="btn-saltar-diagnostico">No necesita diagnóstico — cotizar ahora</button>
+          </div>
+        </div>
+
+        <div id="orden-diagnostico-bloque" class="oculto">
+          <h3>Diagnóstico técnico</h3>
+          <label for="orden-hallazgos">Hallazgos del técnico</label>
+          <textarea id="orden-hallazgos" rows="2" placeholder="Ej. Se encontró desgaste en discos delanteros"></textarea>
+          <button type="button" class="secundario" id="btn-guardar-hallazgos">Guardar hallazgos</button>
+          <div class="nota-ayuda">Agrega abajo los ítems necesarios y, cuando el presupuesto esté listo, envíalo a autorización.</div>
+
+          <label>Fotos de evidencia (mínimo 4)</label>
+          <div id="evidencias-diagnostico-galeria" class="galeria-evidencias"></div>
+          <input type="file" id="evidencias-diagnostico-input" accept="image/*" capture="environment" multiple>
+          <button type="button" class="secundario" id="btn-subir-evidencias-diagnostico">Subir fotos</button>
+          <div id="evidencias-diagnostico-contador" class="nota-ayuda"></div>
+
+          <button type="button" id="btn-enviar-autorizacion" style="margin-top:8px;">Enviar a autorización</button>
+        </div>
+
+        <div id="orden-trabajo-contenido">
+
+        <div id="orden-evidencias-proceso" class="oculto">
+          <h3>Fotos de evidencia — En proceso (mínimo 4)</h3>
+          <div id="evidencias-en_proceso-galeria" class="galeria-evidencias"></div>
+          <input type="file" id="evidencias-en_proceso-input" accept="image/*" capture="environment" multiple>
+          <button type="button" class="secundario" id="btn-subir-evidencias-en_proceso">Subir fotos</button>
+          <div id="evidencias-en_proceso-contador" class="nota-ayuda"></div>
+        </div>
+
+        <div id="orden-evidencias-calidad" class="oculto">
+          <h3>Fotos de evidencia — Control de calidad (mínimo 4)</h3>
+          <div id="evidencias-control_calidad-galeria" class="galeria-evidencias"></div>
+          <input type="file" id="evidencias-control_calidad-input" accept="image/*" capture="environment" multiple>
+          <button type="button" class="secundario" id="btn-subir-evidencias-control_calidad">Subir fotos</button>
+          <div id="evidencias-control_calidad-contador" class="nota-ayuda"></div>
+        </div>
+
         <label for="orden-diagnostico">Razones de ingreso</label>
         <textarea id="orden-diagnostico" rows="2" placeholder="Ej. Reemplazo de pastillas de freno"></textarea>
         <button type="button" class="secundario" id="btn-guardar-diagnostico">Guardar diagnóstico</button>
@@ -341,6 +394,8 @@ the data-access layer at all.
 
         <button id="btn-ir-firma" class="secundario">Solicitar firma de autorización</button>
         <button id="btn-enviar-firma-whatsapp" class="secundario">Enviar enlace de firma por WhatsApp</button>
+
+        </div>
       </div>
 
       <div id="tarjeta-firma" class="tarjeta tarjeta-formulario oculto">
@@ -1182,6 +1237,10 @@ the data-access layer at all.
   .tabla-toolbar label { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; margin: 0; }
   .tabla-toolbar select, .tabla-toolbar input { width: auto; padding: 6px 8px; font-size: 13px; margin: 0; }
   .tabla-scroll { overflow-x: auto; }
+  .galeria-evidencias { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+  .miniatura-evidencia { position: relative; width: 84px; height: 84px; }
+  .miniatura-evidencia img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; border: 1px solid var(--borde); }
+  .miniatura-evidencia button { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; padding: 0; border-radius: 50%; background: var(--rojo); color: #fff; border: none; font-size: 12px; line-height: 1; cursor: pointer; }
   table.tabla-datos { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
   table.tabla-datos th { text-align: left; padding: 8px 10px; border-bottom: 2px solid var(--borde); color: var(--gris); font-size: 12px; text-transform: uppercase; letter-spacing: .02em; cursor: pointer; user-select: none; }
   table.tabla-datos th:hover { color: var(--texto); }
@@ -1476,9 +1535,12 @@ the data-access layer at all.
   // TABLERO DE ÓRDENES (kanban por estado)
   // =====================================================================
   var ESTADOS_TABLERO = [
-    { clave: "pendiente_autorizacion", etiqueta: "Pendiente autorización" },
-    { clave: "abierta", etiqueta: "Abierta" },
+    { clave: "recepcion", etiqueta: "Recepción" },
+    { clave: "diagnostico", etiqueta: "Diagnóstico" },
+    { clave: "sin_autorizacion", etiqueta: "Sin autorización" },
     { clave: "en_proceso", etiqueta: "En proceso" },
+    { clave: "control_calidad", etiqueta: "Control de calidad" },
+    { clave: "listo_entrega", etiqueta: "Listo para entrega" },
     { clave: "cerrada", etiqueta: "Cerrada" },
     { clave: "cancelada", etiqueta: "Cancelada" }
   ];
@@ -1573,8 +1635,8 @@ the data-access layer at all.
       var estados = r[2] || [];
       var resultadoMensual = r[3] || [];
 
-      var abiertas = ordenes.filter(function (o) { return o.estado === "abierta" || o.estado === "pendiente_autorizacion"; }).length;
-      var enProceso = ordenes.filter(function (o) { return o.estado === "en_proceso"; }).length;
+      var abiertas = ordenes.filter(function (o) { return o.estado === "recepcion" || o.estado === "diagnostico" || o.estado === "sin_autorizacion"; }).length;
+      var enProceso = ordenes.filter(function (o) { return o.estado === "en_proceso" || o.estado === "control_calidad" || o.estado === "listo_entrega"; }).length;
       var cerradasMes = ordenes.filter(function (o) { return o.estado === "cerrada" && o.fecha_cierre && o.fecha_cierre.slice(0, 10) >= inicioMesStr; }).length;
 
       $("kpi-abiertas").textContent = abiertas;
@@ -1648,11 +1710,11 @@ the data-access layer at all.
     $("sin-datos-estados").classList.toggle("oculto", !!filas.length);
     if (!filas.length) return;
 
-    var colores = { abierta: "#2563eb", pendiente_autorizacion: "#dc2626", en_proceso: "#f59e0b", cerrada: "#16a34a", cancelada: "#6b7280" };
+    var colores = { recepcion: "#2563eb", diagnostico: "#7c3aed", sin_autorizacion: "#dc2626", en_proceso: "#f59e0b", control_calidad: "#0891b2", listo_entrega: "#059669", cerrada: "#16a34a", cancelada: "#6b7280" };
     graficoEstados = new Chart($("grafico-estados").getContext("2d"), {
       type: "doughnut",
       data: {
-        labels: filas.map(function (f) { return f.estado; }),
+        labels: filas.map(function (f) { return ETIQUETAS_ESTADO_ORDEN[f.estado] || f.estado; }),
         datasets: [{
           data: filas.map(function (f) { return f.cantidad; }),
           backgroundColor: filas.map(function (f) { return colores[f.estado] || "#94a3b8"; })
@@ -3877,21 +3939,21 @@ the data-access layer at all.
         id_vehiculo: vehiculoSeleccionado.id_vehiculo,
         id_asesor: id_asesor,
         id_tecnico: id_tecnico,
-        estado: "abierta"
+        estado: "recepcion"
       }
     }).then(function (ordenes) {
       ordenCreada = ordenes[0];
       return restRequest("POST", "historial_ot", {
         body: {
           id_ot: ordenCreada.id_ot,
-          accion: "Orden creada (estado: abierta)",
+          accion: "Orden creada (estado: recepción)",
           id_usuario: usuarioActualId
         }
       });
     }).then(function () {
       ordenActual = { id_ot: ordenCreada.id_ot, numero_ot: ordenCreada.numero_ot };
       $("tarjeta-asignar").classList.add("oculto");
-      $("texto-exito").innerHTML = "✅ Orden <b>OT-" + ordenCreada.numero_ot + "</b> abierta correctamente.";
+      $("texto-exito").innerHTML = "✅ Orden <b>OT-" + ordenCreada.numero_ot + "</b> creada correctamente.";
       $("tarjeta-exito").classList.remove("oculto");
       cargarTableroOrdenes().catch(function (err) { console.error(err); });
     }).catch(function (err) {
@@ -4232,14 +4294,14 @@ the data-access layer at all.
       var itemsPartes = items.filter(function (it) { return it.items.tipo === "repuesto" || it.items.tipo === "insumo"; });
       var itemsExternos = items.filter(function (it) { return it.items.tipo === "trabajo_externo"; });
 
-      // Mientras el cliente no haya autorizado (abierta / pendiente_autorizacion), esto
-      // es solo una cotización: no se calcula fecha de entrega todavía. Una vez autorizada
-      // (en_proceso), la fecha de ingreso real pasa a ser la de esa autorización, y la
-      // entrega estimada se calcula desde ahí + las horas de mano de obra cotizadas,
-      // contando solo dentro de la jornada laboral configurada en Configuración.
+      // Mientras el cliente no haya autorizado (recepcion / diagnostico / sin_autorizacion),
+      // esto es solo una cotización: no se calcula fecha de entrega todavía. Una vez
+      // autorizada (en_proceso / control_calidad), la fecha de ingreso real pasa a ser la de
+      // esa autorización, y la entrega estimada se calcula desde ahí + las horas de mano de
+      // obra cotizadas, contando solo dentro de la jornada laboral configurada en Configuración.
       var fechaAutorizacionInicial = autorizacionInicial ? new Date(autorizacionInicial.fecha_hora) : null;
       var totalHorasMO = itemsMO.reduce(function (a, it) { return a + Number(it.cantidad); }, 0);
-      var fechaEntregaEstimada = (fechaAutorizacionInicial && orden.estado === "en_proceso" && totalHorasMO > 0)
+      var fechaEntregaEstimada = (fechaAutorizacionInicial && (orden.estado === "en_proceso" || orden.estado === "control_calidad") && totalHorasMO > 0)
         ? sumarHorasLaborales(fechaAutorizacionInicial, totalHorasMO, taller.horarios_semana)
         : null;
 
@@ -4280,7 +4342,7 @@ the data-access layer at all.
   // ÍTEMS DE LA ORDEN
   // =====================================================================
   function mensajeParaEstadoOrden(nuevoEstado) {
-    if (nuevoEstado === "cerrada") {
+    if (nuevoEstado === "listo_entrega") {
       return "Hola " + ordenActual.clienteNombre + ", tu vehículo" + (ordenActual.vehiculoPlaca ? " " + ordenActual.vehiculoPlaca : "") +
         " ya está listo en Taller Servi Motors. ¡Puedes pasar a recogerlo cuando gustes!";
     }
@@ -4307,14 +4369,14 @@ the data-access layer at all.
     cont.appendChild(crearBotonWhatsApp(ordenActual.clienteTelefono, mensaje));
   }
 
-  function cambiarEstadoOrden(nuevoEstado) {
+  function cambiarEstadoOrden(nuevoEstado, accionTexto) {
     ocultarError("item-error");
     var body = { estado: nuevoEstado };
     if (nuevoEstado === "cerrada") body.fecha_cierre = new Date().toISOString();
     return restRequest("PATCH", "ordenes_trabajo", { query: "id_ot=eq." + ordenActual.id_ot, body: body })
       .then(function () {
         return restRequest("POST", "historial_ot", {
-          body: { id_ot: ordenActual.id_ot, accion: "Orden " + (nuevoEstado === "cerrada" ? "cerrada" : "cancelada"), id_usuario: usuarioActualId }
+          body: { id_ot: ordenActual.id_ot, accion: accionTexto || ("Orden pasó a estado: " + (ETIQUETAS_ESTADO_ORDEN[nuevoEstado] || nuevoEstado)), id_usuario: usuarioActualId }
         });
       })
       .then(function () {
@@ -4326,7 +4388,21 @@ the data-access layer at all.
       });
   }
 
-  var ETIQUETAS_ESTADO_ORDEN = { abierta: "Abierta", pendiente_autorizacion: "Pendiente autorización", en_proceso: "En proceso", cerrada: "Cerrada", cancelada: "Cancelada" };
+  // Flujo: recepcion -> diagnostico -> sin_autorizacion -> en_proceso ->
+  // control_calidad -> listo_entrega -> cerrada. cancelada desde cualquier
+  // estado activo. Los pasos recepcion/diagnostico tienen sus propios
+  // botones (más abajo); acá solo van los que aplican una vez hay ítems.
+  var ETIQUETAS_ESTADO_ORDEN = { recepcion: "Recepción", diagnostico: "Diagnóstico", sin_autorizacion: "Sin autorización", en_proceso: "En proceso", control_calidad: "Control de calidad", listo_entrega: "Listo para entrega", cerrada: "Cerrada", cancelada: "Cancelada" };
+  var ESTADOS_CANCELABLES = ["recepcion", "diagnostico", "sin_autorizacion", "en_proceso", "control_calidad", "listo_entrega"];
+
+  function agregarBotonEstado(cont, texto, onClick) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "secundario";
+    btn.textContent = texto;
+    btn.addEventListener("click", conManejoDeErrores(onClick, "item-error"));
+    cont.appendChild(btn);
+  }
 
   function renderizarEstadoOrden() {
     $("estado-orden-info").textContent = "Estado actual: " + (ETIQUETAS_ESTADO_ORDEN[ordenActual.estado] || ordenActual.estado);
@@ -4334,23 +4410,30 @@ the data-access layer at all.
 
     var cont = $("botones-estado-orden");
     cont.innerHTML = "";
-    if (ordenActual.estado === "abierta" || ordenActual.estado === "pendiente_autorizacion" || ordenActual.estado === "en_proceso") {
-      var btnCerrar = document.createElement("button");
-      btnCerrar.type = "button";
-      btnCerrar.className = "secundario";
-      btnCerrar.textContent = "Cerrar orden";
-      btnCerrar.addEventListener("click", conManejoDeErrores(function () { return cambiarEstadoOrden("cerrada"); }, "item-error"));
-      cont.appendChild(btnCerrar);
+    var esAdminOAsesor = rolActual === "administrador" || rolActual === "asesor";
 
-      var btnCancelar = document.createElement("button");
-      btnCancelar.type = "button";
-      btnCancelar.className = "secundario";
-      btnCancelar.textContent = "Cancelar orden";
-      btnCancelar.addEventListener("click", conManejoDeErrores(function () {
+    if (ordenActual.estado === "en_proceso") {
+      agregarBotonEstado(cont, "Enviar a control de calidad", function () {
+        if (!exigirEvidencias("en_proceso")) return;
+        return cambiarEstadoOrden("control_calidad", "Orden enviada a control de calidad");
+      });
+    }
+    if (ordenActual.estado === "control_calidad" && esAdminOAsesor) {
+      agregarBotonEstado(cont, "Marcar listo para entrega", function () {
+        if (!exigirEvidencias("control_calidad")) return;
+        return cambiarEstadoOrden("listo_entrega", "Orden marcada como lista para entrega");
+      });
+    }
+    if (ordenActual.estado === "listo_entrega" && esAdminOAsesor) {
+      agregarBotonEstado(cont, "Cerrar orden", function () {
+        return cambiarEstadoOrden("cerrada", "Orden cerrada");
+      });
+    }
+    if (ESTADOS_CANCELABLES.indexOf(ordenActual.estado) !== -1) {
+      agregarBotonEstado(cont, "Cancelar orden", function () {
         if (!window.confirm("¿Cancelar esta orden? No se puede deshacer desde la app.")) return;
-        return cambiarEstadoOrden("cancelada");
-      }, "item-error"));
-      cont.appendChild(btnCancelar);
+        return cambiarEstadoOrden("cancelada", "Orden cancelada");
+      });
     }
 
     renderizarBotonesImprimir();
@@ -4360,7 +4443,7 @@ the data-access layer at all.
     var cont = $("autorizacion-pendiente-cont");
     cont.innerHTML = "";
     if (!hayPendientes || !ordenActual.clienteNombre) return;
-    var esAdicional = ordenActual.estado === "en_proceso";
+    var esAdicional = ["en_proceso", "control_calidad", "listo_entrega"].indexOf(ordenActual.estado) !== -1;
     var mensaje = "Hola " + ordenActual.clienteNombre + ", " +
       (esAdicional
         ? "encontramos algo adicional en tu vehículo" + (ordenActual.vehiculoPlaca ? " " + ordenActual.vehiculoPlaca : "") + " que también necesita tu autorización"
@@ -4457,7 +4540,7 @@ the data-access layer at all.
 
   function cargarItemsDeOrden() {
     var queryItems = "select=id_detalle,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
-    var queryOrden = "select=estado,fecha_apertura,fecha_cierre,diagnostico,clientes(nombre,telefono,documento,direccion),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje)&id_ot=eq." + ordenActual.id_ot;
+    var queryOrden = "select=estado,fecha_apertura,fecha_cierre,diagnostico,presupuesto_tentativo,hallazgos_diagnostico,clientes(nombre,telefono,documento,direccion),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje)&id_ot=eq." + ordenActual.id_ot;
     return Promise.all([
       restRequest("GET", "ot_detalle", { query: queryItems }),
       restRequest("GET", "ordenes_trabajo", { query: queryOrden }),
@@ -4479,6 +4562,21 @@ the data-access layer at all.
         renderizarEstadoOrden();
         renderizarDatosClienteVehiculo(orden);
         $("orden-diagnostico").value = orden.diagnostico || "";
+        $("orden-presupuesto-tentativo").value = orden.presupuesto_tentativo || "";
+        $("orden-hallazgos").value = orden.hallazgos_diagnostico || "";
+
+        // La etapa de Recepción no muestra tablas de ítems todavía (solo el
+        // presupuesto tentativo); Diagnóstico agrega los hallazgos del técnico
+        // arriba de las mismas tablas, que ya se pueden ir llenando ahí.
+        $("orden-recepcion").classList.toggle("oculto", orden.estado !== "recepcion");
+        $("orden-diagnostico-bloque").classList.toggle("oculto", orden.estado !== "diagnostico");
+        $("orden-trabajo-contenido").classList.toggle("oculto", orden.estado === "recepcion");
+        $("orden-evidencias-proceso").classList.toggle("oculto", orden.estado !== "en_proceso");
+        $("orden-evidencias-calidad").classList.toggle("oculto", orden.estado !== "control_calidad");
+
+        // Solo hace falta traer las fotos de la etapa en la que está la orden
+        // ahora mismo — es la única galería visible y la única que se exige.
+        if (ETAPAS_EVIDENCIA.indexOf(orden.estado) !== -1) cargarEvidencias(orden.estado);
       }
 
       var filasMO = filas.filter(function (f) { return f.items.tipo === "mano_obra"; });
@@ -4502,6 +4600,113 @@ the data-access layer at all.
       renderizarAutorizacionPendiente(hayPendientes, montoPendiente);
     });
   }
+
+  // =====================================================================
+  // EVIDENCIA FOTOGRÁFICA POR ETAPA (mínimo 4 fotos para poder avanzar)
+  // =====================================================================
+  var ETAPAS_EVIDENCIA = ["recepcion", "diagnostico", "en_proceso", "control_calidad"];
+  var MINIMO_EVIDENCIAS = 4;
+  var UI_EVIDENCIAS = {
+    recepcion: { galeria: "evidencias-recepcion-galeria", input: "evidencias-recepcion-input", boton: "btn-subir-evidencias-recepcion", contador: "evidencias-recepcion-contador" },
+    diagnostico: { galeria: "evidencias-diagnostico-galeria", input: "evidencias-diagnostico-input", boton: "btn-subir-evidencias-diagnostico", contador: "evidencias-diagnostico-contador" },
+    en_proceso: { galeria: "evidencias-en_proceso-galeria", input: "evidencias-en_proceso-input", boton: "btn-subir-evidencias-en_proceso", contador: "evidencias-en_proceso-contador" },
+    control_calidad: { galeria: "evidencias-control_calidad-galeria", input: "evidencias-control_calidad-input", boton: "btn-subir-evidencias-control_calidad", contador: "evidencias-control_calidad-contador" }
+  };
+  var conteoEvidenciasPorEtapa = {};
+
+  function cuentaEvidenciasSuficiente(etapa) {
+    return (conteoEvidenciasPorEtapa[etapa] || 0) >= MINIMO_EVIDENCIAS;
+  }
+
+  function exigirEvidencias(etapa) {
+    if (cuentaEvidenciasSuficiente(etapa)) return true;
+    mostrarError("item-error", "Faltan fotos de evidencia en esta etapa: hay " + (conteoEvidenciasPorEtapa[etapa] || 0) + " de " + MINIMO_EVIDENCIAS + " mínimo.");
+    return false;
+  }
+
+  // Las fotos quedan en un bucket privado, así que para mostrarlas hay que
+  // pedirlas con el token de sesión (no sirve un <img src> directo).
+  function obtenerUrlImagenPrivada(ruta) {
+    return fetch(SUPABASE_URL + "/storage/v1/object/evidencias/" + ruta, {
+      headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + accessToken }
+    }).then(function (res) {
+      if (!res.ok) throw new Error("No se pudo cargar la foto.");
+      return res.blob();
+    }).then(function (blob) { return URL.createObjectURL(blob); });
+  }
+
+  function cargarEvidencias(etapa) {
+    var ui = UI_EVIDENCIAS[etapa];
+    return restRequest("GET", "evidencias_ot", {
+      query: "select=id_evidencia,ruta_imagen&id_ot=eq." + ordenActual.id_ot + "&etapa=eq." + etapa + "&order=creado_en.asc"
+    }).then(function (filas) {
+      filas = filas || [];
+      conteoEvidenciasPorEtapa[etapa] = filas.length;
+      var galeria = $(ui.galeria);
+      galeria.innerHTML = "";
+      var esAdminOAsesor = rolActual === "administrador" || rolActual === "asesor";
+      filas.forEach(function (f) {
+        var mini = document.createElement("div");
+        mini.className = "miniatura-evidencia";
+        obtenerUrlImagenPrivada(f.ruta_imagen).then(function (url) {
+          var img = document.createElement("img");
+          img.src = url;
+          mini.appendChild(img);
+        }).catch(function () {});
+        if (esAdminOAsesor) {
+          var btnEliminar = document.createElement("button");
+          btnEliminar.type = "button";
+          btnEliminar.textContent = "×";
+          btnEliminar.title = "Eliminar foto";
+          btnEliminar.addEventListener("click", conManejoDeErrores(function () {
+            if (!window.confirm("¿Eliminar esta foto de evidencia?")) return;
+            return restRequest("DELETE", "evidencias_ot", { query: "id_evidencia=eq." + f.id_evidencia })
+              .then(function () { return cargarEvidencias(etapa); });
+          }, "item-error"));
+          mini.appendChild(btnEliminar);
+        }
+        galeria.appendChild(mini);
+      });
+      var contador = $(ui.contador);
+      contador.textContent = filas.length + " de " + MINIMO_EVIDENCIAS + " fotos mínimo" + (filas.length >= MINIMO_EVIDENCIAS ? " ✅" : "");
+    });
+  }
+
+  function subirEvidencias(etapa) {
+    ocultarError("item-error");
+    var ui = UI_EVIDENCIAS[etapa];
+    var input = $(ui.input);
+    var archivos = Array.prototype.slice.call(input.files || []);
+    if (!archivos.length) {
+      mostrarError("item-error", "Selecciona al menos una foto para subir.");
+      return Promise.resolve();
+    }
+    var subidas = archivos.map(function (archivo) {
+      var ruta = ordenActual.id_ot + "/" + etapa + "/" + Date.now() + "-" + Math.random().toString(36).slice(2) + ".jpg";
+      return fetch(SUPABASE_URL + "/storage/v1/object/evidencias/" + ruta, {
+        method: "POST",
+        headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + accessToken, "Content-Type": archivo.type || "image/jpeg" },
+        body: archivo
+      }).then(function (res) {
+        if (!res.ok) return res.text().then(function (t) { throw new Error("No se pudo subir una foto: " + t); });
+        return restRequest("POST", "evidencias_ot", {
+          body: { id_ot: ordenActual.id_ot, etapa: etapa, ruta_imagen: ruta, id_usuario_registro: usuarioActualId }
+        });
+      });
+    });
+    return Promise.all(subidas).then(function () {
+      input.value = "";
+      return cargarEvidencias(etapa);
+    }).catch(function (err) {
+      mostrarError("item-error", err.message);
+    });
+  }
+
+  ETAPAS_EVIDENCIA.forEach(function (etapa) {
+    $(UI_EVIDENCIAS[etapa].boton).addEventListener("click", conManejoDeErrores(function () {
+      return subirEvidencias(etapa);
+    }, "item-error"));
+  });
 
   window.guardarDescuentoLinea = function (idDetalle, valor) {
     var descuento = parseFloat(valor);
@@ -4540,6 +4745,40 @@ the data-access layer at all.
     ocultarError("item-error");
     var texto = $("orden-diagnostico").value.trim();
     return restRequest("PATCH", "ordenes_trabajo", { query: "id_ot=eq." + ordenActual.id_ot, body: { diagnostico: texto || null } });
+  }, "item-error"));
+
+  // Etapa de Recepción: presupuesto tentativo + elegir si el servicio
+  // necesita diagnóstico o se cotiza y autoriza directamente.
+  $("btn-guardar-presupuesto-tentativo").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("item-error");
+    var valor = $("orden-presupuesto-tentativo").value;
+    return restRequest("PATCH", "ordenes_trabajo", { query: "id_ot=eq." + ordenActual.id_ot, body: { presupuesto_tentativo: valor ? parseFloat(valor) : null } });
+  }, "item-error"));
+
+  $("btn-enviar-diagnostico").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("item-error");
+    if (!exigirEvidencias("recepcion")) return;
+    return cambiarEstadoOrden("diagnostico", "Orden enviada a diagnóstico");
+  }, "item-error"));
+
+  $("btn-saltar-diagnostico").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("item-error");
+    if (!exigirEvidencias("recepcion")) return;
+    return cambiarEstadoOrden("sin_autorizacion", "Orden cotizada directamente, sin diagnóstico");
+  }, "item-error"));
+
+  // Etapa de Diagnóstico: hallazgos del técnico, luego se agregan los ítems
+  // (arriba, en las tablas normales) y se envía a autorización del cliente.
+  $("btn-guardar-hallazgos").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("item-error");
+    var texto = $("orden-hallazgos").value.trim();
+    return restRequest("PATCH", "ordenes_trabajo", { query: "id_ot=eq." + ordenActual.id_ot, body: { hallazgos_diagnostico: texto || null } });
+  }, "item-error"));
+
+  $("btn-enviar-autorizacion").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("item-error");
+    if (!exigirEvidencias("diagnostico")) return;
+    return cambiarEstadoOrden("sin_autorizacion", "Diagnóstico completo, orden enviada a autorización");
   }, "item-error"));
 
   var itemsStockDisponibles = [];
