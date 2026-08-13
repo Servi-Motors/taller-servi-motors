@@ -1602,6 +1602,27 @@ the data-access layer at all.
     });
   });
 
+  // Refresco automático de la pantalla de Órdenes: cuando un cliente autoriza
+  // remotamente por WhatsApp, el estado ya cambia solo en la base de datos
+  // (esto pasa dentro de registrar_autorizacion / registrar_autorizacion_remota,
+  // sin que nadie del taller tenga que hacer nada). Lo que faltaba era que la
+  // pantalla que el personal tiene abierta se enterara sin recargar a mano.
+  // Este intervalo revisa cada 15s, solo si hay sesión iniciada, la pestaña
+  // está visible y la persona está en Órdenes — y no toca nada si está en
+  // otra pantalla (para no gastar peticiones de más).
+  setInterval(function () {
+    if (document.hidden) return;
+    if (!accessToken) return;
+    if ($("shell").classList.contains("oculto")) return;
+    if ($("pantalla-app").classList.contains("oculto")) return;
+
+    if (ordenActual && !$("tarjeta-items").classList.contains("oculto")) {
+      cargarItemsDeOrden().catch(function (err) { console.error(err); });
+    } else {
+      cargarTableroOrdenes().catch(function (err) { console.error(err); });
+    }
+  }, 15000);
+
   function abrirMenuMovil() {
     $("sidebar").classList.add("abierto");
     $("fondo-menu-movil").classList.add("visible");
@@ -4926,9 +4947,13 @@ the data-access layer at all.
         ordenActual.vehiculoPlaca = orden.vehiculos ? orden.vehiculos.placa : null;
         renderizarEstadoOrden();
         renderizarDatosClienteVehiculo(orden);
-        $("orden-diagnostico").value = orden.diagnostico || "";
-        $("orden-presupuesto-tentativo").value = orden.presupuesto_tentativo || "";
-        $("orden-hallazgos").value = orden.hallazgos_diagnostico || "";
+        // No pisar lo que el usuario esté escribiendo ahora mismo en estos
+        // campos (importante porque esta función también se llama sola de
+        // fondo cada cierto tiempo, para reflejar autorizaciones firmadas
+        // remotamente sin que alguien tenga que hacer clic en nada).
+        if (document.activeElement !== $("orden-diagnostico")) $("orden-diagnostico").value = orden.diagnostico || "";
+        if (document.activeElement !== $("orden-presupuesto-tentativo")) $("orden-presupuesto-tentativo").value = orden.presupuesto_tentativo || "";
+        if (document.activeElement !== $("orden-hallazgos")) $("orden-hallazgos").value = orden.hallazgos_diagnostico || "";
 
         // La etapa de Recepción no muestra tablas de ítems todavía (solo el
         // presupuesto tentativo); Diagnóstico agrega los hallazgos del técnico
