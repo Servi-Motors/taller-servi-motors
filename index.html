@@ -185,6 +185,10 @@ the data-access layer at all.
         <input id="nuevo-vehiculo-modelo" type="text">
         <label for="nuevo-vehiculo-anio">Año</label>
         <input id="nuevo-vehiculo-anio" type="number" min="1950" max="2100">
+        <label for="nuevo-vehiculo-color">Color</label>
+        <input id="nuevo-vehiculo-color" type="text">
+        <label for="nuevo-vehiculo-tipo-carroceria">Tipo (ej. Sedán, Camioneta, Platón)</label>
+        <input id="nuevo-vehiculo-tipo-carroceria" type="text">
         <label for="nuevo-vehiculo-km">Kilometraje actual</label>
         <input id="nuevo-vehiculo-km" type="number" min="0">
 
@@ -208,7 +212,7 @@ the data-access layer at all.
         <button id="btn-otra-orden" class="secundario">Abrir otra orden</button>
       </div>
 
-      <div id="tarjeta-items" class="tarjeta tarjeta-formulario oculto">
+      <div id="tarjeta-items" class="tarjeta tarjeta-formulario tarjeta-orden-ancha oculto">
         <h1>Ítems de la orden</h1>
         <h2 id="items-subtitulo"></h2>
         <div id="estado-orden-info" class="nota-ayuda"></div>
@@ -217,37 +221,76 @@ the data-access layer at all.
         <div id="botones-imprimir-orden" class="agenda-controles"></div>
         <div id="autorizacion-pendiente-cont"></div>
 
-        <div id="lista-items"></div>
+        <div id="orden-datos-cliente-vehiculo" class="datos-orden-grid"></div>
 
-        <h3>Agregar ítem</h3>
-        <label for="item-tipo">Tipo</label>
-        <select id="item-tipo">
-          <option value="repuesto">Repuesto</option>
-          <option value="insumo">Insumo</option>
-          <option value="mano_obra">Mano de obra (por hora)</option>
-          <option value="trabajo_externo">Trabajo externo</option>
-        </select>
-        <div id="grupo-stock-existente" class="oculto">
-          <label for="item-stock-existente">Usar de tu stock (opcional)</label>
-          <select id="item-stock-existente">
-            <option value="">No, es una compra nueva</option>
-          </select>
+        <label for="orden-diagnostico">Diagnóstico / motivo de ingreso</label>
+        <textarea id="orden-diagnostico" rows="2" placeholder="Ej. Reemplazo de pastillas de freno"></textarea>
+        <button type="button" class="secundario" id="btn-guardar-diagnostico">Guardar diagnóstico</button>
+
+        <h3>Mano de obra</h3>
+        <div class="nota-ayuda">El precio por hora lo fija el administrador en Contabilidad. Aquí solo se define el nombre y las horas.</div>
+        <div class="tabla-scroll">
+          <table class="tabla-datos tabla-items-orden" id="tabla-mano-obra">
+            <thead><tr><th>Código</th><th>Descripción</th><th>Horas</th><th>Precio/hora</th><th>% Dscto</th><th>Total</th><th>Estado</th></tr></thead>
+            <tbody id="cuerpo-mano-obra"></tbody>
+            <tfoot>
+              <tr class="fila-agregar">
+                <td><input id="mo-codigo" type="text" placeholder="Cód."></td>
+                <td><input id="mo-nombre" type="text" placeholder="Ej. Cambio de pastillas"></td>
+                <td><input id="mo-horas" type="number" min="0.01" step="0.01" value="1"></td>
+                <td><input id="mo-precio" type="number" disabled placeholder="—"></td>
+                <td><input id="mo-descuento" type="number" min="0" max="100" step="0.01" value="0"></td>
+                <td colspan="2"><button type="button" id="btn-agregar-mano-obra">+ Agregar</button></td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
-        <label for="item-nombre">Nombre / descripción</label>
-        <input id="item-nombre" type="text" placeholder="Ej. Filtro de aceite">
-        <div id="grupo-costo">
-          <label for="item-costo" id="label-item-costo">Costo</label>
-          <input id="item-costo" type="number" min="0" step="0.01">
+
+        <h3>Repuestos e insumos</h3>
+        <div class="tabla-scroll">
+          <table class="tabla-datos tabla-items-orden" id="tabla-partes">
+            <thead><tr><th>Tipo</th><th>Código</th><th>Cant.</th><th>Descripción</th><th>De tu stock</th><th>Costo</th><th>% Dscto</th><th>Total</th><th>Estado</th></tr></thead>
+            <tbody id="cuerpo-partes"></tbody>
+            <tfoot>
+              <tr class="fila-agregar">
+                <td>
+                  <select id="pa-tipo">
+                    <option value="repuesto">Repuesto</option>
+                    <option value="insumo">Insumo</option>
+                  </select>
+                </td>
+                <td><input id="pa-codigo" type="text" placeholder="Cód."></td>
+                <td><input id="pa-cantidad" type="number" min="0.01" step="0.01" value="1"></td>
+                <td><input id="pa-nombre" type="text" placeholder="Ej. Filtro de aceite"></td>
+                <td>
+                  <select id="pa-stock"><option value="">Compra nueva</option></select>
+                </td>
+                <td><input id="pa-costo" type="number" min="0" step="0.01" placeholder="Lo que te cuesta"></td>
+                <td><input id="pa-descuento" type="number" min="0" max="100" step="0.01" value="0"></td>
+                <td colspan="2"><button type="button" id="btn-agregar-parte">+ Agregar</button></td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
-        <div id="nota-costo-hora" class="oculto nota-ayuda"></div>
-        <label for="item-cantidad">Cantidad (u horas)</label>
-        <input id="item-cantidad" type="number" min="0.01" step="0.01" value="1">
-        <div id="grupo-precio-manual" class="oculto">
-          <label for="item-precio-aplicado">Precio por hora que se cobra al cliente (fijado por el administrador en Contabilidad)</label>
-          <input id="item-precio-aplicado" type="number" min="0" step="0.01" disabled>
+
+        <h3>Trabajos externos</h3>
+        <div class="tabla-scroll">
+          <table class="tabla-datos tabla-items-orden" id="tabla-externos">
+            <thead><tr><th>Descripción</th><th>Costo</th><th>% Dscto</th><th>Total</th><th>Estado</th></tr></thead>
+            <tbody id="cuerpo-externos"></tbody>
+            <tfoot>
+              <tr class="fila-agregar">
+                <td><input id="ex-nombre" type="text" placeholder="Ej. Servicio de grúa"></td>
+                <td><input id="ex-costo" type="number" min="0" step="0.01"></td>
+                <td><input id="ex-descuento" type="number" min="0" max="100" step="0.01" value="0"></td>
+                <td colspan="2"><button type="button" id="btn-agregar-externo">+ Agregar</button></td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
-        <button id="btn-agregar-item">Agregar a la orden</button>
+
         <div id="item-error" class="mensaje-error"></div>
+        <div id="orden-totales" class="info-vehiculo"></div>
 
         <button id="btn-ir-firma" class="secundario">Solicitar firma de autorización</button>
       </div>
@@ -449,6 +492,10 @@ the data-access layer at all.
         <input id="vehiculo-modelo" type="text">
         <label for="vehiculo-anio">Año</label>
         <input id="vehiculo-anio" type="number" min="1900" max="2100">
+        <label for="vehiculo-color">Color</label>
+        <input id="vehiculo-color" type="text">
+        <label for="vehiculo-tipo-carroceria">Tipo (ej. Sedán, Camioneta, Platón)</label>
+        <input id="vehiculo-tipo-carroceria" type="text">
         <label for="vehiculo-km">Kilometraje</label>
         <input id="vehiculo-km" type="number" min="0" value="0">
         <button id="btn-guardar-vehiculo">Agregar vehículo</button>
@@ -1016,6 +1063,18 @@ the data-access layer at all.
   .pagina:not(.pagina-ancha) { max-width: 560px; }
   .pagina-ancha { max-width: 1500px; }
   .tarjeta-formulario { max-width: 560px; }
+  .tarjeta-orden-ancha { max-width: 100% !important; grid-column: 1 / -1; }
+  .datos-orden-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-bottom: 6px; }
+  .datos-orden-grid .bloque-datos { background: var(--gris-claro); border-radius: 8px; padding: 10px 12px; font-size: 13px; line-height: 1.6; }
+  .datos-orden-grid .bloque-datos b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--gris); margin-bottom: 3px; }
+  table.tabla-items-orden { white-space: normal; }
+  table.tabla-items-orden input, table.tabla-items-orden select {
+    width: 100%; min-width: 76px; padding: 6px 7px; font-size: 13px; border-radius: 6px;
+  }
+  .fila-agregar td { background: var(--gris-claro); vertical-align: middle; }
+  table.tabla-items-orden td.celda-numero { text-align: right; }
+  .totales-doc { font-size: 13px; line-height: 1.8; }
+  .totales-doc .linea-total-final { font-size: 16px; font-weight: 700; border-top: 1px solid var(--borde); margin-top: 6px; padding-top: 6px; }
 
   /* En pantallas anchas (PC / tablet en horizontal), aprovecha el espacio:
      las páginas de listas y formularios pasan a 2 columnas. */
@@ -2339,6 +2398,8 @@ the data-access layer at all.
     $("vehiculo-marca").value = v.marca || "";
     $("vehiculo-modelo").value = v.modelo || "";
     $("vehiculo-anio").value = v.anio || "";
+    $("vehiculo-color").value = v.color || "";
+    $("vehiculo-tipo-carroceria").value = v.tipo_carroceria || "";
     $("vehiculo-km").value = v.kilometraje || 0;
     $("vehiculos-form-titulo").textContent = "Editar vehículo";
     $("btn-guardar-vehiculo").textContent = "Guardar cambios";
@@ -2348,7 +2409,7 @@ the data-access layer at all.
 
   function reiniciarFormularioVehiculo() {
     vehiculoEditando = null;
-    ["vehiculo-placa", "vehiculo-vin", "vehiculo-marca", "vehiculo-modelo", "vehiculo-anio"].forEach(function (id) { $(id).value = ""; });
+    ["vehiculo-placa", "vehiculo-vin", "vehiculo-marca", "vehiculo-modelo", "vehiculo-anio", "vehiculo-color", "vehiculo-tipo-carroceria"].forEach(function (id) { $(id).value = ""; });
     $("vehiculo-km").value = "0";
     $("vehiculos-form-titulo").textContent = "Agregar vehículo";
     $("btn-guardar-vehiculo").textContent = "Agregar vehículo";
@@ -2364,6 +2425,8 @@ the data-access layer at all.
     var marca = $("vehiculo-marca").value.trim();
     var modelo = $("vehiculo-modelo").value.trim();
     var anio = $("vehiculo-anio").value ? parseInt($("vehiculo-anio").value, 10) : null;
+    var color = $("vehiculo-color").value.trim();
+    var tipoCarroceria = $("vehiculo-tipo-carroceria").value.trim();
     var km = $("vehiculo-km").value ? parseInt($("vehiculo-km").value, 10) : 0;
     if (!idCliente) {
       mostrarError("vehiculos-error", "Agrega primero un cliente en la pantalla Clientes.");
@@ -2377,7 +2440,7 @@ the data-access layer at all.
       mostrarError("vehiculos-error", "El VIN debe tener 17 caracteres (o déjalo vacío).");
       return;
     }
-    var body = { id_cliente: idCliente, placa: placa, vin: vin || null, marca: marca || null, modelo: modelo || null, anio: anio, kilometraje: km };
+    var body = { id_cliente: idCliente, placa: placa, vin: vin || null, marca: marca || null, modelo: modelo || null, anio: anio, color: color || null, tipo_carroceria: tipoCarroceria || null, kilometraje: km };
     var pedido = vehiculoEditando
       ? restRequest("PATCH", "vehiculos", { query: "id_vehiculo=eq." + vehiculoEditando, body: body })
       : restRequest("POST", "vehiculos", { body: body });
@@ -3568,6 +3631,8 @@ the data-access layer at all.
     var marca = $("nuevo-vehiculo-marca").value.trim();
     var modelo = $("nuevo-vehiculo-modelo").value.trim();
     var anio = $("nuevo-vehiculo-anio").value ? parseInt($("nuevo-vehiculo-anio").value, 10) : null;
+    var color = $("nuevo-vehiculo-color").value.trim();
+    var tipoCarroceria = $("nuevo-vehiculo-tipo-carroceria").value.trim();
     var km = $("nuevo-vehiculo-km").value ? parseInt($("nuevo-vehiculo-km").value, 10) : 0;
 
     if (!nombre || !placa) {
@@ -3588,7 +3653,7 @@ the data-access layer at all.
         body: {
           id_cliente: clienteCreado.id_cliente,
           placa: placa, vin: vin || null, marca: marca || null, modelo: modelo || null,
-          anio: anio, kilometraje: km
+          anio: anio, color: color || null, tipo_carroceria: tipoCarroceria || null, kilometraje: km
         }
       });
     }).then(function (vehiculos) {
@@ -3655,8 +3720,78 @@ the data-access layer at all.
   // IMPRESIÓN — formatos imprimibles con logo del taller
   // =====================================================================
   function obtenerDatosTaller() {
-    return restRequest("GET", "parametros_taller", { query: "select=nombre_taller,nit,direccion,telefono,regimen_tributario,responsable_iva&limit=1" })
+    return restRequest("GET", "parametros_taller", { query: "select=nombre_taller,nit,direccion,telefono,regimen_tributario,responsable_iva,pct_iva&limit=1" })
       .then(function (r) { return (r && r[0]) || {}; });
+  }
+
+  // Convierte un monto en pesos a su forma escrita en español (para el
+  // "TOTAL A PAGAR: ... Pesos" que aparece al pie de facturas y presupuestos).
+  function numeroALetras(numero) {
+    numero = Math.max(0, Math.round(Number(numero) || 0));
+    var UNIDADES = ["", "UN", "DOS", "TRES", "CUATRO", "CINCO", "SEIS", "SIETE", "OCHO", "NUEVE"];
+    var ESPECIALES = { 10: "DIEZ", 11: "ONCE", 12: "DOCE", 13: "TRECE", 14: "CATORCE", 15: "QUINCE",
+      16: "DIECISEIS", 17: "DIECISIETE", 18: "DIECIOCHO", 19: "DIECINUEVE", 20: "VEINTE" };
+    var DECENAS = ["", "", "VEINTI", "TREINTA", "CUARENTA", "CINCUENTA", "SESENTA", "SETENTA", "OCHENTA", "NOVENTA"];
+    var CENTENAS = ["", "CIENTO", "DOSCIENTOS", "TRESCIENTOS", "CUATROCIENTOS", "QUINIENTOS", "SEISCIENTOS", "SETECIENTOS", "OCHOCIENTOS", "NOVECIENTOS"];
+
+    function menorMil(n) {
+      if (n === 0) return "";
+      if (n === 100) return "CIEN";
+      var texto = "";
+      var c = Math.floor(n / 100), resto = n % 100;
+      if (c > 0) texto += CENTENAS[c];
+      if (resto > 0) {
+        if (texto) texto += " ";
+        if (ESPECIALES[resto]) {
+          texto += ESPECIALES[resto];
+        } else if (resto < 10) {
+          texto += UNIDADES[resto];
+        } else {
+          var d = Math.floor(resto / 10), u = resto % 10;
+          if (d === 2) {
+            texto += u > 0 ? "VEINTI" + UNIDADES[u] : "VEINTE";
+          } else {
+            texto += DECENAS[d] + (u > 0 ? " Y " + UNIDADES[u] : "");
+          }
+        }
+      }
+      return texto;
+    }
+
+    function grupoDeMiles(n) {
+      var miles = Math.floor(n / 1000), resto = n % 1000;
+      var texto = "";
+      if (miles > 0) texto += (miles === 1 ? "MIL" : menorMil(miles) + " MIL");
+      if (resto > 0) {
+        if (texto) texto += " ";
+        texto += menorMil(resto);
+      }
+      return texto;
+    }
+
+    if (numero === 0) return "CERO PESOS";
+    var millones = Math.floor(numero / 1000000);
+    var restoMillones = numero % 1000000;
+    var texto = "";
+    if (millones > 0) texto += (millones === 1 ? "UN MILLÓN" : menorMil(millones) + " MILLONES");
+    if (restoMillones > 0) {
+      if (texto) texto += " ";
+      texto += grupoDeMiles(restoMillones);
+    }
+    return (texto || "CERO") + " PESOS";
+  }
+
+  // Convierte horas decimales (ej. 1.5) al formato "Hora:Min" (ej. "1:30")
+  // que se usa en la columna de mano de obra de los documentos impresos.
+  function horasAMinutos(decimal) {
+    var totalMin = Math.round((Number(decimal) || 0) * 60);
+    var h = Math.floor(totalMin / 60);
+    var m = totalMin % 60;
+    return h + ":" + (m < 10 ? "0" + m : m);
+  }
+
+  function totalLineaImpresion(it) {
+    return it.cantidad * it.precio_aplicado_cliente * (1 - (it.pct_descuento || 0) / 100);
   }
 
   function abrirVentanaImpresion(titulo, contenidoHtml, datosTaller) {
@@ -3676,13 +3811,17 @@ the data-access layer at all.
       ".cabecera h1{font-size:18px;margin:0;}" +
       ".info-taller{font-size:11px;color:#4b5563;margin-top:2px;}" +
       "h2{font-size:15px;margin:0 0 12px;}" +
-      "table{width:100%;border-collapse:collapse;margin:8px 0;font-size:12px;}" +
-      "th,td{border:1px solid #d1d5db;padding:6px 8px;text-align:left;}" +
+      "h3{font-size:12px;margin:14px 0 4px;text-transform:uppercase;letter-spacing:.03em;color:#374151;border-bottom:1px solid #d1d5db;padding-bottom:2px;}" +
+      "table{width:100%;border-collapse:collapse;margin:4px 0 2px;font-size:11px;}" +
+      "th,td{border:1px solid #d1d5db;padding:5px 7px;text-align:left;}" +
       "th{background:#f3f4f6;}" +
-      ".total-final{font-size:15px;font-weight:700;text-align:right;margin-top:8px;}" +
-      ".datos-doc{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:14px;font-size:12px;}" +
+      ".total-final{font-size:14px;font-weight:700;text-align:right;margin-top:4px;}" +
+      ".bloque-totales{margin-top:10px;padding-top:8px;border-top:2px solid #111827;font-size:12px;text-align:right;}" +
+      ".datos-doc{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:10px;font-size:12px;}" +
       ".bloque{min-width:200px;line-height:1.6;}" +
-      ".bloque b{display:block;margin-bottom:2px;}" +
+      ".bloque b{display:block;margin-bottom:2px;font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:#4b5563;}" +
+      ".texto-legal{font-size:9.5px;color:#374151;line-height:1.5;margin:10px 0;text-align:justify;}" +
+      ".firma-linea{font-size:12px;margin:22px 0 4px;}" +
       ".nota-periodo{color:#4b5563;margin-bottom:10px;}" +
       ".btn-imprimir{margin-bottom:16px;padding:10px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer;}" +
       "@media print{.btn-imprimir{display:none;}body{padding:0;}}" +
@@ -3707,41 +3846,99 @@ the data-access layer at all.
     ventana.document.close();
   }
 
-  function construirTablaItemsImpresion(items) {
-    var filasHtml = items.map(function (it) {
-      var subtotal = it.cantidad * it.precio_aplicado_cliente;
-      return "<tr><td>" + it.items.nombre + "</td><td>" + it.cantidad + "</td><td>" + formatoMoneda(it.precio_aplicado_cliente) + "</td><td>" + formatoMoneda(subtotal) + "</td></tr>";
-    }).join("");
-    var total = items.reduce(function (acc, it) { return acc + it.cantidad * it.precio_aplicado_cliente; }, 0);
-    return "<table><thead><tr><th>Descripción</th><th>Cant.</th><th>Precio unit.</th><th>Subtotal</th></tr></thead><tbody>" +
-      (filasHtml || "<tr><td colspan=\"4\" style=\"text-align:center;color:#6b7280;\">Sin ítems</td></tr>") +
-      "</tbody></table><div class=\"total-final\">Total: " + formatoMoneda(total) + "</div>";
-  }
-
-  function construirEncabezadoOrdenImpresion(orden) {
+  function construirEncabezadoDocImpresion(orden, modo) {
     var c = orden.clientes || {};
     var v = orden.vehiculos || {};
+    var esFactura = modo === "factura";
     return "<div class=\"datos-doc\">" +
-      "<div class=\"bloque\"><b>Cliente</b>" + (c.nombre || "—") +
-      (c.documento ? "<br>Doc: " + c.documento : "") +
-      (c.telefono ? "<br>Tel: " + c.telefono : "") +
-      (c.direccion ? "<br>" + c.direccion : "") + "</div>" +
-      "<div class=\"bloque\"><b>Vehículo</b>" + (v.placa || "—") +
-      "<br>" + [v.marca, v.modelo, v.anio].filter(Boolean).join(" ") +
-      (v.kilometraje ? "<br>" + v.kilometraje + " km" : "") + "</div>" +
-      "<div class=\"bloque\"><b>Orden</b>OT-" + orden.numero_ot +
+      "<div class=\"bloque\"><b>" + (esFactura ? "Factura" : "Presupuesto / Orden") + "</b>N.º " + orden.numero_ot +
       "<br>Fecha: " + formatoFechaCorta(new Date(orden.fecha_apertura)) +
+      (esFactura ? "<br>Forma de pago: Contado" : "") +
       (orden.fecha_cierre ? "<br>Cierre: " + formatoFechaCorta(new Date(orden.fecha_cierre)) : "") + "</div>" +
       "<div class=\"bloque\"><b>Atendido por</b>" +
-      (orden.asesor ? "Asesor: " + orden.asesor.nombre : "") +
+      (orden.asesor ? "Asesor: " + orden.asesor.nombre : "—") +
       (orden.tecnico ? "<br>Técnico: " + orden.tecnico.nombre : "") + "</div>" +
+      "</div>" +
+      "<div class=\"datos-doc\">" +
+      "<div class=\"bloque\"><b>Datos del cliente</b>" + (c.nombre || "—") +
+      (c.documento ? "<br>Cédula/NIT: " + c.documento : "") +
+      (c.telefono ? "<br>Tel: " + c.telefono : "") +
+      (c.direccion ? "<br>" + c.direccion : "") + "</div>" +
+      "<div class=\"bloque\"><b>Datos del vehículo</b>" +
+      ([v.marca, v.modelo, v.color, v.anio].filter(Boolean).join(" ") || "—") +
+      "<br>Placa: " + (v.placa || "—") +
+      (v.tipo_carroceria ? " · " + v.tipo_carroceria : "") +
+      (v.vin ? "<br>VIN: " + v.vin : "") +
+      (v.kilometraje ? "<br>Odómetro: " + v.kilometraje + " km" : "") + "</div>" +
+      "</div>" +
+      (orden.diagnostico ? "<div class=\"bloque\" style=\"margin-bottom:10px;\"><b>Diagnóstico del vehículo</b>" + String(orden.diagnostico).replace(/\n/g, "<br>") + "</div>" : "");
+  }
+
+  function construirTablaManoObraImpresion(items) {
+    if (!items.length) return "";
+    var filas = items.map(function (it) {
+      return "<tr><td>" + (it.codigo || "") + "</td><td>" + it.items.nombre + "</td><td>" + formatoMoneda(it.precio_aplicado_cliente) +
+        "</td><td>" + horasAMinutos(it.cantidad) + "</td><td>" + (it.pct_descuento || 0) + "%</td><td>" + formatoMoneda(totalLineaImpresion(it)) + "</td></tr>";
+    }).join("");
+    var totalHoras = items.reduce(function (a, it) { return a + Number(it.cantidad); }, 0);
+    var totalMO = items.reduce(function (a, it) { return a + totalLineaImpresion(it); }, 0);
+    return "<h3>Mano de obra</h3><table><thead><tr><th>Código</th><th>Descripción</th><th>Precio/hora</th><th>Hora:Min</th><th>% Dscto</th><th>Total</th></tr></thead><tbody>" +
+      filas + "</tbody></table>" +
+      "<div style=\"font-size:10.5px;color:#4b5563;\">Tiempo total del trabajo: " + horasAMinutos(totalHoras) + "</div>" +
+      "<div class=\"total-final\">Subtotal mano de obra: " + formatoMoneda(totalMO) + "</div>";
+  }
+
+  function construirTablaPartesImpresion(items) {
+    if (!items.length) return "";
+    var ETIQUETAS_TIPO_ITEM = { repuesto: "Repuesto", insumo: "Insumo" };
+    var filas = items.map(function (it) {
+      return "<tr><td>" + (it.codigo || "") + "</td><td>" + it.cantidad + "</td><td>" + it.items.nombre + " (" + (ETIQUETAS_TIPO_ITEM[it.items.tipo] || it.items.tipo) + ")</td>" +
+        "<td>" + formatoMoneda(it.precio_aplicado_cliente) + "</td><td>" + (it.pct_descuento || 0) + "%</td><td>" + formatoMoneda(totalLineaImpresion(it)) + "</td></tr>";
+    }).join("");
+    var total = items.reduce(function (a, it) { return a + totalLineaImpresion(it); }, 0);
+    return "<h3>Repuestos e insumos</h3><table><thead><tr><th>Código</th><th>Cant.</th><th>Descripción</th><th>P. unit.</th><th>% Dscto</th><th>Total</th></tr></thead><tbody>" +
+      filas + "</tbody></table><div class=\"total-final\">Subtotal repuestos e insumos: " + formatoMoneda(total) + "</div>";
+  }
+
+  function construirTablaExternosImpresion(items) {
+    if (!items.length) return "";
+    var filas = items.map(function (it) {
+      return "<tr><td>" + it.items.nombre + "</td><td>" + (it.pct_descuento || 0) + "%</td><td>" + formatoMoneda(totalLineaImpresion(it)) + "</td></tr>";
+    }).join("");
+    var total = items.reduce(function (a, it) { return a + totalLineaImpresion(it); }, 0);
+    return "<h3>Trabajos externos</h3><table><thead><tr><th>Descripción</th><th>% Dscto</th><th>Total</th></tr></thead><tbody>" +
+      filas + "</tbody></table><div class=\"total-final\">Subtotal trabajos externos: " + formatoMoneda(total) + "</div>";
+  }
+
+  function construirTotalesFinalesImpresion(items, pctIva) {
+    var subtotal = items.reduce(function (a, it) { return a + totalLineaImpresion(it); }, 0);
+    var iva = subtotal * (Number(pctIva) || 0) / 100;
+    var total = subtotal + iva;
+    return "<div class=\"bloque-totales\">" +
+      "<div>Suma total: " + formatoMoneda(subtotal) + "</div>" +
+      (pctIva > 0 ? "<div>IVA (" + pctIva + "%): " + formatoMoneda(iva) + "</div>" : "") +
+      "<div class=\"total-final\">TOTAL A PAGAR: " + formatoMoneda(total) + "</div>" +
+      "<div style=\"font-size:10.5px;color:#4b5563;margin-top:2px;\">TOTAL A PAGAR: " + numeroALetras(total) + " CON 00/100</div>" +
       "</div>";
+  }
+
+  function construirTextoLegalImpresion(modo) {
+    if (modo === "factura") {
+      return "<div class=\"texto-legal\">Esta compañía no asume ninguna responsabilidad sobre el vehículo después de que ha salido del taller, incluyendo artículos dejados en él. El vehículo pudo ser conducido por nuestros empleados a riesgo del dueño del vehículo. En caso de que no sea pagado el precio total de la factura, el dueño autoriza a la compañía a retener el vehículo hasta que la cuenta sea pagada.<br><br>" +
+        "Todos los trabajos de garantía deben ser hechos por esta compañía; no se aceptará ninguna responsabilidad de garantía si se realiza algún trabajo sobre las mismas partes posteriormente a la entrega del vehículo.</div>" +
+        "<div class=\"firma-linea\">Autorizado por: ____________________________________</div>";
+    }
+    return "<div class=\"texto-legal\">Yo entiendo que conforme a la ley tengo derecho a un presupuesto por escrito para el trabajo que se realizará en mi vehículo.<br>" +
+      "&#9744; Solicité un presupuesto por escrito &nbsp;&nbsp; &#9744; He revisado el presupuesto y estoy de acuerdo con su contenido &nbsp;&nbsp; &#9744; Autorizo a comenzar los trabajos expuestos en este presupuesto.</div>" +
+      "<div class=\"firma-linea\">Firma: ____________________________________ &nbsp;&nbsp;&nbsp; Fecha: __________</div>" +
+      "<div class=\"texto-legal\">Este presupuesto tiene una validez de 30 días. Entiendo que cualquier parte adicional y/o trabajo requerido durante la reparación que no esté contemplado en este presupuesto tendrá un cargo adicional. No serán responsables por daños causados por robo, fuego o fenómeno natural. Sus empleados pueden conducir el vehículo con el propósito de probarlo y/o inspeccionarlo.</div>" +
+      "<div class=\"firma-linea\">Firma: ____________________________________ &nbsp;&nbsp;&nbsp; Fecha: __________</div>";
   }
 
   function imprimirOrdenActual(modo) {
     ocultarError("item-error");
-    var queryOrden = "select=numero_ot,estado,fecha_apertura,fecha_cierre,clientes(nombre,telefono,direccion,documento),vehiculos(placa,marca,modelo,anio,kilometraje),asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre)&id_ot=eq." + ordenActual.id_ot;
-    var queryItems = "select=cantidad,precio_aplicado_cliente,estado_autorizacion,items(nombre)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
+    var queryOrden = "select=numero_ot,estado,fecha_apertura,fecha_cierre,diagnostico,clientes(nombre,telefono,direccion,documento),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje),asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre)&id_ot=eq." + ordenActual.id_ot;
+    var queryItems = "select=cantidad,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
 
     return Promise.all([
       restRequest("GET", "ordenes_trabajo", { query: queryOrden }),
@@ -3749,14 +3946,23 @@ the data-access layer at all.
       obtenerDatosTaller()
     ]).then(function (r) {
       var orden = r[0] && r[0][0];
-      var items = r[1] || [];
+      var items = (r[1] || []).filter(function (it) { return it.estado_autorizacion !== "rechazado"; });
       var taller = r[2];
       if (!orden) {
         mostrarError("item-error", "No se pudo cargar la orden para imprimir.");
         return;
       }
-      var titulo = modo === "factura" ? "Factura — OT-" + orden.numero_ot : "Cotización / Orden de trabajo — OT-" + orden.numero_ot;
-      var contenido = construirEncabezadoOrdenImpresion(orden) + construirTablaItemsImpresion(items);
+      var itemsMO = items.filter(function (it) { return it.items.tipo === "mano_obra"; });
+      var itemsPartes = items.filter(function (it) { return it.items.tipo === "repuesto" || it.items.tipo === "insumo"; });
+      var itemsExternos = items.filter(function (it) { return it.items.tipo === "trabajo_externo"; });
+
+      var titulo = modo === "factura" ? "Factura — OT-" + orden.numero_ot : "Presupuesto / Cotización — OT-" + orden.numero_ot;
+      var contenido = construirEncabezadoDocImpresion(orden, modo) +
+        construirTablaManoObraImpresion(itemsMO) +
+        construirTablaPartesImpresion(itemsPartes) +
+        construirTablaExternosImpresion(itemsExternos) +
+        construirTotalesFinalesImpresion(items, taller.pct_iva) +
+        construirTextoLegalImpresion(modo);
       abrirVentanaImpresion(titulo, contenido, taller);
     }).catch(function (err) {
       mostrarError("item-error", "No se pudo preparar la impresión: " + err.message);
@@ -3880,15 +4086,100 @@ the data-access layer at all.
     cont.appendChild(crearBotonWhatsApp(ordenActual.clienteTelefono, mensaje));
   }
 
+  function totalLineaOrden(f) {
+    return f.cantidad * f.precio_aplicado_cliente * (1 - (f.pct_descuento || 0) / 100);
+  }
+
+  function colorEstadoLinea(estado) {
+    return estado === "autorizado" ? "var(--verde)" : (estado === "rechazado" ? "var(--rojo)" : "#b45309");
+  }
+
+  function celdaDescuentoLinea(f) {
+    return '<input type="number" min="0" max="100" step="0.01" value="' + (f.pct_descuento || 0) +
+      '" onchange="window.guardarDescuentoLinea(\'' + f.id_detalle + '\', this.value)">';
+  }
+
+  function celdaEstadoLinea(f) {
+    return '<span style="color:' + colorEstadoLinea(f.estado_autorizacion) + ';font-weight:600;">' + f.estado_autorizacion + '</span>';
+  }
+
+  function botonEditarPrecio(f) {
+    if (f.estado_autorizacion !== "pendiente") return "";
+    return ' <button type="button" style="width:auto;margin:4px 0 0;padding:4px 8px;font-size:11px;" onclick="window.editarPrecioLinea(\'' +
+      f.id_detalle + '\', ' + f.precio_aplicado_cliente + ')">Editar precio</button>';
+  }
+
+  function renderizarTablaManoObra(filas) {
+    var html = filas.map(function (f) {
+      return "<tr><td>" + (f.codigo || "—") + "</td><td>" + f.items.nombre + "</td><td>" + f.cantidad + "</td><td>" + formatoMoneda(f.precio_aplicado_cliente) + "</td>" +
+        "<td>" + celdaDescuentoLinea(f) + "</td><td class=\"celda-numero\">" + formatoMoneda(totalLineaOrden(f)) + "</td><td>" + celdaEstadoLinea(f) + "</td></tr>";
+    }).join("");
+    $("cuerpo-mano-obra").innerHTML = html || "<tr><td colspan=\"7\" class=\"tabla-vacia\">Sin ítems de mano de obra todavía.</td></tr>";
+  }
+
+  var ETIQUETAS_TIPO_ITEM = { repuesto: "Repuesto", insumo: "Insumo" };
+
+  function renderizarTablaPartes(filas) {
+    var html = filas.map(function (f) {
+      return "<tr><td>" + (ETIQUETAS_TIPO_ITEM[f.items.tipo] || f.items.tipo) + "</td><td>" + (f.codigo || "—") + "</td><td>" + f.cantidad + "</td><td>" + f.items.nombre + "</td><td>—</td>" +
+        "<td>" + formatoMoneda(f.costo_interno) + "</td><td>" + celdaDescuentoLinea(f) + "</td>" +
+        "<td class=\"celda-numero\">" + formatoMoneda(totalLineaOrden(f)) + botonEditarPrecio(f) + "</td><td>" + celdaEstadoLinea(f) + "</td></tr>";
+    }).join("");
+    $("cuerpo-partes").innerHTML = html || "<tr><td colspan=\"9\" class=\"tabla-vacia\">Sin repuestos ni insumos todavía.</td></tr>";
+  }
+
+  function renderizarTablaExternos(filas) {
+    var html = filas.map(function (f) {
+      return "<tr><td>" + f.items.nombre + "</td><td>" + formatoMoneda(f.costo_interno) + "</td><td>" + celdaDescuentoLinea(f) + "</td>" +
+        "<td class=\"celda-numero\">" + formatoMoneda(totalLineaOrden(f)) + botonEditarPrecio(f) + "</td><td>" + celdaEstadoLinea(f) + "</td></tr>";
+    }).join("");
+    $("cuerpo-externos").innerHTML = html || "<tr><td colspan=\"5\" class=\"tabla-vacia\">Sin trabajos externos todavía.</td></tr>";
+  }
+
+  function renderizarTotalesOrden(filas) {
+    var vigentes = filas.filter(function (f) { return f.estado_autorizacion !== "rechazado"; });
+    var subtotalMO = vigentes.filter(function (f) { return f.items.tipo === "mano_obra"; }).reduce(function (a, f) { return a + totalLineaOrden(f); }, 0);
+    var subtotalPartes = vigentes.filter(function (f) { return f.items.tipo === "repuesto" || f.items.tipo === "insumo"; }).reduce(function (a, f) { return a + totalLineaOrden(f); }, 0);
+    var subtotalExternos = vigentes.filter(function (f) { return f.items.tipo === "trabajo_externo"; }).reduce(function (a, f) { return a + totalLineaOrden(f); }, 0);
+    var subtotal = subtotalMO + subtotalPartes + subtotalExternos;
+    var pctIva = ordenActual.pctIva || 0;
+    var iva = subtotal * pctIva / 100;
+    var total = subtotal + iva;
+    $("orden-totales").innerHTML = '<div class="totales-doc">' +
+      "Mano de obra: " + formatoMoneda(subtotalMO) + "<br>" +
+      "Repuestos e insumos: " + formatoMoneda(subtotalPartes) + "<br>" +
+      "Trabajos externos: " + formatoMoneda(subtotalExternos) + "<br>" +
+      (pctIva > 0 ? "IVA (" + pctIva + "%): " + formatoMoneda(iva) + "<br>" : "") +
+      '<div class="linea-total-final">Total: ' + formatoMoneda(total) + "</div></div>";
+  }
+
+  function renderizarDatosClienteVehiculo(orden) {
+    var c = orden.clientes || {};
+    var v = orden.vehiculos || {};
+    $("orden-datos-cliente-vehiculo").innerHTML =
+      '<div class="bloque-datos"><b>Cliente</b>' + (c.nombre || "—") +
+      (c.documento ? "<br>Doc: " + c.documento : "") +
+      (c.telefono ? "<br>Tel: " + c.telefono : "") +
+      (c.direccion ? "<br>" + c.direccion : "") + "</div>" +
+      '<div class="bloque-datos"><b>Vehículo</b>' +
+      ([v.marca, v.modelo, v.color, v.anio].filter(Boolean).join(" ") || "—") +
+      (v.tipo_carroceria ? "<br>Tipo: " + v.tipo_carroceria : "") +
+      (v.vin ? "<br>VIN: " + v.vin : "") +
+      (v.kilometraje ? "<br>" + v.kilometraje + " km" : "") + "</div>";
+  }
+
   function cargarItemsDeOrden() {
-    var queryItems = "select=id_detalle,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
-    var queryOrden = "select=estado,fecha_cierre,clientes(nombre,telefono),vehiculos(placa,marca,modelo)&id_ot=eq." + ordenActual.id_ot;
+    var queryItems = "select=id_detalle,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
+    var queryOrden = "select=estado,fecha_apertura,fecha_cierre,diagnostico,clientes(nombre,telefono,documento,direccion),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje)&id_ot=eq." + ordenActual.id_ot;
     return Promise.all([
       restRequest("GET", "ot_detalle", { query: queryItems }),
-      restRequest("GET", "ordenes_trabajo", { query: queryOrden })
+      restRequest("GET", "ordenes_trabajo", { query: queryOrden }),
+      restRequest("GET", "parametros_taller", { query: "select=pct_iva&id=eq.1" })
     ]).then(function (r) {
       var filas = r[0] || [];
       var orden = (r[1] && r[1][0]) || null;
+      var tallerCfg = (r[2] && r[2][0]) || {};
+      ordenActual.pctIva = tallerCfg.pct_iva || 0;
 
       $("items-subtitulo").textContent = "Orden OT-" + ordenActual.numero_ot;
       $("firma-exito-notificar").innerHTML = "";
@@ -3899,39 +4190,52 @@ the data-access layer at all.
         ordenActual.clienteTelefono = orden.clientes ? orden.clientes.telefono : null;
         ordenActual.vehiculoPlaca = orden.vehiculos ? orden.vehiculos.placa : null;
         renderizarEstadoOrden();
+        renderizarDatosClienteVehiculo(orden);
+        $("orden-diagnostico").value = orden.diagnostico || "";
       }
 
-      var html = "";
+      var filasMO = filas.filter(function (f) { return f.items.tipo === "mano_obra"; });
+      var filasPartes = filas.filter(function (f) { return f.items.tipo === "repuesto" || f.items.tipo === "insumo"; });
+      var filasExternos = filas.filter(function (f) { return f.items.tipo === "trabajo_externo"; });
+      renderizarTablaManoObra(filasMO);
+      renderizarTablaPartes(filasPartes);
+      renderizarTablaExternos(filasExternos);
+      renderizarTotalesOrden(filas);
+
       var hayPendientes = false;
       var montoPendiente = 0;
-      (filas || []).forEach(function (f) {
-        var subtotal = f.cantidad * f.precio_aplicado_cliente;
-        if (f.estado_autorizacion === "pendiente") { hayPendientes = true; montoPendiente += subtotal; }
-        var color = f.estado_autorizacion === "autorizado" ? "var(--verde)" : (f.estado_autorizacion === "rechazado" ? "var(--rojo)" : "#b45309");
-        html += '<div class="info-vehiculo" style="margin-bottom:8px;">' +
-          "<b>" + f.items.nombre + "</b>" +
-          f.cantidad + " x " + formatoMoneda(f.precio_aplicado_cliente) + " = " + formatoMoneda(subtotal) +
-          " — <span style=\"color:" + color + ";font-weight:600;\">" + f.estado_autorizacion + "</span>" +
-          "<br><span style='font-size:12px;color:var(--gris);'>Precio sugerido por el sistema: " + formatoMoneda(f.precio_sugerido) + "</span>";
-        if (f.estado_autorizacion === "pendiente" && f.items.tipo !== "mano_obra") {
-          html += '<div style="display:flex;gap:6px;margin-top:6px;align-items:center;">' +
-            '<input type="number" min="0" step="0.01" value="' + f.precio_aplicado_cliente + '" id="precio-linea-' + f.id_detalle + '" style="flex:1;padding:8px;">' +
-            '<button type="button" style="width:auto;margin:0;padding:8px 12px;font-size:13px;" onclick="window.guardarPrecioLinea(\'' + f.id_detalle + '\')">Guardar</button>' +
-            "</div>";
-        } else if (f.estado_autorizacion === "pendiente" && f.items.tipo === "mano_obra") {
-          html += '<div style="font-size:12px;color:var(--gris);margin-top:4px;">Precio fijo por hora, definido por el administrador.</div>';
+      filas.forEach(function (f) {
+        if (f.estado_autorizacion === "pendiente") {
+          hayPendientes = true;
+          montoPendiente += totalLineaOrden(f);
         }
-        html += "</div>";
       });
-      $("lista-items").innerHTML = html || "<p style='font-size:14px;color:var(--gris);'>Todavía no hay ítems agregados.</p>";
       $("btn-ir-firma").style.display = hayPendientes ? "block" : "none";
 
       renderizarAutorizacionPendiente(hayPendientes, montoPendiente);
     });
   }
 
-  window.guardarPrecioLinea = function (idDetalle) {
-    var nuevoPrecio = parseFloat($("precio-linea-" + idDetalle).value);
+  window.guardarDescuentoLinea = function (idDetalle, valor) {
+    var descuento = parseFloat(valor);
+    if (!(descuento >= 0) || descuento > 100) {
+      mostrarError("item-error", "El % de descuento debe estar entre 0 y 100.");
+      cargarItemsDeOrden();
+      return;
+    }
+    restRequest("PATCH", "ot_detalle?id_detalle=eq." + idDetalle, {
+      body: { pct_descuento: descuento }
+    }).then(function () {
+      return cargarItemsDeOrden();
+    }).catch(function (err) {
+      mostrarError("item-error", "No se pudo actualizar el descuento: " + err.message);
+    });
+  };
+
+  window.editarPrecioLinea = function (idDetalle, precioActual) {
+    var nuevo = window.prompt("Nuevo precio para el cliente en esta línea:", precioActual);
+    if (nuevo === null) return;
+    var nuevoPrecio = parseFloat(nuevo);
     if (!(nuevoPrecio >= 0)) {
       mostrarError("item-error", "El precio debe ser un número válido.");
       return;
@@ -3945,18 +4249,18 @@ the data-access layer at all.
     });
   };
 
-  $("btn-ir-items").addEventListener("click", conManejoDeErrores(function () {
-    $("tarjeta-exito").classList.add("oculto");
-    $("tarjeta-items").classList.remove("oculto");
-    return cargarItemsDeOrden();
+  $("btn-guardar-diagnostico").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("item-error");
+    var texto = $("orden-diagnostico").value.trim();
+    return restRequest("PATCH", "ordenes_trabajo", { query: "id_ot=eq." + ordenActual.id_ot, body: { diagnostico: texto || null } });
   }, "item-error"));
 
   var itemsStockDisponibles = [];
 
-  function reiniciarSelectorStock() {
-    $("item-stock-existente").value = "";
-    $("item-nombre").disabled = false;
-    $("item-costo").disabled = false;
+  function reiniciarSelectorStockPartes() {
+    $("pa-stock").value = "";
+    $("pa-nombre").disabled = false;
+    $("pa-costo").disabled = false;
   }
 
   function cargarItemsStockPara(tipo) {
@@ -3964,8 +4268,8 @@ the data-access layer at all.
       query: "select=id_item,nombre,costo,stock_actual&stock_gestionado=eq.true&tipo=eq." + tipo + "&order=nombre.asc"
     }).then(function (items) {
       itemsStockDisponibles = items || [];
-      var sel = $("item-stock-existente");
-      sel.innerHTML = '<option value="">No, es una compra nueva</option>';
+      var sel = $("pa-stock");
+      sel.innerHTML = '<option value="">Compra nueva</option>';
       itemsStockDisponibles.forEach(function (it) {
         var opt = document.createElement("option");
         opt.value = it.id_item;
@@ -3977,31 +4281,7 @@ the data-access layer at all.
 
   var precioHoraEquilibrioActual = null;
 
-  $("item-tipo").addEventListener("change", conManejoDeErrores(function () {
-    var tipoSeleccionado = $("item-tipo").value;
-    var esManoObra = tipoSeleccionado === "mano_obra";
-    var esRepuestoOInsumo = tipoSeleccionado === "repuesto" || tipoSeleccionado === "insumo";
-    $("label-item-costo").textContent = "Costo (lo que te cuesta a ti, no lo que cobras)";
-    $("grupo-costo").classList.toggle("oculto", esManoObra);
-    $("grupo-precio-manual").classList.toggle("oculto", !esManoObra);
-    $("grupo-stock-existente").classList.toggle("oculto", !esRepuestoOInsumo);
-    reiniciarSelectorStock();
-    precioHoraEquilibrioActual = null;
-    $("item-precio-aplicado").value = "";
-    if (!esManoObra) {
-      $("nota-costo-hora").classList.add("oculto");
-    }
-    if (esRepuestoOInsumo) {
-      return cargarItemsStockPara(tipoSeleccionado);
-    }
-    if (!esManoObra) return;
-    // Para mano de obra solo se piden nombre y horas: el precio (y por lo
-    // tanto el "costo" que queda registrado en la orden) es el precio fijo
-    // por hora definido por el administrador. El costo real de pagarle al
-    // técnico se calcula aparte, al liquidar la quincena en Nómina.
-    var nota = $("nota-costo-hora");
-    nota.textContent = "El costo de esta hora para efectos de nómina se calcula al liquidar al técnico en el módulo de Nómina — aquí solo defines el nombre y el tiempo estimado.";
-    nota.classList.remove("oculto");
+  function cargarPrecioManoObraActual() {
     return Promise.all([
       restRequest("POST", "rpc/calcular_precio_hora_equilibrio", { body: {} }),
       restRequest("GET", "parametros_taller", { query: "select=precio_mano_obra&id=eq.1" })
@@ -4012,69 +4292,61 @@ the data-access layer at all.
         : (precioHora !== null && precioHora !== undefined) ? Number(precioHora) : null;
       if (precioResuelto === null) {
         precioHoraEquilibrioActual = null;
-        $("item-precio-aplicado").value = "";
-        $("item-precio-aplicado").placeholder = "No configurado — pide al administrador que lo defina en Contabilidad";
+        $("mo-precio").value = "";
+        $("mo-precio").placeholder = "No configurado";
       } else {
         precioHoraEquilibrioActual = precioResuelto;
-        $("item-precio-aplicado").value = precioResuelto;
+        $("mo-precio").value = precioResuelto;
       }
     });
+  }
+
+  $("btn-ir-items").addEventListener("click", conManejoDeErrores(function () {
+    $("tarjeta-exito").classList.add("oculto");
+    $("tarjeta-items").classList.remove("oculto");
+    reiniciarSelectorStockPartes();
+    return Promise.all([cargarPrecioManoObraActual(), cargarItemsStockPara($("pa-tipo").value)]).then(cargarItemsDeOrden);
   }, "item-error"));
 
-  $("item-stock-existente").addEventListener("change", function () {
-    var idSeleccionado = this.value;
+  $("pa-tipo").addEventListener("change", conManejoDeErrores(function () {
+    reiniciarSelectorStockPartes();
+    return cargarItemsStockPara($("pa-tipo").value);
+  }, "item-error"));
+
+  $("pa-stock").addEventListener("change", function () {
+    var idSeleccionado = $("pa-stock").value;
     if (!idSeleccionado) {
-      $("item-nombre").value = "";
-      $("item-costo").value = "";
-      $("item-nombre").disabled = false;
-      $("item-costo").disabled = false;
+      $("pa-nombre").value = "";
+      $("pa-costo").value = "";
+      $("pa-nombre").disabled = false;
+      $("pa-costo").disabled = false;
       return;
     }
     var item = itemsStockDisponibles.filter(function (it) { return it.id_item === idSeleccionado; })[0];
     if (!item) return;
-    $("item-nombre").value = item.nombre;
-    $("item-costo").value = item.costo;
-    $("item-nombre").disabled = true;
-    $("item-costo").disabled = true;
+    $("pa-nombre").value = item.nombre;
+    $("pa-costo").value = item.costo;
+    $("pa-nombre").disabled = true;
+    $("pa-costo").disabled = true;
   });
 
-  $("btn-agregar-item").addEventListener("click", conManejoDeErrores(function () {
-    ocultarError("item-error");
-    var tipo = $("item-tipo").value;
-    var esManoObra = tipo === "mano_obra";
-    var nombre = $("item-nombre").value.trim();
-    // Para mano de obra el "costo" que queda registrado es el mismo precio
-    // fijo por hora (definido por el administrador): el costo real de pagar
-    // al técnico se calcula aparte, al liquidar la quincena en Nómina.
-    var costo = esManoObra ? precioHoraEquilibrioActual : parseFloat($("item-costo").value);
-    var cantidad = parseFloat($("item-cantidad").value);
-    var idStockExistente = $("item-stock-existente").value || null;
-
-    if (esManoObra && costo === null) {
-      mostrarError("item-error", "El precio de mano de obra no está configurado todavía. Pide al administrador que lo defina en Contabilidad.");
-      return;
-    }
-    if (!nombre || !(costo >= 0) || !(cantidad > 0)) {
-      mostrarError("item-error", esManoObra
-        ? "Completa el nombre y las horas."
-        : "Completa nombre, costo y cantidad correctamente.");
-      return;
-    }
-
-    var obtenerIdItem = idStockExistente
-      ? Promise.resolve(idStockExistente)
-      : restRequest("POST", "items", { body: { tipo: tipo, nombre: nombre, costo: costo } })
+  // Crea (si hace falta) el ítem en el catálogo y agrega la línea a la orden.
+  // Compartido por las 3 tablas (mano de obra, repuestos/insumos, externos).
+  function agregarLineaOrden(opts) {
+    var obtenerIdItem = opts.idStockExistente
+      ? Promise.resolve(opts.idStockExistente)
+      : restRequest("POST", "items", { body: { tipo: opts.tipo, nombre: opts.nombre, costo: opts.costo } })
           .then(function (items) { return items[0].id_item; });
 
     return obtenerIdItem.then(function (idItem) {
       // Si se usa stock existente, se descuenta PRIMERO — así, si no
       // alcanza el stock, el ítem nunca llega a agregarse a la orden.
-      var descontarStock = idStockExistente
+      var descontarStock = opts.idStockExistente
         ? restRequest("POST", "movimientos_inventario", {
             body: {
-              id_item: idStockExistente,
+              id_item: opts.idStockExistente,
               tipo: "salida",
-              cantidad: cantidad,
+              cantidad: opts.cantidad,
               id_ot: ordenActual.id_ot,
               id_usuario_registro: usuarioActualId
             }
@@ -4085,21 +4357,107 @@ the data-access layer at all.
         // El precio de mano de obra NUNCA se envía desde aquí: lo calcula la
         // base de datos a partir del precio hora de equilibrio configurado
         // por el administrador, para que no se pueda alterar por línea.
-        var detalle = { id_ot: ordenActual.id_ot, id_item: idItem, cantidad: cantidad };
+        var detalle = {
+          id_ot: ordenActual.id_ot,
+          id_item: idItem,
+          cantidad: opts.cantidad,
+          codigo: opts.codigo || null,
+          pct_descuento: opts.descuento || 0
+        };
         return restRequest("POST", "ot_detalle", { body: detalle });
       });
-    })
+    });
+  }
+
+  $("btn-agregar-mano-obra").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("item-error");
+    var nombre = $("mo-nombre").value.trim();
+    var horas = parseFloat($("mo-horas").value);
+    var descuento = parseFloat($("mo-descuento").value) || 0;
+    var codigo = $("mo-codigo").value.trim();
+    var costo = precioHoraEquilibrioActual;
+
+    if (costo === null) {
+      mostrarError("item-error", "El precio de mano de obra no está configurado todavía. Pide al administrador que lo defina en Contabilidad.");
+      return;
+    }
+    if (!nombre || !(horas > 0)) {
+      mostrarError("item-error", "Completa el nombre y las horas.");
+      return;
+    }
+    if (descuento < 0 || descuento > 100) {
+      mostrarError("item-error", "El % de descuento debe estar entre 0 y 100.");
+      return;
+    }
+
+    return agregarLineaOrden({ tipo: "mano_obra", nombre: nombre, costo: costo, cantidad: horas, codigo: codigo, descuento: descuento })
       .then(function () {
-        $("item-nombre").value = "";
-        $("item-costo").value = "";
-        $("item-cantidad").value = "1";
-        var tipoActual = $("item-tipo").value;
-        $("item-precio-aplicado").value = (tipoActual === "mano_obra" && precioHoraEquilibrioActual !== null) ? precioHoraEquilibrioActual : "";
-        reiniciarSelectorStock();
-        var recarga = (tipoActual === "repuesto" || tipoActual === "insumo")
-          ? cargarItemsStockPara(tipoActual)
-          : Promise.resolve();
-        return recarga.then(cargarItemsDeOrden);
+        $("mo-nombre").value = "";
+        $("mo-horas").value = "1";
+        $("mo-descuento").value = "0";
+        $("mo-codigo").value = "";
+        return cargarItemsDeOrden();
+      })
+      .catch(function (err) {
+        mostrarError("item-error", "No se pudo agregar: " + err.message);
+      });
+  }, "item-error"));
+
+  $("btn-agregar-parte").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("item-error");
+    var tipo = $("pa-tipo").value;
+    var codigo = $("pa-codigo").value.trim();
+    var cantidad = parseFloat($("pa-cantidad").value);
+    var nombre = $("pa-nombre").value.trim();
+    var costo = parseFloat($("pa-costo").value);
+    var descuento = parseFloat($("pa-descuento").value) || 0;
+    var idStockExistente = $("pa-stock").value || null;
+
+    if (!nombre || !(costo >= 0) || !(cantidad > 0)) {
+      mostrarError("item-error", "Completa nombre, costo y cantidad correctamente.");
+      return;
+    }
+    if (descuento < 0 || descuento > 100) {
+      mostrarError("item-error", "El % de descuento debe estar entre 0 y 100.");
+      return;
+    }
+
+    return agregarLineaOrden({ tipo: tipo, nombre: nombre, costo: costo, cantidad: cantidad, codigo: codigo, descuento: descuento, idStockExistente: idStockExistente })
+      .then(function () {
+        $("pa-nombre").value = "";
+        $("pa-costo").value = "";
+        $("pa-cantidad").value = "1";
+        $("pa-descuento").value = "0";
+        $("pa-codigo").value = "";
+        reiniciarSelectorStockPartes();
+        return cargarItemsStockPara(tipo).then(cargarItemsDeOrden);
+      })
+      .catch(function (err) {
+        mostrarError("item-error", "No se pudo agregar: " + err.message);
+      });
+  }, "item-error"));
+
+  $("btn-agregar-externo").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("item-error");
+    var nombre = $("ex-nombre").value.trim();
+    var costo = parseFloat($("ex-costo").value);
+    var descuento = parseFloat($("ex-descuento").value) || 0;
+
+    if (!nombre || !(costo >= 0)) {
+      mostrarError("item-error", "Completa la descripción y el costo.");
+      return;
+    }
+    if (descuento < 0 || descuento > 100) {
+      mostrarError("item-error", "El % de descuento debe estar entre 0 y 100.");
+      return;
+    }
+
+    return agregarLineaOrden({ tipo: "trabajo_externo", nombre: nombre, costo: costo, cantidad: 1, descuento: descuento })
+      .then(function () {
+        $("ex-nombre").value = "";
+        $("ex-costo").value = "";
+        $("ex-descuento").value = "0";
+        return cargarItemsDeOrden();
       })
       .catch(function (err) {
         mostrarError("item-error", "No se pudo agregar: " + err.message);
