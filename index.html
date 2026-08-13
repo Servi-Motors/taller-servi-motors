@@ -610,6 +610,16 @@ the data-access layer at all.
         <h2>Costo y precio hora de equilibrio</h2>
         <div id="costo-hora-actual" class="info-vehiculo"></div>
         <div id="precio-hora-actual" class="info-vehiculo"></div>
+
+        <div class="info-vehiculo" style="border:2px solid var(--azul);">
+          <b>Precio de mano de obra a cobrar</b>
+          <div class="nota-ayuda" style="margin:0 0 8px;">Este es el precio que realmente se usa en cotizaciones, órdenes y facturas — puede incluir tu ganancia. Nunca puede quedar por debajo del precio de equilibrio de arriba. Si lo dejas vacío, se usa el precio de equilibrio.</div>
+          <label for="contab-precio-mano-obra">Precio por hora ($)</label>
+          <input id="contab-precio-mano-obra" type="number" min="0" step="0.01" placeholder="Ej. 95000">
+          <button id="btn-guardar-precio-mano-obra">Guardar precio de mano de obra</button>
+          <div id="precio-mano-obra-error" class="mensaje-error"></div>
+        </div>
+
         <label for="contab-horas-mes">Horas de mano de obra disponibles al mes</label>
         <input id="contab-horas-mes" type="number" min="0" step="0.01">
         <label for="contab-pct-tecnico">% variable pagado a técnicos (sobre la venta de la hora)</label>
@@ -2694,11 +2704,13 @@ the data-access layer at all.
   // =====================================================================
   // CONTABILIDAD
   // =====================================================================
+  var precioEquilibrioActualContab = null;
+
   function cargarContabilidad() {
     return Promise.all([
       restRequest("POST", "rpc/calcular_costo_hora_equilibrio", { body: {} }),
       restRequest("POST", "rpc/calcular_precio_hora_equilibrio", { body: {} }),
-      restRequest("GET", "parametros_taller", { query: "select=horas_disponibles_mes,pct_variable_tecnico,pct_comisiones,pct_datafono&id=eq.1" }),
+      restRequest("GET", "parametros_taller", { query: "select=horas_disponibles_mes,pct_variable_tecnico,pct_comisiones,pct_datafono,precio_mano_obra&id=eq.1" }),
       restRequest("GET", "costos_fijos_mensuales", { query: "select=*&order=creado_en.desc" }),
       restRequest("GET", "egresos", { query: "select=*,ordenes_trabajo(numero_ot)&order=fecha.desc,creado_en.desc&limit=20" }),
       restRequest("GET", "vista_resultado_mensual", { query: "select=*&limit=1" })
@@ -2709,6 +2721,8 @@ the data-access layer at all.
       var costosFijos = r[3] || [];
       var egresos = r[4] || [];
       var resultado = r[5] && r[5][0];
+
+      precioEquilibrioActualContab = (precioHora === null || precioHora === undefined) ? null : Number(precioHora);
 
       $("costo-hora-actual").innerHTML = (costoHora === null || costoHora === undefined)
         ? "<b>Costo hora: aún no calculable</b>Configura tus costos fijos y las horas disponibles abajo."
@@ -2722,13 +2736,17 @@ the data-access layer at all.
       $("contab-pct-tecnico").value = parametros ? Number(parametros.pct_variable_tecnico * 100).toFixed(3) : "";
       $("contab-pct-comisiones").value = parametros ? Number(parametros.pct_comisiones * 100).toFixed(3) : "";
       $("contab-pct-datafono").value = parametros ? Number(parametros.pct_datafono * 100).toFixed(3) : "";
+      $("contab-precio-mano-obra").value = (parametros && parametros.precio_mano_obra !== null && parametros.precio_mano_obra !== undefined)
+        ? parametros.precio_mano_obra
+        : "";
 
       var esAdministrador = rolActual === "administrador";
-      ["contab-horas-mes", "contab-pct-tecnico", "contab-pct-comisiones", "contab-pct-datafono"].forEach(function (id) {
+      ["contab-horas-mes", "contab-pct-tecnico", "contab-pct-comisiones", "contab-pct-datafono", "contab-precio-mano-obra"].forEach(function (id) {
         $(id).disabled = !esAdministrador;
       });
       $("btn-guardar-horas").classList.toggle("oculto", !esAdministrador);
       $("contab-solo-admin-nota").classList.toggle("oculto", esAdministrador);
+      $("btn-guardar-precio-mano-obra").classList.toggle("oculto", !esAdministrador);
       ["costo-fijo-concepto", "costo-fijo-monto"].forEach(function (id) { $(id).disabled = !esAdministrador; });
       $("btn-agregar-costo-fijo").classList.toggle("oculto", !esAdministrador);
       $("costos-fijos-solo-admin-nota").classList.toggle("oculto", esAdministrador);
@@ -2805,6 +2823,26 @@ the data-access layer at all.
       }
     }).then(cargarContabilidad);
   }, "contab-horas-error"));
+
+  $("btn-guardar-precio-mano-obra").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("precio-mano-obra-error");
+    var valorTexto = $("contab-precio-mano-obra").value.trim();
+    var precio = valorTexto === "" ? null : parseFloat(valorTexto);
+    if (valorTexto !== "" && !(precio >= 0)) {
+      mostrarError("precio-mano-obra-error", "Escribe un precio válido.");
+      return;
+    }
+    if (precio !== null && precioEquilibrioActualContab !== null && precio < precioEquilibrioActualContab) {
+      mostrarError("precio-mano-obra-error", "No puede ser menor al precio hora de equilibrio (" + formatoMoneda(precioEquilibrioActualContab) + ").");
+      return;
+    }
+    return restRequest("PATCH", "parametros_taller", {
+      query: "id=eq.1",
+      body: { precio_mano_obra: precio }
+    }).then(cargarContabilidad).catch(function (err) {
+      mostrarError("precio-mano-obra-error", err.message);
+    });
+  }, "precio-mano-obra-error"));
 
   $("btn-agregar-costo-fijo").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("costo-fijo-error");
@@ -3957,10 +3995,12 @@ the data-access layer at all.
     if (!esManoObra) return;
     return Promise.all([
       restRequest("POST", "rpc/calcular_costo_hora_equilibrio", { body: {} }),
-      restRequest("POST", "rpc/calcular_precio_hora_equilibrio", { body: {} })
+      restRequest("POST", "rpc/calcular_precio_hora_equilibrio", { body: {} }),
+      restRequest("GET", "parametros_taller", { query: "select=precio_mano_obra&id=eq.1" })
     ]).then(function (r) {
       var costoHora = r[0];
       var precioHora = r[1];
+      var precioManual = r[2] && r[2][0] && r[2][0].precio_mano_obra;
       var nota = $("nota-costo-hora");
       if (costoHora === null || costoHora === undefined) {
         nota.textContent = "Aún no configuras tus costos fijos y horas disponibles en Contabilidad, así que no hay un costo hora calculado. Puedes escribirlo a mano por ahora.";
@@ -3972,13 +4012,15 @@ the data-access layer at all.
           $("item-costo").value = costoHora;
         }
       }
-      if (precioHora === null || precioHora === undefined) {
+      var precioResuelto = (precioManual !== null && precioManual !== undefined) ? Number(precioManual)
+        : (precioHora !== null && precioHora !== undefined) ? Number(precioHora) : null;
+      if (precioResuelto === null) {
         precioHoraEquilibrioActual = null;
         $("item-precio-aplicado").value = "";
         $("item-precio-aplicado").placeholder = "No configurado — pide al administrador que lo defina en Contabilidad";
       } else {
-        precioHoraEquilibrioActual = Number(precioHora);
-        $("item-precio-aplicado").value = precioHoraEquilibrioActual;
+        precioHoraEquilibrioActual = precioResuelto;
+        $("item-precio-aplicado").value = precioResuelto;
       }
     });
   }, "item-error"));
