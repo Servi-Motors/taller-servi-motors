@@ -3455,7 +3455,7 @@ the data-access layer at all.
         fila.className = "fila-renglon";
         fila.innerHTML =
           "<span>" + nombreEmp + " <span class=\"fila-detalle\">(" + l.periodo_inicio + " a " + l.periodo_fin + ")</span><br>" +
-          "<span class=\"fila-detalle\">Base " + formatoMoneda(l.salario_base) + " + comisiones " + formatoMoneda(l.comisiones) + " + variable " + formatoMoneda(l.variable_tecnico) + (Number(l.horas_tramo_base) > 0 || Number(l.horas_tramo_extra) > 0 ? " (" + Number(l.horas_tramo_base).toFixed(2) + "h base + " + Number(l.horas_tramo_extra).toFixed(2) + "h extra)" : "") + " + bonif. " + formatoMoneda(l.bonificaciones) + " − deducciones " + formatoMoneda(Number(l.deduccion_prestamo) + Number(l.otras_deducciones)) + "</span></span>" +
+          "<span class=\"fila-detalle\">Base " + formatoMoneda(l.salario_base) + (Number(l.dias_periodo) > 0 ? " (" + l.dias_periodo + "/30 días de mensual " + formatoMoneda(l.salario_mensual_base) + ")" : "") + " + comisiones " + formatoMoneda(l.comisiones) + " + variable " + formatoMoneda(l.variable_tecnico) + (Number(l.horas_tramo_base) > 0 || Number(l.horas_tramo_extra) > 0 ? " (" + Number(l.horas_tramo_base).toFixed(2) + "h base + " + Number(l.horas_tramo_extra).toFixed(2) + "h extra)" : "") + " + bonif. " + formatoMoneda(l.bonificaciones) + " − deducciones " + formatoMoneda(Number(l.deduccion_prestamo) + Number(l.otras_deducciones)) + "</span></span>" +
           "<span><b>" + formatoMoneda(l.total) + "</b></span>";
         var btnImprimirRecibo = document.createElement("button");
         btnImprimirRecibo.type = "button";
@@ -3474,6 +3474,10 @@ the data-access layer at all.
       var deducciones = Number(l.deduccion_prestamo) + Number(l.otras_deducciones);
       var horasBase = Number(l.horas_tramo_base) || 0;
       var horasExtra = Number(l.horas_tramo_extra) || 0;
+      var diasPeriodoL = Number(l.dias_periodo) || 0;
+      var filaSalario = diasPeriodoL > 0
+        ? "<tr><td>Salario base<br><span class=\"fila-detalle\">&nbsp;&nbsp;· " + diasPeriodoL + " de 30 días, sobre mensual " + formatoMoneda(l.salario_mensual_base) + "</span></td><td>" + formatoMoneda(l.salario_base) + "</td></tr>"
+        : "<tr><td>Salario base</td><td>" + formatoMoneda(l.salario_base) + "</td></tr>";
       var filasVariable = (horasBase > 0 || horasExtra > 0)
         ? "<tr><td>&nbsp;&nbsp;· " + horasBase.toFixed(2) + " horas a tarifa base (" + formatoMoneda(l.tarifa_hora_base) + "/h)</td><td>" + formatoMoneda(horasBase * Number(l.tarifa_hora_base)) + "</td></tr>" +
           (horasExtra > 0 ? "<tr><td>&nbsp;&nbsp;· " + horasExtra.toFixed(2) + " horas excedentes (" + formatoMoneda(l.tarifa_hora_extra) + "/h)</td><td>" + formatoMoneda(horasExtra * Number(l.tarifa_hora_extra)) + "</td></tr>" : "")
@@ -3484,7 +3488,7 @@ the data-access layer at all.
         "<div class=\"bloque\"><b>Período</b>" + l.periodo_inicio + " a " + l.periodo_fin + "</div>" +
         "</div>" +
         "<table><thead><tr><th>Concepto</th><th>Valor</th></tr></thead><tbody>" +
-        "<tr><td>Salario base</td><td>" + formatoMoneda(l.salario_base) + "</td></tr>" +
+        filaSalario +
         "<tr><td>Comisiones</td><td>" + formatoMoneda(l.comisiones) + "</td></tr>" +
         "<tr><td>Variable técnico</td><td>" + formatoMoneda(l.variable_tecnico) + "</td></tr>" +
         filasVariable +
@@ -3512,10 +3516,15 @@ the data-access layer at all.
     var idEmpleado = opt.value;
     var idUsuario = opt.getAttribute("data-usuario");
     var rol = opt.getAttribute("data-rol");
-    var salarioBase = parseFloat(opt.getAttribute("data-salario")) || 0;
+    var salarioMensual = parseFloat(opt.getAttribute("data-salario")) || 0;
     var inicio = $("nomina-inicio").value;
     var fin = $("nomina-fin").value;
     if (!inicio || !fin || inicio > fin) { mostrarError("nomina-error", "Escribe un período válido."); return; }
+
+    // El salario base configurado es MENSUAL. Se prorratea sobre una base de 30 días
+    // (estándar de nómina en Colombia), así un período de 15 días paga la mitad, etc.
+    var diasPeriodo = Math.round((new Date(fin + "T00:00:00") - new Date(inicio + "T00:00:00")) / 86400000) + 1;
+    var salarioBase = Math.round(salarioMensual * diasPeriodo / 30);
 
     var finExclusivo = new Date(fin + "T00:00:00");
     finExclusivo.setDate(finExclusivo.getDate() + 1);
@@ -3562,6 +3571,8 @@ the data-access layer at all.
         id_empleado: idEmpleado,
         periodo_inicio: inicio,
         periodo_fin: fin,
+        dias_periodo: diasPeriodo,
+        salario_mensual_base: salarioMensual,
         salario_base: salarioBase,
         comisiones: comisiones,
         horas_tramo_base: horasTramoBase,
@@ -3580,7 +3591,9 @@ the data-access layer at all.
             + (horasTramoExtra > 0 ? "<br>&nbsp;&nbsp;" + horasTramoExtra.toFixed(2) + " h excedentes × " + formatoMoneda(tarifaExtra) + " = " + formatoMoneda(horasTramoExtra * tarifaExtra) : ""))
         : "Este rol no tiene comisión ni variable automática — solo salario base.";
 
-      $("nomina-resumen").innerHTML = "<b>Salario base: " + formatoMoneda(salarioBase) + "</b>" + detalleCalculo;
+      $("nomina-resumen").innerHTML = "<b>Salario base: " + formatoMoneda(salarioBase) + "</b>"
+        + "(" + diasPeriodo + " días de 30, sobre salario mensual de " + formatoMoneda(salarioMensual) + ")"
+        + detalleCalculo;
 
       var selPrestamo = $("nomina-prestamo");
       selPrestamo.innerHTML = "<option value=\"\">— Ninguno —</option>";
@@ -3622,6 +3635,8 @@ the data-access layer at all.
       id_empleado: nominaCalculo.id_empleado,
       periodo_inicio: nominaCalculo.periodo_inicio,
       periodo_fin: nominaCalculo.periodo_fin,
+      dias_periodo: nominaCalculo.dias_periodo,
+      salario_mensual_base: nominaCalculo.salario_mensual_base,
       salario_base: nominaCalculo.salario_base,
       comisiones: nominaCalculo.comisiones,
       variable_tecnico: nominaCalculo.variable_tecnico,
