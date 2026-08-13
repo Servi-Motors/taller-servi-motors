@@ -287,6 +287,7 @@ the data-access layer at all.
           <input type="file" id="evidencias-recepcion-archivo" accept="image/*" multiple class="oculto">
           <div id="evidencias-recepcion-contador" class="nota-ayuda"></div>
 
+          <div id="recepcion-error" class="mensaje-error"></div>
           <div class="agenda-controles" style="margin-top:10px;">
             <button type="button" id="btn-enviar-diagnostico">Enviar a diagnóstico</button>
             <button type="button" class="secundario" id="btn-saltar-diagnostico">No necesita diagnóstico — cotizar ahora</button>
@@ -4634,9 +4635,9 @@ the data-access layer at all.
     return (conteoEvidenciasPorEtapa[etapa] || 0) >= MINIMO_EVIDENCIAS;
   }
 
-  function exigirEvidencias(etapa) {
+  function exigirEvidencias(etapa, idError) {
     if (cuentaEvidenciasSuficiente(etapa)) return true;
-    mostrarError("item-error", "Faltan fotos de evidencia en esta etapa: hay " + (conteoEvidenciasPorEtapa[etapa] || 0) + " de " + MINIMO_EVIDENCIAS + " mínimo.");
+    mostrarError(idError || "item-error", "Faltan fotos de evidencia en esta etapa: hay " + (conteoEvidenciasPorEtapa[etapa] || 0) + " de " + MINIMO_EVIDENCIAS + " mínimo.");
     return false;
   }
 
@@ -4688,8 +4689,13 @@ the data-access layer at all.
     });
   }
 
+  // La etapa de Recepción tiene su propio cuadro de error (el general
+  // "item-error" queda oculto mientras se está en esa etapa).
+  var ERROR_POR_ETAPA_EVIDENCIA = { recepcion: "recepcion-error", diagnostico: "item-error", en_proceso: "item-error", control_calidad: "item-error" };
+
   function subirEvidencias(etapa, input) {
-    ocultarError("item-error");
+    var idError = ERROR_POR_ETAPA_EVIDENCIA[etapa] || "item-error";
+    ocultarError(idError);
     var archivos = Array.prototype.slice.call(input.files || []);
     if (!archivos.length) return Promise.resolve();
     var subidas = archivos.map(function (archivo) {
@@ -4710,7 +4716,7 @@ the data-access layer at all.
       return cargarEvidencias(etapa);
     }).catch(function (err) {
       input.value = "";
-      mostrarError("item-error", err.message);
+      mostrarError(idError, err.message);
     });
   }
 
@@ -4721,8 +4727,8 @@ the data-access layer at all.
     var ui = UI_EVIDENCIAS[etapa];
     $(ui.btnCamara).addEventListener("click", function () { $(ui.camara).click(); });
     $(ui.btnArchivo).addEventListener("click", function () { $(ui.archivo).click(); });
-    $(ui.camara).addEventListener("change", conManejoDeErrores(function () { return subirEvidencias(etapa, $(ui.camara)); }, "item-error"));
-    $(ui.archivo).addEventListener("change", conManejoDeErrores(function () { return subirEvidencias(etapa, $(ui.archivo)); }, "item-error"));
+    $(ui.camara).addEventListener("change", conManejoDeErrores(function () { return subirEvidencias(etapa, $(ui.camara)); }, ERROR_POR_ETAPA_EVIDENCIA[etapa]));
+    $(ui.archivo).addEventListener("change", conManejoDeErrores(function () { return subirEvidencias(etapa, $(ui.archivo)); }, ERROR_POR_ETAPA_EVIDENCIA[etapa]));
   });
 
   window.guardarDescuentoLinea = function (idDetalle, valor) {
@@ -4767,22 +4773,22 @@ the data-access layer at all.
   // Etapa de Recepción: presupuesto tentativo + elegir si el servicio
   // necesita diagnóstico o se cotiza y autoriza directamente.
   $("btn-guardar-presupuesto-tentativo").addEventListener("click", conManejoDeErrores(function () {
-    ocultarError("item-error");
+    ocultarError("recepcion-error");
     var valor = $("orden-presupuesto-tentativo").value;
     return restRequest("PATCH", "ordenes_trabajo", { query: "id_ot=eq." + ordenActual.id_ot, body: { presupuesto_tentativo: valor ? parseFloat(valor) : null } });
-  }, "item-error"));
+  }, "recepcion-error"));
 
   $("btn-enviar-diagnostico").addEventListener("click", conManejoDeErrores(function () {
-    ocultarError("item-error");
-    if (!exigirEvidencias("recepcion")) return;
+    ocultarError("recepcion-error");
+    if (!exigirEvidencias("recepcion", "recepcion-error")) return;
     return cambiarEstadoOrden("diagnostico", "Orden enviada a diagnóstico");
-  }, "item-error"));
+  }, "recepcion-error"));
 
   $("btn-saltar-diagnostico").addEventListener("click", conManejoDeErrores(function () {
-    ocultarError("item-error");
-    if (!exigirEvidencias("recepcion")) return;
+    ocultarError("recepcion-error");
+    if (!exigirEvidencias("recepcion", "recepcion-error")) return;
     return cambiarEstadoOrden("sin_autorizacion", "Orden cotizada directamente, sin diagnóstico");
-  }, "item-error"));
+  }, "recepcion-error"));
 
   // Etapa de Diagnóstico: hallazgos del técnico, luego se agregan los ítems
   // (arriba, en las tablas normales) y se envía a autorización del cliente.
