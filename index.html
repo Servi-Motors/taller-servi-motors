@@ -241,8 +241,8 @@ the data-access layer at all.
         <label for="item-cantidad">Cantidad (u horas)</label>
         <input id="item-cantidad" type="number" min="0.01" step="0.01" value="1">
         <div id="grupo-precio-manual" class="oculto">
-          <label for="item-precio-aplicado">Precio que cobras al cliente (tarifa fija de mano de obra)</label>
-          <input id="item-precio-aplicado" type="number" min="0" step="0.01">
+          <label for="item-precio-aplicado">Precio por hora que se cobra al cliente (fijado por el administrador en Contabilidad)</label>
+          <input id="item-precio-aplicado" type="number" min="0" step="0.01" disabled>
         </div>
         <button id="btn-agregar-item">Agregar a la orden</button>
         <div id="item-error" class="mensaje-error"></div>
@@ -619,6 +619,7 @@ the data-access layer at all.
         <label for="contab-pct-datafono">% costo de datáfono</label>
         <input id="contab-pct-datafono" type="number" min="0" max="99.99" step="0.01" placeholder="Ej. 3.5">
         <div class="nota-ayuda">Estos tres se descuentan de cada hora vendida (no son costos fijos), por eso el precio de equilibrio los cubre aparte del costo fijo.</div>
+        <div id="contab-solo-admin-nota" class="nota-ayuda oculto">Solo el administrador puede modificar estos valores — determinan el precio de mano de obra que se cobra en las órdenes.</div>
         <button id="btn-guardar-horas">Guardar</button>
         <div id="contab-horas-error" class="mensaje-error"></div>
       </div>
@@ -627,6 +628,7 @@ the data-access layer at all.
         <h2>Costos fijos mensuales</h2>
         <div id="lista-costos-fijos"></div>
         <h3>Agregar costo fijo</h3>
+        <div id="costos-fijos-solo-admin-nota" class="nota-ayuda oculto">Solo el administrador puede agregar o modificar costos fijos.</div>
         <label for="costo-fijo-concepto">Concepto</label>
         <input id="costo-fijo-concepto" type="text" placeholder="Ej. Arriendo">
         <label for="costo-fijo-monto">Monto mensual</label>
@@ -2721,6 +2723,16 @@ the data-access layer at all.
       $("contab-pct-comisiones").value = parametros ? Number(parametros.pct_comisiones * 100).toFixed(3) : "";
       $("contab-pct-datafono").value = parametros ? Number(parametros.pct_datafono * 100).toFixed(3) : "";
 
+      var esAdministrador = rolActual === "administrador";
+      ["contab-horas-mes", "contab-pct-tecnico", "contab-pct-comisiones", "contab-pct-datafono"].forEach(function (id) {
+        $(id).disabled = !esAdministrador;
+      });
+      $("btn-guardar-horas").classList.toggle("oculto", !esAdministrador);
+      $("contab-solo-admin-nota").classList.toggle("oculto", esAdministrador);
+      ["costo-fijo-concepto", "costo-fijo-monto"].forEach(function (id) { $(id).disabled = !esAdministrador; });
+      $("btn-agregar-costo-fijo").classList.toggle("oculto", !esAdministrador);
+      $("costos-fijos-solo-admin-nota").classList.toggle("oculto", esAdministrador);
+
       var listaCF = $("lista-costos-fijos");
       listaCF.innerHTML = costosFijos.length ? "" : "<p class=\"nota-ayuda\">Todavía no has agregado costos fijos.</p>";
       costosFijos.forEach(function (cf) {
@@ -2728,16 +2740,18 @@ the data-access layer at all.
         fila.className = "fila-renglon";
         fila.innerHTML =
           "<span>" + cf.concepto + (cf.activo ? "" : " <span class=\"fila-detalle\">(inactivo)</span>") + "<br><span class=\"fila-detalle\">" + formatoMoneda(cf.monto_mensual) + " / mes</span></span>";
-        var btn = document.createElement("button");
-        btn.className = "secundario";
-        btn.textContent = cf.activo ? "Desactivar" : "Activar";
-        btn.addEventListener("click", conManejoDeErrores(function () {
-          return restRequest("PATCH", "costos_fijos_mensuales", {
-            query: "id_costo_fijo=eq." + cf.id_costo_fijo,
-            body: { activo: !cf.activo }
-          }).then(cargarContabilidad);
-        }, "costo-fijo-error"));
-        fila.appendChild(btn);
+        if (esAdministrador) {
+          var btn = document.createElement("button");
+          btn.className = "secundario";
+          btn.textContent = cf.activo ? "Desactivar" : "Activar";
+          btn.addEventListener("click", conManejoDeErrores(function () {
+            return restRequest("PATCH", "costos_fijos_mensuales", {
+              query: "id_costo_fijo=eq." + cf.id_costo_fijo,
+              body: { activo: !cf.activo }
+            }).then(cargarContabilidad);
+          }, "costo-fijo-error"));
+          fila.appendChild(btn);
+        }
         listaCF.appendChild(fila);
       });
 
@@ -3859,11 +3873,13 @@ the data-access layer at all.
           f.cantidad + " x " + formatoMoneda(f.precio_aplicado_cliente) + " = " + formatoMoneda(subtotal) +
           " — <span style=\"color:" + color + ";font-weight:600;\">" + f.estado_autorizacion + "</span>" +
           "<br><span style='font-size:12px;color:var(--gris);'>Precio sugerido por el sistema: " + formatoMoneda(f.precio_sugerido) + "</span>";
-        if (f.estado_autorizacion === "pendiente") {
+        if (f.estado_autorizacion === "pendiente" && f.items.tipo !== "mano_obra") {
           html += '<div style="display:flex;gap:6px;margin-top:6px;align-items:center;">' +
             '<input type="number" min="0" step="0.01" value="' + f.precio_aplicado_cliente + '" id="precio-linea-' + f.id_detalle + '" style="flex:1;padding:8px;">' +
             '<button type="button" style="width:auto;margin:0;padding:8px 12px;font-size:13px;" onclick="window.guardarPrecioLinea(\'' + f.id_detalle + '\')">Guardar</button>' +
             "</div>";
+        } else if (f.estado_autorizacion === "pendiente" && f.items.tipo === "mano_obra") {
+          html += '<div style="font-size:12px;color:var(--gris);margin-top:4px;">Precio fijo por hora, definido por el administrador.</div>';
         }
         html += "</div>";
       });
@@ -3919,6 +3935,8 @@ the data-access layer at all.
     });
   }
 
+  var precioHoraEquilibrioActual = null;
+
   $("item-tipo").addEventListener("change", conManejoDeErrores(function () {
     var esManoObra = this.value === "mano_obra";
     var esRepuestoOInsumo = this.value === "repuesto" || this.value === "insumo";
@@ -3928,28 +3946,41 @@ the data-access layer at all.
     $("grupo-precio-manual").classList.toggle("oculto", !esManoObra);
     $("grupo-stock-existente").classList.toggle("oculto", !esRepuestoOInsumo);
     reiniciarSelectorStock();
+    precioHoraEquilibrioActual = null;
+    $("item-precio-aplicado").value = "";
     if (!esManoObra) {
-      $("item-precio-aplicado").value = "";
       $("nota-costo-hora").classList.add("oculto");
     }
     if (esRepuestoOInsumo) {
       return cargarItemsStockPara(this.value);
     }
     if (!esManoObra) return;
-    return restRequest("POST", "rpc/calcular_costo_hora_equilibrio", { body: {} })
-      .then(function (costoHora) {
-        var nota = $("nota-costo-hora");
-        if (costoHora === null || costoHora === undefined) {
-          nota.textContent = "Aún no configuras tus costos fijos y horas disponibles en Contabilidad, así que no hay un costo hora calculado. Puedes escribirlo a mano por ahora.";
-          nota.classList.remove("oculto");
-          return;
-        }
+    return Promise.all([
+      restRequest("POST", "rpc/calcular_costo_hora_equilibrio", { body: {} }),
+      restRequest("POST", "rpc/calcular_precio_hora_equilibrio", { body: {} })
+    ]).then(function (r) {
+      var costoHora = r[0];
+      var precioHora = r[1];
+      var nota = $("nota-costo-hora");
+      if (costoHora === null || costoHora === undefined) {
+        nota.textContent = "Aún no configuras tus costos fijos y horas disponibles en Contabilidad, así que no hay un costo hora calculado. Puedes escribirlo a mano por ahora.";
+        nota.classList.remove("oculto");
+      } else {
         nota.textContent = "Costo hora de equilibrio calculado en Contabilidad: $" + Number(costoHora).toLocaleString("es-CO", { minimumFractionDigits: 2 }) + ". Se puso como sugerencia abajo, puedes cambiarlo si este caso es distinto.";
         nota.classList.remove("oculto");
         if (!$("item-costo").value) {
           $("item-costo").value = costoHora;
         }
-      });
+      }
+      if (precioHora === null || precioHora === undefined) {
+        precioHoraEquilibrioActual = null;
+        $("item-precio-aplicado").value = "";
+        $("item-precio-aplicado").placeholder = "No configurado — pide al administrador que lo defina en Contabilidad";
+      } else {
+        precioHoraEquilibrioActual = Number(precioHora);
+        $("item-precio-aplicado").value = precioHoraEquilibrioActual;
+      }
+    });
   }, "item-error"));
 
   $("item-stock-existente").addEventListener("change", function () {
@@ -3976,13 +4007,13 @@ the data-access layer at all.
     var costo = parseFloat($("item-costo").value);
     var cantidad = parseFloat($("item-cantidad").value);
     var idStockExistente = $("item-stock-existente").value || null;
-    var precioManual = (tipo === "mano_obra" && $("item-precio-aplicado").value)
-      ? parseFloat($("item-precio-aplicado").value)
-      : null;
 
     if (!nombre || !(costo >= 0) || !(cantidad > 0)) {
       mostrarError("item-error", "Completa nombre, costo y cantidad correctamente.");
       return;
+    }
+    if (tipo === "mano_obra" && precioHoraEquilibrioActual === null) {
+      mostrarError("item-error", "El precio hora de equilibrio no está configurado todavía. Pide al administrador que lo defina en Contabilidad antes de facturar mano de obra (por ahora se usará un cálculo provisional).");
     }
 
     var obtenerIdItem = idStockExistente
@@ -4006,10 +4037,10 @@ the data-access layer at all.
         : Promise.resolve();
 
       return descontarStock.then(function () {
+        // El precio de mano de obra NUNCA se envía desde aquí: lo calcula la
+        // base de datos a partir del precio hora de equilibrio configurado
+        // por el administrador, para que no se pueda alterar por línea.
         var detalle = { id_ot: ordenActual.id_ot, id_item: idItem, cantidad: cantidad };
-        if (precioManual !== null && precioManual >= 0) {
-          detalle.precio_aplicado_cliente = precioManual;
-        }
         return restRequest("POST", "ot_detalle", { body: detalle });
       });
     })
