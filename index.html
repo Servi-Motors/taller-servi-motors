@@ -235,8 +235,10 @@ the data-access layer at all.
         </div>
         <label for="item-nombre">Nombre / descripción</label>
         <input id="item-nombre" type="text" placeholder="Ej. Filtro de aceite">
-        <label for="item-costo" id="label-item-costo">Costo</label>
-        <input id="item-costo" type="number" min="0" step="0.01">
+        <div id="grupo-costo">
+          <label for="item-costo" id="label-item-costo">Costo</label>
+          <input id="item-costo" type="number" min="0" step="0.01">
+        </div>
         <div id="nota-costo-hora" class="oculto nota-ayuda"></div>
         <label for="item-cantidad">Cantidad (u horas)</label>
         <input id="item-cantidad" type="number" min="0.01" step="0.01" value="1">
@@ -3978,9 +3980,8 @@ the data-access layer at all.
   $("item-tipo").addEventListener("change", conManejoDeErrores(function () {
     var esManoObra = this.value === "mano_obra";
     var esRepuestoOInsumo = this.value === "repuesto" || this.value === "insumo";
-    $("label-item-costo").textContent = esManoObra
-      ? "Costo hora interno (punto de equilibrio) — no es lo que cobras"
-      : "Costo (lo que te cuesta a ti, no lo que cobras)";
+    $("label-item-costo").textContent = "Costo (lo que te cuesta a ti, no lo que cobras)";
+    $("grupo-costo").classList.toggle("oculto", esManoObra);
     $("grupo-precio-manual").classList.toggle("oculto", !esManoObra);
     $("grupo-stock-existente").classList.toggle("oculto", !esRepuestoOInsumo);
     reiniciarSelectorStock();
@@ -3993,25 +3994,19 @@ the data-access layer at all.
       return cargarItemsStockPara(this.value);
     }
     if (!esManoObra) return;
+    // Para mano de obra solo se piden nombre y horas: el precio (y por lo
+    // tanto el "costo" que queda registrado en la orden) es el precio fijo
+    // por hora definido por el administrador. El costo real de pagarle al
+    // técnico se calcula aparte, al liquidar la quincena en Nómina.
+    var nota = $("nota-costo-hora");
+    nota.textContent = "El costo de esta hora para efectos de nómina se calcula al liquidar al técnico en el módulo de Nómina — aquí solo defines el nombre y el tiempo estimado.";
+    nota.classList.remove("oculto");
     return Promise.all([
-      restRequest("POST", "rpc/calcular_costo_hora_equilibrio", { body: {} }),
       restRequest("POST", "rpc/calcular_precio_hora_equilibrio", { body: {} }),
       restRequest("GET", "parametros_taller", { query: "select=precio_mano_obra&id=eq.1" })
     ]).then(function (r) {
-      var costoHora = r[0];
-      var precioHora = r[1];
-      var precioManual = r[2] && r[2][0] && r[2][0].precio_mano_obra;
-      var nota = $("nota-costo-hora");
-      if (costoHora === null || costoHora === undefined) {
-        nota.textContent = "Aún no configuras tus costos fijos y horas disponibles en Contabilidad, así que no hay un costo hora calculado. Puedes escribirlo a mano por ahora.";
-        nota.classList.remove("oculto");
-      } else {
-        nota.textContent = "Costo hora de equilibrio calculado en Contabilidad: $" + Number(costoHora).toLocaleString("es-CO", { minimumFractionDigits: 2 }) + ". Se puso como sugerencia abajo, puedes cambiarlo si este caso es distinto.";
-        nota.classList.remove("oculto");
-        if (!$("item-costo").value) {
-          $("item-costo").value = costoHora;
-        }
-      }
+      var precioHora = r[0];
+      var precioManual = r[1] && r[1][0] && r[1][0].precio_mano_obra;
       var precioResuelto = (precioManual !== null && precioManual !== undefined) ? Number(precioManual)
         : (precioHora !== null && precioHora !== undefined) ? Number(precioHora) : null;
       if (precioResuelto === null) {
@@ -4045,17 +4040,24 @@ the data-access layer at all.
   $("btn-agregar-item").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("item-error");
     var tipo = $("item-tipo").value;
+    var esManoObra = tipo === "mano_obra";
     var nombre = $("item-nombre").value.trim();
-    var costo = parseFloat($("item-costo").value);
+    // Para mano de obra el "costo" que queda registrado es el mismo precio
+    // fijo por hora (definido por el administrador): el costo real de pagar
+    // al técnico se calcula aparte, al liquidar la quincena en Nómina.
+    var costo = esManoObra ? precioHoraEquilibrioActual : parseFloat($("item-costo").value);
     var cantidad = parseFloat($("item-cantidad").value);
     var idStockExistente = $("item-stock-existente").value || null;
 
-    if (!nombre || !(costo >= 0) || !(cantidad > 0)) {
-      mostrarError("item-error", "Completa nombre, costo y cantidad correctamente.");
+    if (esManoObra && costo === null) {
+      mostrarError("item-error", "El precio de mano de obra no está configurado todavía. Pide al administrador que lo defina en Contabilidad.");
       return;
     }
-    if (tipo === "mano_obra" && precioHoraEquilibrioActual === null) {
-      mostrarError("item-error", "El precio hora de equilibrio no está configurado todavía. Pide al administrador que lo defina en Contabilidad antes de facturar mano de obra (por ahora se usará un cálculo provisional).");
+    if (!nombre || !(costo >= 0) || !(cantidad > 0)) {
+      mostrarError("item-error", esManoObra
+        ? "Completa el nombre y las horas."
+        : "Completa nombre, costo y cantidad correctamente.");
+      return;
     }
 
     var obtenerIdItem = idStockExistente
@@ -4090,8 +4092,8 @@ the data-access layer at all.
         $("item-nombre").value = "";
         $("item-costo").value = "";
         $("item-cantidad").value = "1";
-        $("item-precio-aplicado").value = "";
         var tipoActual = $("item-tipo").value;
+        $("item-precio-aplicado").value = (tipoActual === "mano_obra" && precioHoraEquilibrioActual !== null) ? precioHoraEquilibrioActual : "";
         reiniciarSelectorStock();
         var recarga = (tipoActual === "repuesto" || tipoActual === "insumo")
           ? cargarItemsStockPara(tipoActual)
