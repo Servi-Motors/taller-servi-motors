@@ -989,25 +989,34 @@ the data-access layer at all.
           <input id="cc-efectivo-inicial" type="number" min="0" step="0.01">
           <label>Conteo físico de efectivo (billetes y monedas)</label>
           <div class="nota-ayuda">Cuenta el dinero que hay físicamente en caja ahora mismo y anota cuántos hay de cada denominación. El total se suma solo.</div>
-          <div class="tabla-scroll">
-            <table class="tabla-datos tabla-items-orden" id="tabla-denominaciones">
-              <thead><tr><th>Denominación</th><th>Cantidad</th><th>Subtotal</th></tr></thead>
-              <tbody id="cuerpo-denominaciones">
-                <tr><td>Billete $100.000</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="100000"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
-                <tr><td>Billete $50.000</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="50000"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
-                <tr><td>Billete $20.000</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="20000"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
-                <tr><td>Billete $10.000</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="10000"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
-                <tr><td>Billete $5.000</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="5000"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
-                <tr><td>Billete $2.000</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="2000"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
-                <tr><td>Moneda $1.000</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="1000"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
-                <tr><td>Moneda $500</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="500"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
-                <tr><td>Moneda $200</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="200"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
-                <tr><td>Moneda $100</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="100"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
-                <tr><td>Moneda $50</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="50"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
-              </tbody>
-              <tfoot><tr><td><strong>Total contado</strong></td><td></td><td class="celda-numero" id="cc-efectivo-contado-total"><strong>$0</strong></td></tr></tfoot>
-            </table>
+          <div class="denominaciones-grid" id="tabla-denominaciones">
+            <div class="tabla-scroll">
+              <table class="tabla-datos tabla-items-orden">
+                <thead><tr><th>Billete</th><th>Cant.</th><th>Subtotal</th></tr></thead>
+                <tbody>
+                  <tr><td>$100.000</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="100000"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
+                  <tr><td>$50.000</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="50000"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
+                  <tr><td>$20.000</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="20000"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
+                  <tr><td>$10.000</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="10000"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
+                  <tr><td>$5.000</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="5000"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
+                  <tr><td>$2.000</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="2000"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="tabla-scroll">
+              <table class="tabla-datos tabla-items-orden">
+                <thead><tr><th>Moneda</th><th>Cant.</th><th>Subtotal</th></tr></thead>
+                <tbody>
+                  <tr><td>$1.000</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="1000"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
+                  <tr><td>$500</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="500"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
+                  <tr><td>$200</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="200"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
+                  <tr><td>$100</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="100"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
+                  <tr><td>$50</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="50"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
+          <div class="info-vehiculo" style="text-align:right;"><strong>Total contado: <span id="cc-efectivo-contado-total">$0</span></strong></div>
           <input type="hidden" id="cc-efectivo-contado" value="0">
           <div id="cc-diferencia" class="info-vehiculo"></div>
           <label for="cc-notas">Notas (opcional)</label>
@@ -1330,6 +1339,7 @@ the data-access layer at all.
     to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   }
   @media (max-width: 480px) { .alerta-flotante { width: 88vw; } }
+  @media (max-width: 420px) { .denominaciones-grid { grid-template-columns: 1fr; } }
   #tarjeta-exito {
     background: #f0fdf4; color: var(--verde); border: 1px solid #bbf7d0; text-align: center;
   }
@@ -1376,6 +1386,7 @@ the data-access layer at all.
   .tarjeta-formulario { max-width: 560px; }
   .tarjeta-orden-ancha { max-width: 100% !important; grid-column: 1 / -1; }
   .datos-orden-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-bottom: 6px; }
+  .denominaciones-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; margin-bottom: 6px; }
   .datos-orden-grid .bloque-datos { background: var(--gris-claro); border-radius: 8px; padding: 10px 12px; font-size: 13px; line-height: 1.6; }
   .datos-orden-grid .bloque-datos b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--gris); margin-bottom: 3px; }
   table.tabla-items-orden { white-space: normal; }
@@ -4992,7 +5003,7 @@ the data-access layer at all.
       var fila = input.parentNode.parentNode;
       fila.querySelector(".cc-denom-subtotal").textContent = formatoMoneda(subtotal);
     }
-    $("cc-efectivo-contado-total").innerHTML = "<strong>" + formatoMoneda(total) + "</strong>";
+    $("cc-efectivo-contado-total").textContent = formatoMoneda(total);
     $("cc-efectivo-contado").value = total;
     actualizarDiferenciaCierre();
   }
