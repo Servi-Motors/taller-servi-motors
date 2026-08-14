@@ -987,8 +987,28 @@ the data-access layer at all.
         <div id="cierre-caja-form">
           <label for="cc-efectivo-inicial">Efectivo inicial (con el que se abrió hoy)</label>
           <input id="cc-efectivo-inicial" type="number" min="0" step="0.01">
-          <label for="cc-efectivo-contado">Efectivo contado ahora (conteo físico)</label>
-          <input id="cc-efectivo-contado" type="number" min="0" step="0.01">
+          <label>Conteo físico de efectivo (billetes y monedas)</label>
+          <div class="nota-ayuda">Cuenta el dinero que hay físicamente en caja ahora mismo y anota cuántos hay de cada denominación. El total se suma solo.</div>
+          <div class="tabla-scroll">
+            <table class="tabla-datos tabla-items-orden" id="tabla-denominaciones">
+              <thead><tr><th>Denominación</th><th>Cantidad</th><th>Subtotal</th></tr></thead>
+              <tbody id="cuerpo-denominaciones">
+                <tr><td>Billete $100.000</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="100000"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
+                <tr><td>Billete $50.000</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="50000"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
+                <tr><td>Billete $20.000</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="20000"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
+                <tr><td>Billete $10.000</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="10000"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
+                <tr><td>Billete $5.000</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="5000"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
+                <tr><td>Billete $2.000</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="2000"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
+                <tr><td>Moneda $1.000</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="1000"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
+                <tr><td>Moneda $500</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="500"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
+                <tr><td>Moneda $200</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="200"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
+                <tr><td>Moneda $100</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="100"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
+                <tr><td>Moneda $50</td><td><input type="number" min="0" step="1" class="cc-denom-cantidad" data-valor="50"></td><td class="celda-numero cc-denom-subtotal">$0</td></tr>
+              </tbody>
+              <tfoot><tr><td><strong>Total contado</strong></td><td></td><td class="celda-numero" id="cc-efectivo-contado-total"><strong>$0</strong></td></tr></tfoot>
+            </table>
+          </div>
+          <input type="hidden" id="cc-efectivo-contado" value="0">
           <div id="cc-diferencia" class="info-vehiculo"></div>
           <label for="cc-notas">Notas (opcional)</label>
           <input id="cc-notas" type="text" placeholder="Ej. Faltaron $2.000 de vueltas">
@@ -4959,7 +4979,32 @@ the data-access layer at all.
       " · <strong style=\"color:" + color + ";\">Diferencia: " + formatoMoneda(diferencia) + "</strong>";
   }
   $("cc-efectivo-inicial").addEventListener("input", actualizarDiferenciaCierre);
-  $("cc-efectivo-contado").addEventListener("input", actualizarDiferenciaCierre);
+
+  function actualizarTotalDenominaciones() {
+    var total = 0;
+    var inputs = document.querySelectorAll("#tabla-denominaciones .cc-denom-cantidad");
+    for (var i = 0; i < inputs.length; i++) {
+      var input = inputs[i];
+      var valor = Number(input.getAttribute("data-valor"));
+      var cantidad = parseInt(input.value, 10) || 0;
+      var subtotal = valor * cantidad;
+      total += subtotal;
+      var fila = input.parentNode.parentNode;
+      fila.querySelector(".cc-denom-subtotal").textContent = formatoMoneda(subtotal);
+    }
+    $("cc-efectivo-contado-total").innerHTML = "<strong>" + formatoMoneda(total) + "</strong>";
+    $("cc-efectivo-contado").value = total;
+    actualizarDiferenciaCierre();
+  }
+  var inputsDenominaciones = document.querySelectorAll("#tabla-denominaciones .cc-denom-cantidad");
+  for (var iDenom = 0; iDenom < inputsDenominaciones.length; iDenom++) {
+    inputsDenominaciones[iDenom].addEventListener("input", actualizarTotalDenominaciones);
+  }
+  function reiniciarDenominaciones() {
+    var inputs = document.querySelectorAll("#tabla-denominaciones .cc-denom-cantidad");
+    for (var i = 0; i < inputs.length; i++) { inputs[i].value = ""; }
+    actualizarTotalDenominaciones();
+  }
 
   $("btn-cm-gasto").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("caja-error");
@@ -5013,7 +5058,7 @@ the data-access layer at all.
     var contado = parseFloat($("cc-efectivo-contado").value);
     var notas = $("cc-notas").value.trim();
     if (!(inicial >= 0) || !(contado >= 0)) {
-      mostrarError("caja-error", "Escribe el efectivo inicial y el efectivo contado.");
+      mostrarError("caja-error", "Escribe el efectivo inicial y cuenta el efectivo por denominación.");
       return;
     }
     return restRequest("POST", "cierres_caja", {
@@ -5030,6 +5075,7 @@ the data-access layer at all.
       }
     }).then(function () {
       $("cc-notas").value = "";
+      reiniciarDenominaciones();
       return cargarCaja();
     }).catch(function (err) {
       if (err && /duplicate key|unique/i.test(err.message || "")) {
