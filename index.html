@@ -156,6 +156,10 @@ the data-access layer at all.
           <div class="kpi-numero" id="kpi-stock-bajo">—</div>
           <div class="kpi-etiqueta">Productos con bajo stock</div>
         </div>
+        <div class="tarjeta-kpi">
+          <div class="kpi-numero" id="kpi-garantias">—</div>
+          <div class="kpi-etiqueta">Garantías activas</div>
+        </div>
       </div>
 
       <div class="grid-graficos">
@@ -257,6 +261,17 @@ the data-access layer at all.
         <select id="select-asesor"></select>
         <label for="select-tecnico">Técnico responsable</label>
         <select id="select-tecnico"></select>
+        <label for="select-tipo-orden">Tipo de orden</label>
+        <select id="select-tipo-orden">
+          <option value="nueva">Nueva (se cobra normal)</option>
+          <option value="garantia">Garantía (sin cobro al cliente)</option>
+        </select>
+        <div id="grupo-orden-garantia-original" class="oculto">
+          <label for="orden-garantia-original-buscar">¿A qué orden anterior de este vehículo le estás haciendo la garantía? (opcional)</label>
+          <input id="orden-garantia-original-buscar" type="text" placeholder="Busca por número de orden..." list="lista-ordenes-garantia" autocomplete="off">
+          <datalist id="lista-ordenes-garantia"></datalist>
+          <div class="nota-ayuda">Sirve para saber qué se reparó antes. Si no la encuentras, puedes dejarlo en blanco.</div>
+        </div>
         <button id="btn-abrir-orden">Abrir orden de trabajo</button>
         <div id="orden-error" class="mensaje-error"></div>
       </div>
@@ -1508,6 +1523,7 @@ the data-access layer at all.
   .kpi-flecha-arriba { color: #16a34a; }
   .kpi-flecha-abajo { color: #dc2626; }
   .kpi-flecha-igual { color: var(--gris); }
+  .etiqueta-garantia { display: inline-block; font-size: 12px; font-weight: 700; color: #7c3aed; background: #ede9fe; border-radius: 6px; padding: 2px 8px; vertical-align: middle; }
   .grid-graficos { display: grid; grid-template-columns: 1.3fr 1fr; gap: 12px; }
 
   .tablero-ordenes { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
@@ -1628,6 +1644,7 @@ the data-access layer at all.
     });
   }
   var vehiculoSeleccionado = null;
+  var ordenesGarantiaCache = [];
   var clientesCacheOrden = [];
   var clienteExistenteIdOrden = null;
   var ordenActual = null; // { id_ot, numero_ot }
@@ -1954,7 +1971,7 @@ the data-access layer at all.
 
   function cargarTableroOrdenes() {
     ocultarError("tablero-error");
-    var query = "select=id_ot,numero_ot,estado,fecha_apertura,vehiculos(placa,marca,modelo),clientes(nombre)," +
+    var query = "select=id_ot,numero_ot,estado,tipo_orden,fecha_apertura,vehiculos(placa,marca,modelo),clientes(nombre)," +
       "asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre)" +
       "&order=fecha_apertura.desc&limit=100";
     return restRequest("GET", "ordenes_trabajo", { query: query }).then(function (ordenes) {
@@ -1983,6 +2000,7 @@ the data-access layer at all.
           tarjeta.className = "kanban-tarjeta";
           tarjeta.innerHTML =
             "<b>" + prefijoOT + o.numero_ot + " · " + (veh.placa || "—") + "</b>" +
+            (o.tipo_orden === "garantia" ? ' <span class="etiqueta-garantia">GARANTÍA</span>' : "") + "<br>" +
             (cli.nombre || "—") + "<br>" +
             "<span class=\"fila-detalle\">" + [veh.marca, veh.modelo].filter(Boolean).join(" ") + "</span><br>" +
             "<span class=\"fila-detalle\">Técnico: " + (o.tecnico ? o.tecnico.nombre : "—") + "</span><br>" +
@@ -2032,7 +2050,7 @@ the data-access layer at all.
     var mesActualEtiqueta = inicioMesStr.slice(0, 7);
 
     return Promise.all([
-      restRequest("GET", "ordenes_trabajo", { query: "select=id_ot,estado,fecha_cierre" }),
+      restRequest("GET", "ordenes_trabajo", { query: "select=id_ot,estado,fecha_cierre,tipo_orden" }),
       restRequest("GET", "items", { query: "select=id_item,stock_actual,stock_minimo&stock_gestionado=eq.true" }),
       restRequest("GET", "vista_estado_ordenes", { query: "select=*" }),
       restRequest("GET", "vista_resultado_mensual", { query: "select=periodo,ordenes_cerradas,ingresos&order=periodo.asc&limit=6" })
@@ -2052,6 +2070,9 @@ the data-access layer at all.
 
       var stockBajo = itemsStock.filter(function (it) { return Number(it.stock_actual) <= Number(it.stock_minimo); }).length;
       $("kpi-stock-bajo").textContent = stockBajo;
+
+      var garantiasActivas = ordenes.filter(function (o) { return o.tipo_orden === "garantia" && o.estado !== "cerrada" && o.estado !== "cancelada"; }).length;
+      $("kpi-garantias").textContent = garantiasActivas;
 
       var puedeVerFinanzas = rolActual === "administrador" || rolActual === "contador";
       $("tarjeta-kpi-ingresos").classList.toggle("oculto", !puedeVerFinanzas);
@@ -4614,9 +4635,41 @@ the data-access layer at all.
     });
   }, "buscar-error"));
 
+  // Busca órdenes ya cerradas de este mismo vehículo, para poder vincular
+  // una orden de garantía con la reparación original (opcional).
+  function cargarOrdenesGarantiaDisponibles() {
+    $("orden-garantia-original-buscar").value = "";
+    ordenesGarantiaCache = [];
+    if (!vehiculoSeleccionado) return Promise.resolve();
+    return restRequest("GET", "ordenes_trabajo", {
+      query: "select=id_ot,numero_ot,fecha_cierre,diagnostico&id_vehiculo=eq." + vehiculoSeleccionado.id_vehiculo + "&estado=eq.cerrada&order=fecha_cierre.desc&limit=20"
+    }).then(function (filas) {
+      ordenesGarantiaCache = filas || [];
+      var lista = $("lista-ordenes-garantia");
+      lista.innerHTML = "";
+      ordenesGarantiaCache.forEach(function (o) {
+        var opt = document.createElement("option");
+        opt.value = prefijoOT + o.numero_ot;
+        opt.textContent = (o.fecha_cierre ? formatoFechaCorta(new Date(o.fecha_cierre)) : "") + (o.diagnostico ? " — " + o.diagnostico : "");
+        lista.appendChild(opt);
+      });
+    });
+  }
+
+  function prepararPasoAsignar() {
+    $("select-tipo-orden").value = "nueva";
+    $("grupo-orden-garantia-original").classList.add("oculto");
+    cargarOrdenesGarantiaDisponibles().catch(function (err) { console.error(err); });
+  }
+
+  $("select-tipo-orden").addEventListener("change", function () {
+    $("grupo-orden-garantia-original").classList.toggle("oculto", $("select-tipo-orden").value !== "garantia");
+  });
+
   $("btn-usar-encontrado").addEventListener("click", function () {
     $("tarjeta-encontrado").classList.add("oculto");
     $("tarjeta-asignar").classList.remove("oculto");
+    prepararPasoAsignar();
     window.scrollTo({ top: 0, behavior: "smooth" });
   });
 
@@ -4719,6 +4772,7 @@ the data-access layer at all.
       vehiculoSeleccionado = { id_vehiculo: vehiculoCreado.id_vehiculo, id_cliente: idClienteFinal };
       $("tarjeta-nuevo").classList.add("oculto");
       $("tarjeta-asignar").classList.remove("oculto");
+      prepararPasoAsignar();
       window.scrollTo({ top: 0, behavior: "smooth" });
     }).catch(function (err) {
       mostrarError("nuevo-error", "No se pudo guardar: " + err.message);
@@ -4738,6 +4792,19 @@ the data-access layer at all.
       mostrarError("orden-error", "Debes asignar un asesor y un técnico.");
       return;
     }
+    var tipoOrden = $("select-tipo-orden").value;
+    var idOtGarantiaOriginal = null;
+    if (tipoOrden === "garantia") {
+      var textoBusqueda = $("orden-garantia-original-buscar").value.trim();
+      if (textoBusqueda) {
+        var ordenOriginal = ordenesGarantiaCache.filter(function (o) { return (prefijoOT + o.numero_ot) === textoBusqueda; })[0];
+        if (!ordenOriginal) {
+          mostrarError("orden-error", "No encontramos esa orden en el historial de este vehículo. Elige una de la lista o deja el campo vacío.");
+          return;
+        }
+        idOtGarantiaOriginal = ordenOriginal.id_ot;
+      }
+    }
 
     var ordenCreada;
     return restRequest("POST", "ordenes_trabajo", {
@@ -4746,7 +4813,9 @@ the data-access layer at all.
         id_vehiculo: vehiculoSeleccionado.id_vehiculo,
         id_asesor: id_asesor,
         id_tecnico: id_tecnico,
-        estado: "recepcion"
+        estado: "recepcion",
+        tipo_orden: tipoOrden,
+        id_ot_garantia_original: idOtGarantiaOriginal
       }
     }).then(function (ordenes) {
       ordenCreada = ordenes[0];
@@ -4997,6 +5066,7 @@ the data-access layer at all.
     var numeroDoc = (esFactura && orden.numero_factura) ? (prefijoFactura + orden.numero_factura) : (prefijoOT + orden.numero_ot);
     return "<div class=\"datos-doc\">" +
       "<div class=\"bloque\"><b>" + (esFactura ? "Factura" : "Presupuesto / Orden") + "</b>N.º " + numeroDoc +
+      (orden.tipo_orden === "garantia" ? "<br><b style=\"color:#7c3aed;\">GARANTÍA — SIN COBRO AL CLIENTE</b>" : "") +
       "<br>" + lineaFecha +
       (esFactura ? "<br>Estado: " + (orden.estado_pago === "pagada" ? "Pagada" : (orden.estado_pago === "credito" ? "A crédito" : "Pendiente de pago")) : "") +
       (orden.fecha_cierre ? "<br>Cierre: " + formatoFechaCorta(new Date(orden.fecha_cierre)) : "") + "</div>" +
@@ -5081,7 +5151,7 @@ the data-access layer at all.
   function imprimirOrdenActual(modo, idError) {
     idError = idError || "item-error";
     ocultarError(idError);
-    var queryOrden = "select=numero_ot,estado,fecha_apertura,fecha_cierre,diagnostico,numero_factura,estado_pago,clientes(nombre,telefono,direccion,documento),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje),asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre)&id_ot=eq." + ordenActual.id_ot;
+    var queryOrden = "select=numero_ot,estado,tipo_orden,fecha_apertura,fecha_cierre,diagnostico,numero_factura,estado_pago,clientes(nombre,telefono,direccion,documento),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje),asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre)&id_ot=eq." + ordenActual.id_ot;
     var queryItems = "select=cantidad,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
     var queryAutorizacionInicial = "select=fecha_hora&id_ot=eq." + ordenActual.id_ot + "&tipo=eq.inicial&limit=1";
 
@@ -5962,7 +6032,7 @@ the data-access layer at all.
 
   function cargarItemsDeOrden() {
     var queryItems = "select=id_detalle,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
-    var queryOrden = "select=estado,fecha_apertura,fecha_cierre,diagnostico,presupuesto_tentativo,hallazgos_diagnostico,clientes(nombre,telefono,documento,direccion),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje)&id_ot=eq." + ordenActual.id_ot;
+    var queryOrden = "select=estado,tipo_orden,fecha_apertura,fecha_cierre,diagnostico,presupuesto_tentativo,hallazgos_diagnostico,clientes(nombre,telefono,documento,direccion),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje)&id_ot=eq." + ordenActual.id_ot;
     return Promise.all([
       restRequest("GET", "ot_detalle", { query: queryItems }),
       restRequest("GET", "ordenes_trabajo", { query: queryOrden }),
@@ -5973,7 +6043,8 @@ the data-access layer at all.
       var tallerCfg = (r[2] && r[2][0]) || {};
       ordenActual.pctIva = tallerCfg.pct_iva || 0;
 
-      $("items-subtitulo").textContent = "Orden " + prefijoOT + ordenActual.numero_ot;
+      $("items-subtitulo").innerHTML = "Orden " + prefijoOT + ordenActual.numero_ot +
+        (orden && orden.tipo_orden === "garantia" ? ' <span class="etiqueta-garantia">GARANTÍA — sin cobro</span>' : "");
       $("firma-exito-notificar").innerHTML = "";
 
       if (orden) {
