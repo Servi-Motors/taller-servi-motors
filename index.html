@@ -6285,16 +6285,22 @@ the data-access layer at all.
   });
 
   var precioHoraEquilibrioActual = null;
+  // Lo que realmente le cuesta a Jaime esa hora (lo que se le paga al
+  // técnico), NO lo que se le cobra al cliente. Se usa como "costo" al
+  // guardar el ítem, para que la utilidad se calcule bien.
+  var costoHoraTecnicoActual = null;
 
   function cargarPrecioManoObraActual() {
     return Promise.all([
       restRequest("POST", "rpc/calcular_precio_hora_equilibrio", { body: {} }),
-      restRequest("GET", "parametros_taller", { query: "select=precio_mano_obra&id=eq.1" })
+      restRequest("GET", "parametros_taller", { query: "select=precio_mano_obra,tarifa_hora_tecnico_base&id=eq.1" })
     ]).then(function (r) {
       var precioHora = r[0];
       var precioManual = r[1] && r[1][0] && r[1][0].precio_mano_obra;
+      var tarifaTecnico = r[1] && r[1][0] && r[1][0].tarifa_hora_tecnico_base;
       var precioResuelto = (precioManual !== null && precioManual !== undefined) ? Number(precioManual)
         : (precioHora !== null && precioHora !== undefined) ? Number(precioHora) : null;
+      costoHoraTecnicoActual = (tarifaTecnico !== null && tarifaTecnico !== undefined) ? Number(tarifaTecnico) : null;
       if (precioResuelto === null) {
         precioHoraEquilibrioActual = null;
         $("mo-precio").value = "";
@@ -6383,9 +6389,8 @@ the data-access layer at all.
     var horas = parseFloat($("mo-horas").value);
     var descuento = rolActual === "tecnico" ? 0 : (parseFloat($("mo-descuento").value) || 0);
     var codigo = $("mo-codigo").value.trim();
-    var costo = precioHoraEquilibrioActual;
 
-    if (costo === null) {
+    if (precioHoraEquilibrioActual === null) {
       mostrarError("item-error", "El precio de mano de obra no está configurado todavía. Pide al administrador que lo defina en Contabilidad.");
       return;
     }
@@ -6398,7 +6403,12 @@ the data-access layer at all.
       return;
     }
 
-    return agregarLineaOrden({ tipo: "mano_obra", nombre: nombre, costo: costo, cantidad: horas, codigo: codigo, descuento: descuento })
+    // El "costo" que se guarda es lo que se le paga al técnico por esa hora,
+    // no el precio que se le cobra al cliente (ese lo pone la base de datos
+    // aparte, a partir de precio_mano_obra). Así la utilidad queda bien.
+    var costoRealTecnico = costoHoraTecnicoActual !== null ? costoHoraTecnicoActual : 0;
+
+    return agregarLineaOrden({ tipo: "mano_obra", nombre: nombre, costo: costoRealTecnico, cantidad: horas, codigo: codigo, descuento: descuento })
       .then(function () {
         $("mo-nombre").value = "";
         $("mo-horas").value = "1";
