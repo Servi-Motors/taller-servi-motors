@@ -661,11 +661,11 @@ the data-access layer at all.
       </div>
 
       <div class="tarjeta">
-        <h2>Importar clientes y vehículos por CSV (varios a la vez)</h2>
-        <div class="nota-ayuda">Sube un archivo con columnas: cliente_nombre, cliente_tipo (particular o empresa), cliente_documento, cliente_telefono, cliente_correo, cliente_direccion, placa, marca, modelo, anio, color, vin (todas menos cliente_nombre y placa son opcionales). Si el documento o la placa ya existen, esa fila se omite para no duplicar.</div>
-        <button id="btn-plantilla-clientes" type="button" class="secundario">Descargar plantilla CSV</button>
-        <label for="importar-clientes-archivo">Archivo CSV</label>
-        <input id="importar-clientes-archivo" type="file" accept=".csv">
+        <h2>Importar clientes y vehículos por Excel (varios a la vez)</h2>
+        <div class="nota-ayuda">Descarga la plantilla, complétala en Excel y súbela de nuevo (también acepta CSV). Columnas: cliente_nombre, cliente_tipo (particular o empresa), cliente_documento, cliente_telefono, cliente_correo, cliente_direccion, placa, marca, modelo, anio, color, vin (todas menos cliente_nombre y placa son opcionales). Si el documento o la placa ya existen, esa fila se omite para no duplicar.</div>
+        <button id="btn-plantilla-clientes" type="button" class="secundario">Descargar plantilla Excel</button>
+        <label for="importar-clientes-archivo">Archivo Excel o CSV</label>
+        <input id="importar-clientes-archivo" type="file" accept=".xlsx,.xls,.csv">
         <button id="btn-importar-clientes">Importar</button>
         <div id="importar-clientes-error" class="mensaje-error"></div>
         <div id="importar-clientes-resultado" class="nota-ayuda oculto"></div>
@@ -1054,11 +1054,11 @@ the data-access layer at all.
       </div>
 
       <div class="tarjeta">
-        <h2>Importar repuestos/insumos por CSV (varios a la vez)</h2>
-        <div class="nota-ayuda">Sube un archivo con columnas: nombre, tipo (repuesto o insumo), categoria (opcional, ej. Frenos/Motor/Eléctrico), costo, precio_sugerido (opcional), stock_actual (opcional), stock_minimo (opcional). Descarga la plantilla para verlo en Excel.</div>
-        <button id="btn-plantilla-repuestos" type="button" class="secundario">Descargar plantilla CSV</button>
-        <label for="importar-repuestos-archivo">Archivo CSV</label>
-        <input id="importar-repuestos-archivo" type="file" accept=".csv">
+        <h2>Importar repuestos/insumos por Excel (varios a la vez)</h2>
+        <div class="nota-ayuda">Descarga la plantilla, complétala en Excel y súbela de nuevo (también acepta CSV). Columnas: nombre, tipo (repuesto o insumo), categoria (opcional, ej. Frenos/Motor/Eléctrico), costo, precio_sugerido (opcional), stock_actual (opcional), stock_minimo (opcional).</div>
+        <button id="btn-plantilla-repuestos" type="button" class="secundario">Descargar plantilla Excel</button>
+        <label for="importar-repuestos-archivo">Archivo Excel o CSV</label>
+        <input id="importar-repuestos-archivo" type="file" accept=".xlsx,.xls,.csv">
         <button id="btn-importar-repuestos">Importar</button>
         <div id="importar-repuestos-error" class="mensaje-error"></div>
         <div id="importar-repuestos-resultado" class="nota-ayuda oculto"></div>
@@ -1730,6 +1730,7 @@ the data-access layer at all.
 </style>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.0/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 (function () {
   "use strict";
@@ -2475,6 +2476,10 @@ the data-access layer at all.
 
   // --- Importación masiva de repuestos/insumos por CSV ---
   function analizarCSV(texto) {
+    // Excel en español guarda el CSV separado por punto y coma (porque usa la coma
+    // como separador decimal); detectamos cuál se usó mirando la primera línea.
+    var primeraLinea = texto.split("\n")[0] || "";
+    var delimitador = primeraLinea.split(";").length > primeraLinea.split(",").length ? ";" : ",";
     var filas = [];
     var fila = [];
     var campo = "";
@@ -2488,7 +2493,7 @@ the data-access layer at all.
         } else campo += c;
       } else if (c === '"') {
         dentroComillas = true;
-      } else if (c === ',') {
+      } else if (c === delimitador) {
         fila.push(campo); campo = "";
       } else if (c === '\n' || c === '\r') {
         if (c === '\r' && texto[i + 1] === '\n') i++;
@@ -2503,18 +2508,53 @@ the data-access layer at all.
     return filas;
   }
 
+  // Lee un archivo .xlsx/.xls (con la librería SheetJS) o .csv y devuelve siempre
+  // una lista de filas (cada una, una lista de textos), para que el resto del
+  // código de importación no tenga que preocuparse del formato del archivo.
+  function leerFilasDeArchivo(archivo) {
+    var nombreArchivo = (archivo.name || "").toLowerCase();
+    var esExcel = nombreArchivo.endsWith(".xlsx") || nombreArchivo.endsWith(".xls");
+    return new Promise(function (resolve, reject) {
+      var lector = new FileReader();
+      lector.onerror = function () { reject(new Error("No se pudo leer el archivo.")); };
+      if (esExcel) {
+        lector.onload = function () {
+          try {
+            if (typeof XLSX === "undefined") {
+              reject(new Error("No se pudo cargar la librería para leer Excel (revisa tu conexión y recarga la página)."));
+              return;
+            }
+            var datos = new Uint8Array(lector.result);
+            var libro = XLSX.read(datos, { type: "array" });
+            var hoja = libro.Sheets[libro.SheetNames[0]];
+            var filas = XLSX.utils.sheet_to_json(hoja, { header: 1, raw: true, defval: "" });
+            resolve(filas.map(function (fila) {
+              return fila.map(function (celda) { return celda === null || celda === undefined ? "" : String(celda).trim(); });
+            }));
+          } catch (err) {
+            reject(new Error("No se pudo leer el Excel: " + err.message));
+          }
+        };
+        lector.readAsArrayBuffer(archivo);
+      } else {
+        lector.onload = function () { resolve(analizarCSV(lector.result)); };
+        lector.readAsText(archivo, "utf-8");
+      }
+    });
+  }
+
   $("btn-plantilla-repuestos").addEventListener("click", function () {
-    var csv = "nombre,tipo,categoria,costo,precio_sugerido,stock_actual,stock_minimo\n" +
-      "Filtro de aceite,repuesto,Motor,15000,25000,10,2\n" +
-      "Pastillas de freno,repuesto,Frenos,60000,90000,4,1\n" +
-      "Aceite Kixx 5W30 (galon),insumo,Motor,45000,,20,3\n";
-    var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    var enlace = document.createElement("a");
-    enlace.href = URL.createObjectURL(blob);
-    enlace.download = "plantilla_repuestos.csv";
-    document.body.appendChild(enlace);
-    enlace.click();
-    document.body.removeChild(enlace);
+    var filas = [
+      ["nombre", "tipo", "categoria", "costo", "precio_sugerido", "stock_actual", "stock_minimo"],
+      ["Filtro de aceite", "repuesto", "Motor", 15000, 25000, 10, 2],
+      ["Pastillas de freno", "repuesto", "Frenos", 60000, 90000, 4, 1],
+      ["Aceite Kixx 5W30 (galon)", "insumo", "Motor", 45000, "", 20, 3]
+    ];
+    var hoja = XLSX.utils.aoa_to_sheet(filas);
+    hoja["!cols"] = [{ wch: 26 }, { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 15 }, { wch: 12 }, { wch: 12 }];
+    var libro = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(libro, hoja, "Repuestos");
+    XLSX.writeFile(libro, "plantilla_repuestos.xlsx");
   });
 
   $("btn-importar-repuestos").addEventListener("click", conManejoDeErrores(function () {
@@ -2522,16 +2562,11 @@ the data-access layer at all.
     $("importar-repuestos-resultado").classList.add("oculto");
     var archivo = $("importar-repuestos-archivo").files[0];
     if (!archivo) {
-      mostrarError("importar-repuestos-error", "Selecciona un archivo CSV.");
+      mostrarError("importar-repuestos-error", "Selecciona un archivo de Excel o CSV.");
       return;
     }
-    return new Promise(function (resolve, reject) {
-      var lector = new FileReader();
-      lector.onload = function () { resolve(lector.result); };
-      lector.onerror = function () { reject(new Error("No se pudo leer el archivo.")); };
-      lector.readAsText(archivo, "utf-8");
-    }).then(function (texto) {
-      var filas = analizarCSV(texto).filter(function (f) { return f.length && f.some(function (v) { return v.trim() !== ""; }); });
+    return leerFilasDeArchivo(archivo).then(function (todasLasFilas) {
+      var filas = todasLasFilas.filter(function (f) { return f.length && f.some(function (v) { return v.trim() !== ""; }); });
       if (!filas.length) throw new Error("El archivo está vacío.");
       var encabezado = filas[0].map(function (h) { return h.trim().toLowerCase(); });
       var idxNombre = encabezado.indexOf("nombre");
@@ -3301,18 +3336,18 @@ the data-access layer at all.
     });
   }, "clientes-error"));
 
-  // --- Importación masiva de clientes y vehículos por CSV ---
+  // --- Importación masiva de clientes y vehículos por Excel/CSV ---
   $("btn-plantilla-clientes").addEventListener("click", function () {
-    var csv = "cliente_nombre,cliente_tipo,cliente_documento,cliente_telefono,cliente_correo,cliente_direccion,placa,marca,modelo,anio,color,vin\n" +
-      "Juan Perez,particular,123456789,3001234567,juan@correo.com,Calle 1 # 2-3,ABC123,Chevrolet,Spark,2018,Rojo,\n" +
-      "Taller Los Andes SAS,empresa,900123456,3109876543,,,DEF456,Renault,Logan,2020,Blanco,\n";
-    var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    var enlace = document.createElement("a");
-    enlace.href = URL.createObjectURL(blob);
-    enlace.download = "plantilla_clientes_vehiculos.csv";
-    document.body.appendChild(enlace);
-    enlace.click();
-    document.body.removeChild(enlace);
+    var filas = [
+      ["cliente_nombre", "cliente_tipo", "cliente_documento", "cliente_telefono", "cliente_correo", "cliente_direccion", "placa", "marca", "modelo", "anio", "color", "vin"],
+      ["Juan Perez", "particular", "123456789", "3001234567", "juan@correo.com", "Calle 1 # 2-3", "ABC123", "Chevrolet", "Spark", 2018, "Rojo", ""],
+      ["Taller Los Andes SAS", "empresa", "900123456", "3109876543", "", "", "DEF456", "Renault", "Logan", 2020, "Blanco", ""]
+    ];
+    var hoja = XLSX.utils.aoa_to_sheet(filas);
+    hoja["!cols"] = [{ wch: 22 }, { wch: 12 }, { wch: 16 }, { wch: 14 }, { wch: 20 }, { wch: 22 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 10 }, { wch: 18 }];
+    var libro = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(libro, hoja, "Clientes y vehiculos");
+    XLSX.writeFile(libro, "plantilla_clientes_vehiculos.xlsx");
   });
 
   $("btn-importar-clientes").addEventListener("click", conManejoDeErrores(function () {
@@ -3320,16 +3355,11 @@ the data-access layer at all.
     $("importar-clientes-resultado").classList.add("oculto");
     var archivo = $("importar-clientes-archivo").files[0];
     if (!archivo) {
-      mostrarError("importar-clientes-error", "Selecciona un archivo CSV.");
+      mostrarError("importar-clientes-error", "Selecciona un archivo de Excel o CSV.");
       return;
     }
-    return new Promise(function (resolve, reject) {
-      var lector = new FileReader();
-      lector.onload = function () { resolve(lector.result); };
-      lector.onerror = function () { reject(new Error("No se pudo leer el archivo.")); };
-      lector.readAsText(archivo, "utf-8");
-    }).then(function (texto) {
-      var filas = analizarCSV(texto).filter(function (f) { return f.length && f.some(function (v) { return v.trim() !== ""; }); });
+    return leerFilasDeArchivo(archivo).then(function (todasLasFilas) {
+      var filas = todasLasFilas.filter(function (f) { return f.length && f.some(function (v) { return v.trim() !== ""; }); });
       if (!filas.length) throw new Error("El archivo está vacío.");
       var encabezado = filas[0].map(function (h) { return h.trim().toLowerCase(); });
       var idx = {};
