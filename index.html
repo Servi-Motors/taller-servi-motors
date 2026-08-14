@@ -1255,6 +1255,7 @@ the data-access layer at all.
       <div class="tarjeta">
         <h2>KPIs del mes actual</h2>
         <div id="reportes-kpis" class="grid-kpis"></div>
+        <div id="reportes-nota-comparativa" class="nota-ayuda"></div>
       </div>
 
       <div class="tarjeta">
@@ -1503,6 +1504,10 @@ the data-access layer at all.
   .tarjeta-kpi { background: var(--tarjeta-bg); border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
   .kpi-numero { font-size: 26px; font-weight: 700; }
   .kpi-etiqueta { font-size: 13px; color: var(--gris); margin-top: 4px; }
+  .kpi-flecha { font-size: 13px; font-weight: 600; margin-left: 8px; vertical-align: middle; }
+  .kpi-flecha-arriba { color: #16a34a; }
+  .kpi-flecha-abajo { color: #dc2626; }
+  .kpi-flecha-igual { color: var(--gris); }
   .grid-graficos { display: grid; grid-template-columns: 1.3fr 1fr; gap: 12px; }
 
   .tablero-ordenes { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
@@ -4255,6 +4260,26 @@ the data-access layer at all.
     if (valorPrevio) sel.value = valorPrevio;
   }
 
+  // Flecha que compara un valor contra el del mes anterior. Verde/arriba si
+  // subió, rojo/abajo si bajó, con el % de cambio. Si no hay dato de algún
+  // mes, no muestra nada (en vez de un cambio engañoso).
+  function flechaComparativa(actual, anterior) {
+    if (actual === null || actual === undefined || anterior === null || anterior === undefined) return "";
+    if (anterior === 0) {
+      if (actual === 0) return "";
+      return actual > 0
+        ? '<span class="kpi-flecha kpi-flecha-arriba">▲</span>'
+        : '<span class="kpi-flecha kpi-flecha-abajo">▼</span>';
+    }
+    var cambioPct = ((actual - anterior) / Math.abs(anterior)) * 100;
+    if (Math.abs(cambioPct) < 0.5) {
+      return '<span class="kpi-flecha kpi-flecha-igual">▬ 0%</span>';
+    }
+    var flecha = cambioPct > 0 ? "▲" : "▼";
+    var clase = cambioPct > 0 ? "kpi-flecha-arriba" : "kpi-flecha-abajo";
+    return '<span class="kpi-flecha ' + clase + '">' + flecha + " " + Math.abs(cambioPct).toFixed(0) + "%</span>";
+  }
+
   function cargarReportes() {
     ocultarError("reportes-error");
     poblarSelectorMeses();
@@ -4262,6 +4287,7 @@ the data-access layer at all.
     var hoy = new Date();
     var inicioMes = aFechaISO(primerDiaMes(hoy));
     var inicioMesSiguiente = aFechaISO(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1));
+    var inicioMesAnterior = aFechaISO(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1));
 
     return Promise.all([
       restRequest("GET", "vista_resultado_mensual", { query: "select=*&order=periodo.desc&limit=12" }),
@@ -4288,26 +4314,49 @@ the data-access layer at all.
         ? (horasVendidasMes.horas_vendidas / parametros.horas_disponibles_mes) * 100
         : null;
 
-      var ticketPromedio = (filaMesActual && filaMesActual.ordenes_cerradas) ? filaMesActual.ingresos / filaMesActual.ordenes_cerradas : null;
+      var ticketPromedio = (horasVendidasMes && filaMesActual && filaMesActual.ordenes_cerradas) ? horasVendidasMes.valor_aplicado / filaMesActual.ordenes_cerradas : null;
       var tarifaEfectivaMO = horasVendidasMes ? horasVendidasMes.precio_aplicado_promedio : null;
 
+      // --- Mismos indicadores, pero del mes anterior, solo para comparar ---
+      var filaMesAnterior = resultadoMensual.filter(function (f) { return f.periodo === inicioMesAnterior; })[0];
+      var horasVendidasMesAnterior = precioHora.filter(function (f) { return f.periodo === inicioMesAnterior; })[0];
+      var margenPromedioAnterior = (filaMesAnterior && filaMesAnterior.ordenes_cerradas) ? filaMesAnterior.utilidad_bruta / filaMesAnterior.ordenes_cerradas : null;
+      var productividadHoraAnterior = (horasVendidasMesAnterior && parametros.horas_disponibles_mes)
+        ? (horasVendidasMesAnterior.horas_vendidas / parametros.horas_disponibles_mes) * 100
+        : null;
+      var ticketPromedioAnterior = (horasVendidasMesAnterior && filaMesAnterior && filaMesAnterior.ordenes_cerradas) ? horasVendidasMesAnterior.valor_aplicado / filaMesAnterior.ordenes_cerradas : null;
+      var tarifaEfectivaMOAnterior = horasVendidasMesAnterior ? horasVendidasMesAnterior.precio_aplicado_promedio : null;
+
       var kpis = [
-        { etiqueta: "Utilidad bruta del mes", valor: formatoMoneda(filaMesActual ? filaMesActual.utilidad_bruta : 0) },
-        { etiqueta: "Utilidad neta del mes", valor: formatoMoneda(filaMesActual ? filaMesActual.utilidad_neta : 0) },
-        { etiqueta: "Margen promedio por orden", valor: margenPromedio === null ? "—" : formatoMoneda(margenPromedio) },
-        { etiqueta: "Horas vendidas vs disponibles", valor: productividadHora === null ? "—" : productividadHora.toFixed(0) + "%" },
-        { etiqueta: "Ticket promedio (por orden)", valor: ticketPromedio === null ? "—" : formatoMoneda(ticketPromedio) },
-        { etiqueta: "Autos atendidos este mes", valor: filaMesActual ? String(filaMesActual.ordenes_cerradas) : "0" },
-        { etiqueta: "Tarifa efectiva de mano de obra", valor: tarifaEfectivaMO === null ? "—" : formatoMoneda(tarifaEfectivaMO) + "/h" }
+        { etiqueta: "Utilidad bruta del mes", valor: formatoMoneda(filaMesActual ? filaMesActual.utilidad_bruta : 0),
+          flecha: flechaComparativa(filaMesActual ? filaMesActual.utilidad_bruta : null, filaMesAnterior ? filaMesAnterior.utilidad_bruta : null) },
+        { etiqueta: "Utilidad neta del mes", valor: formatoMoneda(filaMesActual ? filaMesActual.utilidad_neta : 0),
+          flecha: flechaComparativa(filaMesActual ? filaMesActual.utilidad_neta : null, filaMesAnterior ? filaMesAnterior.utilidad_neta : null) },
+        { etiqueta: "Margen promedio por orden", valor: margenPromedio === null ? "—" : formatoMoneda(margenPromedio),
+          flecha: flechaComparativa(margenPromedio, margenPromedioAnterior) },
+        { etiqueta: "Horas vendidas vs disponibles", valor: productividadHora === null ? "—" : productividadHora.toFixed(0) + "%",
+          flecha: flechaComparativa(productividadHora, productividadHoraAnterior) },
+        { etiqueta: "Ticket promedio de mano de obra (por orden)", valor: ticketPromedio === null ? "—" : formatoMoneda(ticketPromedio),
+          flecha: flechaComparativa(ticketPromedio, ticketPromedioAnterior) },
+        { etiqueta: "Autos atendidos este mes", valor: filaMesActual ? String(filaMesActual.ordenes_cerradas) : "0",
+          flecha: flechaComparativa(filaMesActual ? filaMesActual.ordenes_cerradas : null, filaMesAnterior ? filaMesAnterior.ordenes_cerradas : null) },
+        { etiqueta: "Tarifa efectiva de mano de obra", valor: tarifaEfectivaMO === null ? "—" : formatoMoneda(tarifaEfectivaMO) + "/h",
+          flecha: flechaComparativa(tarifaEfectivaMO, tarifaEfectivaMOAnterior) }
       ];
       var contKpis = $("reportes-kpis");
       contKpis.innerHTML = "";
       kpis.forEach(function (k) {
         var div = document.createElement("div");
         div.className = "tarjeta-kpi";
-        div.innerHTML = "<div class=\"kpi-numero\">" + k.valor + "</div><div class=\"kpi-etiqueta\">" + k.etiqueta + "</div>";
+        div.innerHTML = "<div class=\"kpi-numero\">" + k.valor + (k.flecha || "") + "</div><div class=\"kpi-etiqueta\">" + k.etiqueta + "</div>";
         contKpis.appendChild(div);
       });
+      var notaComparativa = $("reportes-nota-comparativa");
+      if (notaComparativa) {
+        notaComparativa.textContent = (filaMesAnterior || horasVendidasMesAnterior)
+          ? "La flecha compara cada indicador contra " + nombreMes(inicioMesAnterior) + "."
+          : "Aún no hay datos del mes anterior para comparar.";
+      }
 
       // --- Flujo de caja ---
       dibujarGraficoFlujoCaja(flujoCaja);
