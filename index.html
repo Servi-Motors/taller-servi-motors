@@ -111,6 +111,7 @@ the data-access layer at all.
     <a href="#" class="nav-link oculto" id="nav-contabilidad" data-pagina="contabilidad">📊 Contabilidad</a>
     <a href="#" class="nav-link oculto" id="nav-facturacion" data-pagina="facturacion">🧾 Facturación</a>
     <a href="#" class="nav-link oculto" id="nav-caja" data-pagina="caja">💰 Caja</a>
+    <a href="#" class="nav-link oculto" id="nav-cuentas" data-pagina="cuentas">🧾 Cuentas por cobrar/pagar</a>
 
     <div class="nav-seccion">Configuración</div>
     <a href="#" class="nav-link oculto" id="nav-configuracion" data-pagina="configuracion">⚙️ Configuración</a>
@@ -881,7 +882,12 @@ the data-access layer at all.
           <option value="efectivo">Efectivo</option>
           <option value="tarjeta">Tarjeta</option>
           <option value="transferencia">Transferencia</option>
+          <option value="credito" id="opcion-egreso-credito">Crédito (a proveedor)</option>
         </select>
+        <div id="grupo-egreso-vencimiento" class="oculto">
+          <label for="egreso-vencimiento">Fecha límite de pago (opcional)</label>
+          <input id="egreso-vencimiento" type="date">
+        </div>
         <button id="btn-agregar-egreso">Registrar egreso</button>
         <div id="egreso-error" class="mensaje-error"></div>
         <div id="egreso-exito" class="mensaje-error oculto" style="background:#f0fdf4;color:var(--verde);border-color:#bbf7d0;"></div>
@@ -926,7 +932,7 @@ the data-access layer at all.
 
     <section id="pantalla-facturacion" class="pagina pagina-ancha oculto">
       <h1>Facturación</h1>
-      <div class="nota-ayuda">Órdenes ya cerradas, con su número de factura y estado de pago.</div>
+      <div class="nota-ayuda">Órdenes ya cerradas, con su número de factura y estado de pago. El crédito en servicios es máximo a 15 días — evítalo en lo posible, y si se da, gestiónalo cuanto antes en "Cuentas por cobrar/pagar".</div>
       <div id="facturacion-error" class="mensaje-error"></div>
 
       <div class="tarjeta">
@@ -1032,6 +1038,62 @@ the data-access layer at all.
             <thead><tr><th>Fecha</th><th>Inicial</th><th>Ingresos efvo.</th><th>Egresos efvo.</th><th>Esperado</th><th>Contado</th><th>Diferencia</th></tr></thead>
             <tbody id="cuerpo-cierres-caja"></tbody>
           </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="pantalla-cuentas" class="pagina pagina-ancha oculto">
+      <h1>Cuentas por cobrar y por pagar</h1>
+      <div class="nota-ayuda">Aquí aparecen las facturas vendidas a crédito y las compras a proveedores hechas a crédito. Puedes ir abonando de a poco hasta saldarlas.</div>
+      <div id="cuentas-error" class="mensaje-error"></div>
+
+      <div class="tarjeta">
+        <h2>Cuentas por cobrar (clientes)</h2>
+        <div class="tabla-scroll">
+          <table class="tabla-datos" id="tabla-cxc">
+            <thead><tr><th>Factura</th><th>Cliente</th><th>Vehículo</th><th>Total</th><th>Abonado</th><th>Saldo</th><th>Vence</th><th></th></tr></thead>
+            <tbody id="cuerpo-cxc"></tbody>
+          </table>
+        </div>
+        <div id="cxc-abono-panel" class="oculto" style="margin-top:12px;">
+          <h3 id="cxc-abono-titulo">Registrar abono</h3>
+          <label for="cxc-abono-monto">Monto abonado</label>
+          <input id="cxc-abono-monto" type="number" min="0" step="0.01">
+          <label for="cxc-abono-forma-pago">Forma de pago del abono</label>
+          <select id="cxc-abono-forma-pago">
+            <option value="efectivo">Efectivo</option>
+            <option value="tarjeta">Tarjeta</option>
+            <option value="transferencia">Transferencia</option>
+          </select>
+          <label for="cxc-abono-fecha">Fecha</label>
+          <input id="cxc-abono-fecha" type="date">
+          <button id="btn-cxc-registrar-abono">Registrar abono</button>
+          <button id="btn-cxc-cancelar-abono" class="secundario">Cancelar</button>
+        </div>
+      </div>
+
+      <div class="tarjeta oculto" id="tarjeta-cxp">
+        <h2>Cuentas por pagar (proveedores)</h2>
+        <div class="tabla-scroll">
+          <table class="tabla-datos" id="tabla-cxp">
+            <thead><tr><th>Fecha</th><th>Proveedor</th><th>Concepto</th><th>Orden</th><th>Monto</th><th>Abonado</th><th>Saldo</th><th>Vence</th><th></th></tr></thead>
+            <tbody id="cuerpo-cxp"></tbody>
+          </table>
+        </div>
+        <div id="cxp-abono-panel" class="oculto" style="margin-top:12px;">
+          <h3 id="cxp-abono-titulo">Registrar pago</h3>
+          <label for="cxp-abono-monto">Monto pagado</label>
+          <input id="cxp-abono-monto" type="number" min="0" step="0.01">
+          <label for="cxp-abono-forma-pago">Forma de pago</label>
+          <select id="cxp-abono-forma-pago">
+            <option value="efectivo">Efectivo</option>
+            <option value="tarjeta">Tarjeta</option>
+            <option value="transferencia">Transferencia</option>
+          </select>
+          <label for="cxp-abono-fecha">Fecha</label>
+          <input id="cxp-abono-fecha" type="date">
+          <button id="btn-cxp-registrar-abono">Registrar pago</button>
+          <button id="btn-cxp-cancelar-abono" class="secundario">Cancelar</button>
         </div>
       </div>
     </section>
@@ -1658,6 +1720,7 @@ the data-access layer at all.
         $("nav-facturacion").classList.toggle("oculto", !puedeVerFacturacion);
         var puedeVerCaja = rolActual === "administrador" || rolActual === "asesor" || rolActual === "contador";
         $("nav-caja").classList.toggle("oculto", !puedeVerCaja);
+        $("nav-cuentas").classList.toggle("oculto", !puedeVerCaja);
         var puedeVerInventario = rolActual === "administrador" || rolActual === "asesor" || rolActual === "contador";
         $("nav-inventario").classList.toggle("oculto", !puedeVerInventario);
         $("nav-agenda").classList.toggle("oculto", !puedeVerInventario);
@@ -1683,9 +1746,9 @@ the data-access layer at all.
   // =====================================================================
   // NAVEGACIÓN (menú lateral)
   // =====================================================================
-  var PAGINAS = ["inicio", "app", "agenda", "clientes", "vehiculos", "proveedores", "personal", "inventario", "contabilidad", "facturacion", "caja", "egreso", "configuracion", "nomina", "reportes", "comunicaciones"];
-  var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", agenda: "Agenda", clientes: "Clientes", vehiculos: "Vehículos", proveedores: "Proveedores", personal: "Personal", inventario: "Inventario", contabilidad: "Contabilidad", facturacion: "Facturación", caja: "Caja", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes", comunicaciones: "Comunicaciones" };
-  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", agenda: "agenda-error", clientes: "clientes-error", vehiculos: "vehiculos-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", contabilidad: "contab-horas-error", facturacion: "facturacion-error", caja: "caja-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error", comunicaciones: "comunicaciones-error" };
+  var PAGINAS = ["inicio", "app", "agenda", "clientes", "vehiculos", "proveedores", "personal", "inventario", "contabilidad", "facturacion", "caja", "cuentas", "egreso", "configuracion", "nomina", "reportes", "comunicaciones"];
+  var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", agenda: "Agenda", clientes: "Clientes", vehiculos: "Vehículos", proveedores: "Proveedores", personal: "Personal", inventario: "Inventario", contabilidad: "Contabilidad", facturacion: "Facturación", caja: "Caja", cuentas: "Cuentas por cobrar/pagar", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes", comunicaciones: "Comunicaciones" };
+  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", agenda: "agenda-error", clientes: "clientes-error", vehiculos: "vehiculos-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", contabilidad: "contab-horas-error", facturacion: "facturacion-error", caja: "caja-error", cuentas: "cuentas-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error", comunicaciones: "comunicaciones-error" };
 
   function mostrarPagina(nombre) {
     if (PAGINAS.indexOf(nombre) === -1) nombre = "inicio";
@@ -1711,6 +1774,7 @@ the data-access layer at all.
     else if (nombre === "contabilidad") promesa = cargarContabilidad();
     else if (nombre === "facturacion") promesa = cargarFacturacion();
     else if (nombre === "caja") promesa = cargarCaja();
+    else if (nombre === "cuentas") promesa = cargarCuentas();
     else if (nombre === "configuracion") promesa = cargarConfiguracion();
     else if (nombre === "nomina") promesa = cargarNomina();
     else if (nombre === "reportes") promesa = cargarReportes();
@@ -1724,6 +1788,10 @@ the data-access layer at all.
       $("egreso-monto").value = "";
       $("egreso-categoria").value = "compra";
       $("grupo-egreso-orden").classList.remove("oculto");
+      $("opcion-egreso-credito").disabled = false;
+      $("egreso-forma-pago").value = "efectivo";
+      $("egreso-vencimiento").value = "";
+      $("grupo-egreso-vencimiento").classList.add("oculto");
       promesa = cargarOrdenesParaEgreso();
     }
 
@@ -3126,6 +3194,15 @@ the data-access layer at all.
   $("egreso-categoria").addEventListener("change", function () {
     var esCompra = this.value === "compra";
     $("grupo-egreso-orden").classList.toggle("oculto", !esCompra);
+    $("opcion-egreso-credito").disabled = !esCompra;
+    if (!esCompra && $("egreso-forma-pago").value === "credito") {
+      $("egreso-forma-pago").value = "efectivo";
+      $("grupo-egreso-vencimiento").classList.add("oculto");
+    }
+  });
+
+  $("egreso-forma-pago").addEventListener("change", function () {
+    $("grupo-egreso-vencimiento").classList.toggle("oculto", this.value !== "credito");
   });
 
   $("btn-agregar-egreso").addEventListener("click", conManejoDeErrores(function () {
@@ -3138,12 +3215,17 @@ the data-access layer at all.
     var monto = parseFloat($("egreso-monto").value);
     var idOt = $("egreso-orden").value || null;
     var formaPago = $("egreso-forma-pago").value;
+    var vencimiento = $("egreso-vencimiento").value || null;
     if (!concepto || !(monto >= 0)) {
       mostrarError("egreso-error", "Escribe el concepto y un monto válido.");
       return;
     }
     if (categoria === "compra" && !idOt) {
       mostrarError("egreso-error", "Elige a qué orden pertenece esta compra.");
+      return;
+    }
+    if (formaPago === "credito" && categoria !== "compra") {
+      mostrarError("egreso-error", "El crédito solo aplica a compras a proveedores.");
       return;
     }
     var btnAgregarEgreso = $("btn-agregar-egreso");
@@ -3157,6 +3239,8 @@ the data-access layer at all.
         categoria: categoria,
         monto: monto,
         forma_pago: formaPago,
+        estado_pago: formaPago === "credito" ? "credito" : "pagado",
+        fecha_vencimiento: formaPago === "credito" ? vencimiento : null,
         id_ot: categoria === "compra" ? idOt : null,
         id_usuario_registro: usuarioActualId
       }
@@ -3164,6 +3248,8 @@ the data-access layer at all.
       $("egreso-proveedor").value = "";
       $("egreso-concepto").value = "";
       $("egreso-monto").value = "";
+      $("egreso-vencimiento").value = "";
+      $("grupo-egreso-vencimiento").classList.add("oculto");
       var exito = $("egreso-exito");
       exito.textContent = "Gasto registrado. Puedes seguir registrando otro o ir a otra sección.";
       exito.classList.remove("oculto");
@@ -3754,9 +3840,18 @@ the data-access layer at all.
 
     var filtroRol = rol === "asesor" ? "id_asesor" : (rol === "tecnico" ? "id_tecnico" : null);
 
+    // Al técnico se le paga la mano de obra de lo que vendió, sin importar si el
+    // cliente ya pagó o quedó a crédito (el técnico ya hizo el trabajo).
+    // Al asesor, en cambio, solo se le liquida una orden cuando el cliente la pagó
+    // por completo — así que para el asesor se filtra por fecha en que quedó pagada
+    // (fecha_pago), no por fecha de cierre, y solo las que ya están 100% pagadas.
+    var filtroFechaOrdenes = rol === "asesor"
+      ? "estado_pago=eq.pagada&fecha_pago=gte." + inicio + "&fecha_pago=lt." + finExclusivoISO
+      : "fecha_cierre=gte." + inicio + "&fecha_cierre=lt." + finExclusivoISO;
+
     var pedidoOrdenes = filtroRol
       ? restRequest("GET", "ordenes_trabajo", {
-          query: "select=id_ot,ot_detalle(cantidad,precio_aplicado_cliente,costo_interno,items(tipo))&estado=eq.cerrada&" + filtroRol + "=eq." + idUsuario + "&fecha_cierre=gte." + inicio + "&fecha_cierre=lt." + finExclusivoISO
+          query: "select=id_ot,ot_detalle(cantidad,precio_aplicado_cliente,costo_interno,items(tipo))&estado=eq.cerrada&" + filtroRol + "=eq." + idUsuario + "&" + filtroFechaOrdenes
         })
       : Promise.resolve([]);
 
@@ -3832,9 +3927,10 @@ the data-access layer at all.
       };
 
       var detalleCalculo = rol === "asesor"
-        ? ("Comisión: " + formatoMoneda(comisiones) + " — " + numOrdenes + " órdenes cerradas, ticket promedio " + ticketPromedioHoras.toFixed(2) + " h de mano de obra (tope " + tramoHorasTicketAsesor + " h)"
+        ? ("Comisión: " + formatoMoneda(comisiones) + " — " + numOrdenes + " órdenes pagadas por completo en este período (por fecha de pago, no de cierre), ticket promedio " + ticketPromedioHoras.toFixed(2) + " h de mano de obra (tope " + tramoHorasTicketAsesor + " h)"
             + "<br>&nbsp;&nbsp;Mano de obra: " + formatoMoneda(valorManoObra) + " × " + (pctComisionMoAplicado * 100).toFixed(2) + "% = " + formatoMoneda(comisionManoObra)
-            + "<br>&nbsp;&nbsp;Margen repuestos/insumos/externos: " + formatoMoneda(margenOtros) + " × " + (pctComisionMargenAplicado * 100).toFixed(2) + "% = " + formatoMoneda(comisionMargenOtros))
+            + "<br>&nbsp;&nbsp;Margen repuestos/insumos/externos: " + formatoMoneda(margenOtros) + " × " + (pctComisionMargenAplicado * 100).toFixed(2) + "% = " + formatoMoneda(comisionMargenOtros)
+            + "<br><span style=\"color:var(--gris);\">Las órdenes que quedaron a crédito se liquidan cuando el cliente termine de pagarlas por completo.</span>")
         : rol === "tecnico"
         ? ("Variable: " + formatoMoneda(variableTecnico) + " — " + horas.toFixed(2) + " horas vendidas en total"
             + "<br>&nbsp;&nbsp;" + horasTramoBase.toFixed(2) + " h × " + formatoMoneda(tarifaBase) + " = " + formatoMoneda(horasTramoBase * tarifaBase)
@@ -4654,7 +4750,7 @@ the data-access layer at all.
     return "<div class=\"datos-doc\">" +
       "<div class=\"bloque\"><b>" + (esFactura ? "Factura" : "Presupuesto / Orden") + "</b>N.º " + numeroDoc +
       "<br>" + lineaFecha +
-      (esFactura ? "<br>Estado: " + (orden.estado_pago === "pagada" ? "Pagada" : "Pendiente de pago") : "") +
+      (esFactura ? "<br>Estado: " + (orden.estado_pago === "pagada" ? "Pagada" : (orden.estado_pago === "credito" ? "A crédito" : "Pendiente de pago")) : "") +
       (orden.fecha_cierre ? "<br>Cierre: " + formatoFechaCorta(new Date(orden.fecha_cierre)) : "") + "</div>" +
       "<div class=\"bloque\"><b>Asesor</b>" +
       (orden.asesor ? orden.asesor.nombre : "—") +
@@ -4818,7 +4914,8 @@ the data-access layer at all.
         "<td>" + (f.cliente_nombre || "—") + "</td>" +
         "<td>" + (f.vehiculo_placa || "—") + " " + [f.marca, f.modelo].filter(Boolean).join(" ") + "</td>" +
         "<td class=\"celda-numero\">" + formatoMoneda(f.total) + "</td>" +
-        "<td style=\"color:" + (f.estado_pago === "pagada" ? "var(--verde)" : "#b45309") + ";font-weight:600;\">" + (f.estado_pago === "pagada" ? "Pagada" : "Pendiente") + "</td>";
+        "<td style=\"color:" + (f.estado_pago === "pagada" ? "var(--verde)" : (f.estado_pago === "credito" ? "var(--azul)" : "#b45309")) + ";font-weight:600;\">" +
+        (f.estado_pago === "pagada" ? "Pagada" : (f.estado_pago === "credito" ? "A crédito" : "Pendiente")) + "</td>";
 
       var tdAcciones = document.createElement("td");
       var btnVer = document.createElement("button");
@@ -4831,26 +4928,65 @@ the data-access layer at all.
       }, "facturacion-error"));
       tdAcciones.appendChild(btnVer);
 
-      if (f.estado_pago !== "pagada" && esAdminOAsesor) {
+      if (f.estado_pago === "pendiente" && esAdminOAsesor) {
         var selFormaPago = document.createElement("select");
         selFormaPago.style.marginRight = "6px";
         selFormaPago.innerHTML =
           '<option value="efectivo">Efectivo</option>' +
           '<option value="tarjeta">Tarjeta</option>' +
-          '<option value="transferencia">Transferencia</option>';
+          '<option value="transferencia">Transferencia</option>' +
+          '<option value="credito">Crédito</option>';
         tdAcciones.appendChild(selFormaPago);
+
+        var fechaBaseVenc = f.fecha_cierre ? new Date(f.fecha_cierre) : new Date();
+        var fechaMaxVenc = new Date(fechaBaseVenc);
+        fechaMaxVenc.setDate(fechaMaxVenc.getDate() + 15);
+        var maxVencISO = aFechaISO(fechaMaxVenc);
+
+        var inputVencimiento = document.createElement("input");
+        inputVencimiento.type = "date";
+        inputVencimiento.max = maxVencISO;
+        inputVencimiento.value = maxVencISO;
+        inputVencimiento.style.marginRight = "6px";
+        inputVencimiento.style.width = "auto";
+        inputVencimiento.classList.add("oculto");
+        tdAcciones.appendChild(inputVencimiento);
 
         var btnPagada = document.createElement("button");
         btnPagada.type = "button";
         btnPagada.className = "secundario";
         btnPagada.textContent = "Marcar como pagada";
+        tdAcciones.appendChild(btnPagada);
+
+        selFormaPago.addEventListener("change", function () {
+          var esCredito = selFormaPago.value === "credito";
+          inputVencimiento.classList.toggle("oculto", !esCredito);
+          btnPagada.textContent = esCredito ? "Vender a crédito" : "Marcar como pagada";
+        });
+
         btnPagada.addEventListener("click", conManejoDeErrores(function () {
+          if (selFormaPago.value === "credito") {
+            if (!inputVencimiento.value) {
+              mostrarError("facturacion-error", "Elige la fecha límite de pago (máximo 15 días desde el cierre).");
+              return;
+            }
+            if (inputVencimiento.value > maxVencISO) {
+              mostrarError("facturacion-error", "El crédito en servicios es máximo a 15 días. Elige una fecha antes de " + formatoFechaCorta(fechaMaxVenc) + ".");
+              return;
+            }
+            return restRequest("PATCH", "ordenes_trabajo", {
+              query: "id_ot=eq." + f.id_ot,
+              body: {
+                estado_pago: "credito", forma_pago: "credito",
+                fecha_vencimiento_pago: inputVencimiento.value
+              }
+            }).then(function () { return cargarFacturacion(); });
+          }
           return restRequest("PATCH", "ordenes_trabajo", {
             query: "id_ot=eq." + f.id_ot,
             body: { estado_pago: "pagada", fecha_pago: new Date().toISOString(), forma_pago: selFormaPago.value }
           }).then(function () { return cargarFacturacion(); });
         }, "facturacion-error"));
-        tdAcciones.appendChild(btnPagada);
       }
       tr.appendChild(tdAcciones);
       tbody.appendChild(tr);
@@ -4894,15 +5030,19 @@ the data-access layer at all.
     return Promise.all([
       restRequest("GET", "parametros_taller", { query: "select=monto_fondo_caja_menor&id=eq.1" }),
       restRequest("GET", "caja_menor_movimientos", { query: "select=*,usuarios(nombre)&order=fecha.desc,creado_en.desc&limit=100" }),
-      restRequest("GET", "vista_facturacion", { query: "select=total,forma_pago,fecha_pago&estado_pago=eq.pagada&fecha_pago=gte." + hoy + "&fecha_pago=lt." + manana }),
-      restRequest("GET", "egresos", { query: "select=monto&categoria=eq.gasto&forma_pago=eq.efectivo&fecha=eq." + hoy }),
-      restRequest("GET", "cierres_caja", { query: "select=*&order=fecha.desc&limit=15" })
+      restRequest("GET", "vista_facturacion", { query: "select=total,forma_pago,fecha_pago&estado_pago=eq.pagada&forma_pago=neq.credito&fecha_pago=gte." + hoy + "&fecha_pago=lt." + manana }),
+      restRequest("GET", "egresos", { query: "select=monto&estado_pago=eq.pagado&forma_pago=eq.efectivo&fecha=eq." + hoy }),
+      restRequest("GET", "cierres_caja", { query: "select=*&order=fecha.desc&limit=15" }),
+      restRequest("GET", "abonos_cuentas_cobrar", { query: "select=monto,forma_pago&fecha=eq." + hoy }),
+      restRequest("GET", "abonos_cuentas_pagar", { query: "select=monto&forma_pago=eq.efectivo&fecha=eq." + hoy })
     ]).then(function (resultados) {
       var fondoObjetivo = (resultados[0][0] && resultados[0][0].monto_fondo_caja_menor) || 0;
       var movimientos = resultados[1] || [];
       var pagosHoy = resultados[2] || [];
       var gastosEfectivoHoy = resultados[3] || [];
       var cierres = resultados[4] || [];
+      var abonosCobradosHoy = resultados[5] || [];
+      var abonosPagadosEfectivoHoy = resultados[6] || [];
 
       // --- Caja menor: saldo = reposiciones - gastos ---
       var saldoCajaMenor = 0;
@@ -4936,14 +5076,30 @@ the data-access layer at all.
         if (totales[fp] !== undefined) totales[fp] += Number(p.total || 0);
       });
       gastosEfectivoHoy.forEach(function (g) { totales.egresosEfectivo += Number(g.monto || 0); });
+
+      // Abonos de crédito cobrados/pagados hoy también son movimiento real de caja
+      var abonosCobradosPorForma = { efectivo: 0, tarjeta: 0, transferencia: 0 };
+      abonosCobradosHoy.forEach(function (a) {
+        var fp = a.forma_pago || "efectivo";
+        if (abonosCobradosPorForma[fp] !== undefined) abonosCobradosPorForma[fp] += Number(a.monto || 0);
+      });
+      var abonosPagadosEfectivo = 0;
+      abonosPagadosEfectivoHoy.forEach(function (a) { abonosPagadosEfectivo += Number(a.monto || 0); });
+
+      totales.efectivo += abonosCobradosPorForma.efectivo;
+      totales.tarjeta += abonosCobradosPorForma.tarjeta;
+      totales.transferencia += abonosCobradosPorForma.transferencia;
+      totales.egresosEfectivo += abonosPagadosEfectivo;
       cajaTotalesHoy = totales;
 
       var resumenCC = $("cierre-caja-resumen");
       resumenCC.innerHTML =
-        "<div><strong>Ingresos efectivo hoy:</strong> " + formatoMoneda(totales.efectivo) + "</div>" +
+        "<div><strong>Ingresos efectivo hoy:</strong> " + formatoMoneda(totales.efectivo) +
+        (abonosCobradosPorForma.efectivo ? " <span style=\"color:var(--gris);\">(incluye " + formatoMoneda(abonosCobradosPorForma.efectivo) + " en abonos de crédito)</span>" : "") + "</div>" +
         "<div><strong>Ingresos tarjeta hoy:</strong> " + formatoMoneda(totales.tarjeta) + "</div>" +
         "<div><strong>Ingresos transferencia hoy:</strong> " + formatoMoneda(totales.transferencia) + "</div>" +
-        "<div><strong>Gastos en efectivo hoy:</strong> " + formatoMoneda(totales.egresosEfectivo) + "</div>";
+        "<div><strong>Gastos en efectivo hoy:</strong> " + formatoMoneda(totales.egresosEfectivo) +
+        (abonosPagadosEfectivo ? " <span style=\"color:var(--gris);\">(incluye " + formatoMoneda(abonosPagadosEfectivo) + " en pagos a crédito)</span>" : "") + "</div>";
 
       // --- ¿Ya se cerró la caja hoy? ---
       var cierreHoy = cierres.filter(function (c) { return c.fecha === hoy; })[0];
@@ -5133,6 +5289,204 @@ the data-access layer at all.
       throw err;
     });
   }, "caja-error"));
+
+  // =====================================================================
+  // CUENTAS POR COBRAR Y POR PAGAR
+  // =====================================================================
+  var cxcSeleccionada = null; // { id_ot, saldo }
+  var cxpSeleccionada = null; // { id_egreso, saldo }
+
+  function cargarCuentas() {
+    ocultarError("cuentas-error");
+    var puedeVerCxP = rolActual === "administrador" || rolActual === "contador";
+    $("tarjeta-cxp").classList.toggle("oculto", !puedeVerCxP);
+    cxcSeleccionada = null;
+    cxpSeleccionada = null;
+    $("cxc-abono-panel").classList.add("oculto");
+    $("cxp-abono-panel").classList.add("oculto");
+
+    var pedidos = [restRequest("GET", "vista_cuentas_por_cobrar", { query: "select=*&order=fecha_cierre.asc" })];
+    if (puedeVerCxP) {
+      pedidos.push(restRequest("GET", "vista_cuentas_por_pagar", { query: "select=*&order=fecha.asc" }));
+    }
+    return Promise.all(pedidos).then(function (resultados) {
+      renderizarTablaCxC(resultados[0] || []);
+      if (puedeVerCxP) renderizarTablaCxP(resultados[1] || []);
+    });
+  }
+
+  function renderizarTablaCxC(filas) {
+    var puedeAbonarCxC = rolActual === "administrador" || rolActual === "asesor";
+    var tbody = $("cuerpo-cxc");
+    tbody.innerHTML = filas.length ? "" : "<tr><td colspan=\"8\" class=\"tabla-vacia\">No hay cuentas por cobrar.</td></tr>";
+    var hoy = aFechaISO(new Date());
+    filas.forEach(function (f) {
+      var vencida = f.fecha_vencimiento_pago && f.fecha_vencimiento_pago < hoy;
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + (f.numero_factura ? prefijoFactura + f.numero_factura : prefijoOT + f.numero_ot) + "</td>" +
+        "<td>" + (f.cliente_nombre || "—") + "</td>" +
+        "<td>" + (f.vehiculo_placa || "—") + "</td>" +
+        "<td class=\"celda-numero\">" + formatoMoneda(f.total) + "</td>" +
+        "<td class=\"celda-numero\">" + formatoMoneda(f.abonado) + "</td>" +
+        "<td class=\"celda-numero\" style=\"font-weight:700;\">" + formatoMoneda(f.saldo) + "</td>" +
+        "<td style=\"color:" + (vencida ? "var(--rojo)" : "inherit") + ";\">" +
+        (f.fecha_vencimiento_pago ? formatoFechaCorta(new Date(f.fecha_vencimiento_pago + "T00:00:00")) : "—") + "</td>";
+      var tdAcc = document.createElement("td");
+      if (puedeAbonarCxC) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "secundario";
+        btn.textContent = "Abonar";
+        btn.addEventListener("click", function () { mostrarPanelAbonoCxC(f); });
+        tdAcc.appendChild(btn);
+      }
+      tr.appendChild(tdAcc);
+      tbody.appendChild(tr);
+    });
+  }
+
+  function mostrarPanelAbonoCxC(f) {
+    cxcSeleccionada = { id_ot: f.id_ot, saldo: Number(f.saldo) };
+    $("cxc-abono-titulo").textContent = "Registrar abono — " +
+      (f.numero_factura ? prefijoFactura + f.numero_factura : prefijoOT + f.numero_ot) +
+      (f.cliente_nombre ? " · " + f.cliente_nombre : "") + " · saldo " + formatoMoneda(f.saldo);
+    $("cxc-abono-monto").value = f.saldo;
+    $("cxc-abono-fecha").value = aFechaISO(new Date());
+    $("cxc-abono-panel").classList.remove("oculto");
+  }
+
+  $("btn-cxc-cancelar-abono").addEventListener("click", function () {
+    cxcSeleccionada = null;
+    $("cxc-abono-panel").classList.add("oculto");
+  });
+
+  $("btn-cxc-registrar-abono").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("cuentas-error");
+    if (!cxcSeleccionada) return;
+    var monto = parseFloat($("cxc-abono-monto").value);
+    var formaPago = $("cxc-abono-forma-pago").value;
+    var fecha = $("cxc-abono-fecha").value || aFechaISO(new Date());
+    if (!(monto > 0)) {
+      mostrarError("cuentas-error", "Escribe un monto de abono válido.");
+      return;
+    }
+    if (monto > cxcSeleccionada.saldo + 0.01) {
+      mostrarError("cuentas-error", "El abono no puede ser mayor al saldo pendiente (" + formatoMoneda(cxcSeleccionada.saldo) + ").");
+      return;
+    }
+    var idOt = cxcSeleccionada.id_ot;
+    var saldoRestante = cxcSeleccionada.saldo - monto;
+    var btnCxcAbono = $("btn-cxc-registrar-abono");
+    btnCxcAbono.disabled = true;
+    btnCxcAbono.textContent = "Registrando…";
+    return restRequest("POST", "abonos_cuentas_cobrar", {
+      body: { id_ot: idOt, monto: monto, forma_pago: formaPago, fecha: fecha, id_usuario_registro: usuarioActualId }
+    }).then(function () {
+      if (saldoRestante <= 0.01) {
+        return restRequest("PATCH", "ordenes_trabajo", {
+          query: "id_ot=eq." + idOt,
+          body: { estado_pago: "pagada", fecha_pago: new Date().toISOString() }
+        });
+      }
+    }).then(function () {
+      cxcSeleccionada = null;
+      $("cxc-abono-panel").classList.add("oculto");
+      return cargarCuentas();
+    }).then(function () {
+      btnCxcAbono.disabled = false;
+      btnCxcAbono.textContent = "Registrar abono";
+    }).catch(function (err) {
+      btnCxcAbono.disabled = false;
+      btnCxcAbono.textContent = "Registrar abono";
+      throw err;
+    });
+  }, "cuentas-error"));
+
+  function renderizarTablaCxP(filas) {
+    var tbody = $("cuerpo-cxp");
+    tbody.innerHTML = filas.length ? "" : "<tr><td colspan=\"9\" class=\"tabla-vacia\">No hay cuentas por pagar.</td></tr>";
+    var hoy = aFechaISO(new Date());
+    filas.forEach(function (f) {
+      var vencida = f.fecha_vencimiento && f.fecha_vencimiento < hoy;
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + formatoFechaCorta(new Date(f.fecha + "T00:00:00")) + "</td>" +
+        "<td>" + (f.proveedor || "—") + "</td>" +
+        "<td>" + f.concepto + "</td>" +
+        "<td>" + (f.numero_ot ? prefijoOT + f.numero_ot : "—") + "</td>" +
+        "<td class=\"celda-numero\">" + formatoMoneda(f.monto) + "</td>" +
+        "<td class=\"celda-numero\">" + formatoMoneda(f.abonado) + "</td>" +
+        "<td class=\"celda-numero\" style=\"font-weight:700;\">" + formatoMoneda(f.saldo) + "</td>" +
+        "<td style=\"color:" + (vencida ? "var(--rojo)" : "inherit") + ";\">" +
+        (f.fecha_vencimiento ? formatoFechaCorta(new Date(f.fecha_vencimiento + "T00:00:00")) : "—") + "</td>";
+      var tdAcc = document.createElement("td");
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "secundario";
+      btn.textContent = "Abonar";
+      btn.addEventListener("click", function () { mostrarPanelAbonoCxP(f); });
+      tdAcc.appendChild(btn);
+      tr.appendChild(tdAcc);
+      tbody.appendChild(tr);
+    });
+  }
+
+  function mostrarPanelAbonoCxP(f) {
+    cxpSeleccionada = { id_egreso: f.id_egreso, saldo: Number(f.saldo) };
+    $("cxp-abono-titulo").textContent = "Registrar pago — " + f.concepto +
+      (f.proveedor ? " · " + f.proveedor : "") + " · saldo " + formatoMoneda(f.saldo);
+    $("cxp-abono-monto").value = f.saldo;
+    $("cxp-abono-fecha").value = aFechaISO(new Date());
+    $("cxp-abono-panel").classList.remove("oculto");
+  }
+
+  $("btn-cxp-cancelar-abono").addEventListener("click", function () {
+    cxpSeleccionada = null;
+    $("cxp-abono-panel").classList.add("oculto");
+  });
+
+  $("btn-cxp-registrar-abono").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("cuentas-error");
+    if (!cxpSeleccionada) return;
+    var monto = parseFloat($("cxp-abono-monto").value);
+    var formaPago = $("cxp-abono-forma-pago").value;
+    var fecha = $("cxp-abono-fecha").value || aFechaISO(new Date());
+    if (!(monto > 0)) {
+      mostrarError("cuentas-error", "Escribe un monto de pago válido.");
+      return;
+    }
+    if (monto > cxpSeleccionada.saldo + 0.01) {
+      mostrarError("cuentas-error", "El pago no puede ser mayor al saldo pendiente (" + formatoMoneda(cxpSeleccionada.saldo) + ").");
+      return;
+    }
+    var idEgreso = cxpSeleccionada.id_egreso;
+    var saldoRestante = cxpSeleccionada.saldo - monto;
+    var btnCxpAbono = $("btn-cxp-registrar-abono");
+    btnCxpAbono.disabled = true;
+    btnCxpAbono.textContent = "Registrando…";
+    return restRequest("POST", "abonos_cuentas_pagar", {
+      body: { id_egreso: idEgreso, monto: monto, forma_pago: formaPago, fecha: fecha, id_usuario_registro: usuarioActualId }
+    }).then(function () {
+      if (saldoRestante <= 0.01) {
+        return restRequest("PATCH", "egresos", {
+          query: "id_egreso=eq." + idEgreso,
+          body: { estado_pago: "pagado" }
+        });
+      }
+    }).then(function () {
+      cxpSeleccionada = null;
+      $("cxp-abono-panel").classList.add("oculto");
+      return cargarCuentas();
+    }).then(function () {
+      btnCxpAbono.disabled = false;
+      btnCxpAbono.textContent = "Registrar pago";
+    }).catch(function (err) {
+      btnCxpAbono.disabled = false;
+      btnCxpAbono.textContent = "Registrar pago";
+      throw err;
+    });
+  }, "cuentas-error"));
 
   // =====================================================================
   // ÍTEMS DE LA ORDEN
