@@ -831,6 +831,11 @@ the data-access layer at all.
             <option value="activo">Activo</option>
             <option value="inactivo">Inactivo</option>
           </select>
+          <div id="personal-grupo-meta" class="oculto">
+            <label for="personal-meta-mensual">Meta mensual de mano de obra (opcional)</label>
+            <input id="personal-meta-mensual" type="number" min="0" step="1000" placeholder="Ej. 3000000">
+            <div class="nota-ayuda">Se compara contra lo que el técnico vendió en mano de obra ese mes, en Reportes.</div>
+          </div>
           <button id="btn-vincular-personal">Vincular</button>
         </div>
 
@@ -1006,6 +1011,17 @@ the data-access layer at all.
         <button id="btn-registrar-entrada">Registrar entrada</button>
         <div id="stock-error" class="mensaje-error"></div>
         <div id="stock-exito" class="mensaje-error oculto" style="background:#f0fdf4;color:var(--verde);border-color:#bbf7d0;"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Importar repuestos/insumos por CSV (varios a la vez)</h2>
+        <div class="nota-ayuda">Sube un archivo con columnas: nombre, tipo (repuesto o insumo), costo, precio_sugerido (opcional), stock_actual (opcional), stock_minimo (opcional). Descarga la plantilla para verlo en Excel.</div>
+        <button id="btn-plantilla-repuestos" type="button" class="secundario">Descargar plantilla CSV</button>
+        <label for="importar-repuestos-archivo">Archivo CSV</label>
+        <input id="importar-repuestos-archivo" type="file" accept=".csv">
+        <button id="btn-importar-repuestos">Importar</button>
+        <div id="importar-repuestos-error" class="mensaje-error"></div>
+        <div id="importar-repuestos-resultado" class="nota-ayuda oculto"></div>
       </div>
     </section>
 
@@ -1336,6 +1352,12 @@ the data-access layer at all.
         <canvas id="grafico-flujo-caja" height="140"></canvas>
         <div id="sin-datos-flujo" class="nota-ayuda oculto"></div>
         <div id="tabla-flujo-caja" style="margin-top:12px;"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Medios de pago más usados (mes actual)</h2>
+        <canvas id="grafico-medios-pago" height="180"></canvas>
+        <div id="sin-datos-medios-pago" class="nota-ayuda oculto"></div>
       </div>
 
       <div class="tarjeta">
@@ -1720,6 +1742,7 @@ the data-access layer at all.
   var graficoMensual = null;
   var graficoEstados = null;
   var graficoFlujoCaja = null;
+  var graficoMediosPago = null;
 
   function $(id) { return document.getElementById(id); }
 
@@ -2336,6 +2359,114 @@ the data-access layer at all.
       return cargarInventario();
     });
   }, "stock-error"));
+
+  // --- Importación masiva de repuestos/insumos por CSV ---
+  function analizarCSV(texto) {
+    var filas = [];
+    var fila = [];
+    var campo = "";
+    var dentroComillas = false;
+    for (var i = 0; i < texto.length; i++) {
+      var c = texto[i];
+      if (dentroComillas) {
+        if (c === '"') {
+          if (texto[i + 1] === '"') { campo += '"'; i++; }
+          else dentroComillas = false;
+        } else campo += c;
+      } else if (c === '"') {
+        dentroComillas = true;
+      } else if (c === ',') {
+        fila.push(campo); campo = "";
+      } else if (c === '\n' || c === '\r') {
+        if (c === '\r' && texto[i + 1] === '\n') i++;
+        fila.push(campo); campo = "";
+        if (fila.length > 1 || fila[0] !== "") filas.push(fila);
+        fila = [];
+      } else {
+        campo += c;
+      }
+    }
+    if (campo !== "" || fila.length) { fila.push(campo); filas.push(fila); }
+    return filas;
+  }
+
+  $("btn-plantilla-repuestos").addEventListener("click", function () {
+    var csv = "nombre,tipo,costo,precio_sugerido,stock_actual,stock_minimo\n" +
+      "Filtro de aceite,repuesto,15000,25000,10,2\n" +
+      "Pastillas de freno,repuesto,60000,90000,4,1\n" +
+      "Aceite Kixx 5W30 (galon),insumo,45000,,20,3\n";
+    var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    var enlace = document.createElement("a");
+    enlace.href = URL.createObjectURL(blob);
+    enlace.download = "plantilla_repuestos.csv";
+    document.body.appendChild(enlace);
+    enlace.click();
+    document.body.removeChild(enlace);
+  });
+
+  $("btn-importar-repuestos").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("importar-repuestos-error");
+    $("importar-repuestos-resultado").classList.add("oculto");
+    var archivo = $("importar-repuestos-archivo").files[0];
+    if (!archivo) {
+      mostrarError("importar-repuestos-error", "Selecciona un archivo CSV.");
+      return;
+    }
+    return new Promise(function (resolve, reject) {
+      var lector = new FileReader();
+      lector.onload = function () { resolve(lector.result); };
+      lector.onerror = function () { reject(new Error("No se pudo leer el archivo.")); };
+      lector.readAsText(archivo, "utf-8");
+    }).then(function (texto) {
+      var filas = analizarCSV(texto).filter(function (f) { return f.length && f.some(function (v) { return v.trim() !== ""; }); });
+      if (!filas.length) throw new Error("El archivo está vacío.");
+      var encabezado = filas[0].map(function (h) { return h.trim().toLowerCase(); });
+      var idxNombre = encabezado.indexOf("nombre");
+      var idxTipo = encabezado.indexOf("tipo");
+      var idxCosto = encabezado.indexOf("costo");
+      var idxPrecio = encabezado.indexOf("precio_sugerido");
+      var idxStock = encabezado.indexOf("stock_actual");
+      var idxMinimo = encabezado.indexOf("stock_minimo");
+      if (idxNombre === -1 || idxTipo === -1 || idxCosto === -1) {
+        throw new Error("El CSV debe tener al menos las columnas: nombre, tipo, costo.");
+      }
+      var items = [];
+      var erroresFilas = [];
+      filas.slice(1).forEach(function (f, i) {
+        var nombre = (f[idxNombre] || "").trim();
+        var tipo = (f[idxTipo] || "").trim().toLowerCase();
+        var costo = parseFloat(f[idxCosto]);
+        if (!nombre || (tipo !== "repuesto" && tipo !== "insumo") || !(costo >= 0)) {
+          erroresFilas.push("Fila " + (i + 2));
+          return;
+        }
+        var precioSugeridoTxt = idxPrecio !== -1 ? (f[idxPrecio] || "").trim() : "";
+        var stockActualTxt = idxStock !== -1 ? (f[idxStock] || "").trim() : "";
+        var stockMinimoTxt = idxMinimo !== -1 ? (f[idxMinimo] || "").trim() : "";
+        items.push({
+          tipo: tipo,
+          nombre: nombre,
+          costo: costo,
+          precio_sugerido: precioSugeridoTxt !== "" ? parseFloat(precioSugeridoTxt) : null,
+          stock_gestionado: true,
+          stock_actual: stockActualTxt !== "" ? parseFloat(stockActualTxt) : 0,
+          stock_minimo: stockMinimoTxt !== "" ? parseFloat(stockMinimoTxt) : 0
+        });
+      });
+      if (!items.length) {
+        throw new Error("Ninguna fila fue válida. Revisa que nombre, tipo (repuesto/insumo) y costo estén completos.");
+      }
+      return restRequest("POST", "items", { body: items }).then(function (creados) {
+        var resultado = $("importar-repuestos-resultado");
+        resultado.classList.remove("oculto");
+        resultado.textContent = "Se crearon " + creados.length + " ítem(s) nuevo(s)." +
+          (erroresFilas.length ? " Se omitieron " + erroresFilas.length + " fila(s) con datos incompletos (" + erroresFilas.join(", ") + ")." : "") +
+          " El stock inicial quedó registrado directamente (no genera movimiento de entrada con proveedor).";
+        $("importar-repuestos-archivo").value = "";
+        return cargarInventario();
+      });
+    });
+  }, "importar-repuestos-error"));
 
   // =====================================================================
   // AGENDA — citas
@@ -3300,6 +3431,11 @@ the data-access layer at all.
   $("btn-personal-tab-con-acceso").addEventListener("click", function () { mostrarTabPersonal("con-acceso"); });
   $("btn-personal-tab-sin-acceso").addEventListener("click", function () { mostrarTabPersonal("sin-acceso"); });
 
+  function actualizarVisibilidadMeta() {
+    $("personal-grupo-meta").classList.toggle("oculto", $("personal-rol").value !== "tecnico");
+  }
+  $("personal-rol").addEventListener("change", actualizarVisibilidadMeta);
+
   function reiniciarFormularioPersonal() {
     personalUsuarioEditando = null;
     personalEmpleadoEditando = null;
@@ -3309,6 +3445,8 @@ the data-access layer at all.
     $("personal-correo").value = "";
     $("personal-rol").value = "administrador";
     $("personal-estado").value = "activo";
+    $("personal-meta-mensual").value = "";
+    actualizarVisibilidadMeta();
     $("personal-sin-usuario-nombre").value = "";
     $("personal-sin-usuario-contrato").value = "ocasional";
     $("personal-sin-usuario-salario").value = "0";
@@ -3339,6 +3477,8 @@ the data-access layer at all.
       $("personal-correo").value = p.correo || "";
       $("personal-rol").value = p.rol || "administrador";
       $("personal-estado").value = p.estado || "activo";
+      $("personal-meta-mensual").value = (p.raw && p.raw.meta_mensual) || "";
+      actualizarVisibilidadMeta();
       $("personal-form-titulo").textContent = "Editar usuario";
       $("btn-vincular-personal").textContent = "Guardar cambios";
     } else {
@@ -3362,13 +3502,14 @@ the data-access layer at all.
     var correo = $("personal-correo").value.trim();
     var rol = $("personal-rol").value;
     var estado = $("personal-estado").value;
+    var metaMensual = rol === "tecnico" && $("personal-meta-mensual").value.trim() !== "" ? parseFloat($("personal-meta-mensual").value) : null;
 
     if (personalUsuarioEditando) {
       if (!nombre) {
         mostrarError("personal-error", "Escribe el nombre.");
         return;
       }
-      return restRequest("PATCH", "usuarios", { query: "id_usuario=eq." + personalUsuarioEditando, body: { nombre: nombre, correo: correo || null, rol: rol, estado: estado } })
+      return restRequest("PATCH", "usuarios", { query: "id_usuario=eq." + personalUsuarioEditando, body: { nombre: nombre, correo: correo || null, rol: rol, estado: estado, meta_mensual: metaMensual } })
         .then(function () {
           reiniciarFormularioPersonal();
           return cargarPersonal();
@@ -3384,7 +3525,7 @@ the data-access layer at all.
       mostrarError("personal-error", "Escribe el nombre.");
       return;
     }
-    return restRequest("POST", "usuarios", { body: { id_usuario: id, nombre: nombre, correo: correo || null, rol: rol, estado: estado } })
+    return restRequest("POST", "usuarios", { body: { id_usuario: id, nombre: nombre, correo: correo || null, rol: rol, estado: estado, meta_mensual: metaMensual } })
       .then(function () {
         reiniciarFormularioPersonal();
         return cargarPersonal();
@@ -4423,7 +4564,9 @@ the data-access layer at all.
       restRequest("GET", "vista_rentabilidad_ot", { query: "select=*&order=fecha_cierre.desc&limit=20" }),
       restRequest("GET", "parametros_taller", { query: "select=horas_disponibles_mes&id=eq.1" }),
       restRequest("GET", "liquidaciones", { query: "select=periodo_inicio,periodo_fin,total&order=periodo_inicio.desc&limit=50" }),
-      restRequest("GET", "movimientos_inventario", { query: "select=cantidad,items(nombre,stock_actual)&tipo=eq.salida&creado_en=gte." + inicioMes + "&creado_en=lt." + inicioMesSiguiente })
+      restRequest("GET", "movimientos_inventario", { query: "select=cantidad,items(nombre,stock_actual)&tipo=eq.salida&creado_en=gte." + inicioMes + "&creado_en=lt." + inicioMesSiguiente }),
+      restRequest("GET", "vista_facturacion", { query: "select=total,forma_pago&estado_pago=eq.pagada&fecha_pago=gte." + inicioMes + "&fecha_pago=lt." + inicioMesSiguiente }),
+      restRequest("GET", "pagos_factura", { query: "select=forma_pago,monto&fecha_pago=gte." + inicioMes + "&fecha_pago=lt." + inicioMesSiguiente })
     ]).then(function (r) {
       var resultadoMensual = r[0] || [];
       var flujoCaja = r[1] || [];
@@ -4432,6 +4575,8 @@ the data-access layer at all.
       var parametros = (r[4] && r[4][0]) || { horas_disponibles_mes: 0 };
       var liquidaciones = r[5] || [];
       var movimientos = r[6] || [];
+      var facturasPagadasMes = r[7] || [];
+      var pagosDivididosMes = r[8] || [];
 
       // --- KPIs del mes actual ---
       var filaMesActual = resultadoMensual.filter(function (f) { return f.periodo === inicioMes; })[0];
@@ -4484,6 +4629,9 @@ the data-access layer at all.
           ? "La flecha compara cada indicador contra " + nombreMes(inicioMesAnterior) + "."
           : "Aún no hay datos del mes anterior para comparar.";
       }
+
+      // --- Medios de pago más usados ---
+      dibujarGraficoMediosPago(facturasPagadasMes, pagosDivididosMes);
 
       // --- Flujo de caja ---
       dibujarGraficoFlujoCaja(flujoCaja);
@@ -4622,22 +4770,28 @@ the data-access layer at all.
     return Promise.all([
       restRequest("GET", "vista_productividad_tecnico", { query: "select=*&periodo=eq." + periodo }),
       restRequest("GET", "vista_productividad_asesor", { query: "select=*&periodo=eq." + periodo }),
-      restRequest("GET", "parametros_taller", { query: "select=horas_disponibles_mes&id=eq.1" })
+      restRequest("GET", "parametros_taller", { query: "select=horas_disponibles_mes&id=eq.1" }),
+      restRequest("GET", "usuarios", { query: "select=id_usuario,meta_mensual&rol=eq.tecnico" })
     ]).then(function (r) {
       var tecnicos = r[0] || [];
       var asesores = r[1] || [];
       var horasDisponiblesMes = Number((r[2] && r[2][0] && r[2][0].horas_disponibles_mes) || 0);
+      var metasPorTecnico = {};
+      (r[3] || []).forEach(function (u) { if (u.meta_mensual) metasPorTecnico[u.id_usuario] = Number(u.meta_mensual); });
 
       var tTec = $("tabla-productividad-tecnico");
       tTec.innerHTML = tecnicos.length ? "" : "<p class=\"nota-ayuda\">Sin órdenes cerradas por técnico ese mes.</p>";
       tecnicos.forEach(function (t) {
         var eficiencia = horasDisponiblesMes > 0 ? (Number(t.horas_trabajadas) / horasDisponiblesMes) * 100 : null;
+        var meta = metasPorTecnico[t.id_tecnico];
+        var pctMeta = meta ? (Number(t.valor_generado) / meta) * 100 : null;
         var fila = document.createElement("div");
         fila.className = "fila-renglon";
         fila.innerHTML =
           "<span>" + (t.tecnico_nombre || "—") + "<br><span class=\"fila-detalle\">" + t.ordenes + " órdenes</span></span>" +
           "<span>" + Number(t.horas_trabajadas).toFixed(2) + " horas<br>" + formatoMoneda(t.valor_generado) +
-          (eficiencia === null ? "" : "<br><b style=\"color:" + (eficiencia >= 100 ? "var(--verde)" : "#b45309") + ";\">Eficiencia " + eficiencia.toFixed(0) + "%</b>") + "</span>";
+          (eficiencia === null ? "" : "<br><b style=\"color:" + (eficiencia >= 100 ? "var(--verde)" : "#b45309") + ";\">Eficiencia " + eficiencia.toFixed(0) + "%</b>") +
+          (pctMeta === null ? "" : "<br><b style=\"color:" + (pctMeta >= 100 ? "var(--verde)" : "#b45309") + ";\">Meta " + pctMeta.toFixed(0) + "% (" + formatoMoneda(meta) + ")</b>") + "</span>";
         tTec.appendChild(fila);
       });
 
@@ -4675,6 +4829,53 @@ the data-access layer at all.
         ]
       },
       options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+  }
+
+  var ETIQUETAS_FORMA_PAGO = {
+    efectivo: "Efectivo", tarjeta: "Tarjeta", transferencia: "Transferencia",
+    credito: "Crédito", garantia: "Garantía"
+  };
+  var COLORES_FORMA_PAGO = {
+    efectivo: "#16a34a", tarjeta: "#2563eb", transferencia: "#9333ea",
+    credito: "#d97706", garantia: "#64748b"
+  };
+
+  function dibujarGraficoMediosPago(facturas, pagosDivididos) {
+    if (graficoMediosPago) { graficoMediosPago.destroy(); graficoMediosPago = null; }
+    if (typeof Chart === "undefined") {
+      $("sin-datos-medios-pago").textContent = "No se pudo cargar la librería de gráficos (revisa tu conexión y recarga la página).";
+      $("sin-datos-medios-pago").classList.remove("oculto");
+      return;
+    }
+    var totalesPorForma = {};
+    (facturas || []).forEach(function (f) {
+      if (f.forma_pago === "mixto") return; // el desglose real viene de pagos_factura
+      var fp = f.forma_pago || "efectivo";
+      totalesPorForma[fp] = (totalesPorForma[fp] || 0) + Number(f.total || 0);
+    });
+    (pagosDivididos || []).forEach(function (p) {
+      totalesPorForma[p.forma_pago] = (totalesPorForma[p.forma_pago] || 0) + Number(p.monto || 0);
+    });
+    var formas = Object.keys(totalesPorForma);
+    $("sin-datos-medios-pago").classList.toggle("oculto", !!formas.length);
+    if (!formas.length) return;
+
+    graficoMediosPago = new Chart($("grafico-medios-pago").getContext("2d"), {
+      type: "doughnut",
+      data: {
+        labels: formas.map(function (fp) { return ETIQUETAS_FORMA_PAGO[fp] || fp; }),
+        datasets: [{
+          data: formas.map(function (fp) { return totalesPorForma[fp]; }),
+          backgroundColor: formas.map(function (fp) { return COLORES_FORMA_PAGO[fp] || "#94a3b8"; })
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          tooltip: { callbacks: { label: function (ctx) { return ctx.label + ": " + formatoMoneda(ctx.parsed); } } }
+        }
+      }
     });
   }
 
@@ -5307,11 +5508,20 @@ the data-access layer at all.
   // FACTURACIÓN — órdenes cerradas, número de factura y estado de pago
   // =====================================================================
   var datosFacturacion = [];
+  var pagosDivididosPorOt = {};
 
   function cargarFacturacion() {
     ocultarError("facturacion-error");
-    return restRequest("GET", "vista_facturacion", { query: "select=*&order=numero_factura.desc" }).then(function (filas) {
-      datosFacturacion = filas || [];
+    return Promise.all([
+      restRequest("GET", "vista_facturacion", { query: "select=*&order=numero_factura.desc" }),
+      restRequest("GET", "pagos_factura", { query: "select=id_ot,forma_pago,monto&order=fecha_pago.asc" })
+    ]).then(function (r) {
+      datosFacturacion = r[0] || [];
+      pagosDivididosPorOt = {};
+      (r[1] || []).forEach(function (p) {
+        if (!pagosDivididosPorOt[p.id_ot]) pagosDivididosPorOt[p.id_ot] = [];
+        pagosDivididosPorOt[p.id_ot].push(p);
+      });
       renderizarTablaFacturacion();
     });
   }
@@ -5331,6 +5541,12 @@ the data-access layer at all.
 
     filas.forEach(function (f) {
       var tr = document.createElement("tr");
+      var detalleDividido = "";
+      if (f.forma_pago === "mixto" && pagosDivididosPorOt[f.id_ot]) {
+        detalleDividido = "<br><span class=\"fila-detalle\">" + pagosDivididosPorOt[f.id_ot].map(function (p) {
+          return (ETIQUETAS_FORMA_PAGO[p.forma_pago] || p.forma_pago) + " " + formatoMoneda(p.monto);
+        }).join(" + ") + "</span>";
+      }
       tr.innerHTML =
         "<td>" + (f.numero_factura ? prefijoFactura + f.numero_factura : "—") + "</td>" +
         "<td>" + prefijoOT + f.numero_ot + "</td>" +
@@ -5339,7 +5555,7 @@ the data-access layer at all.
         "<td>" + (f.vehiculo_placa || "—") + " " + [f.marca, f.modelo].filter(Boolean).join(" ") + "</td>" +
         "<td class=\"celda-numero\">" + formatoMoneda(f.total) + "</td>" +
         "<td style=\"color:" + (f.estado_pago === "pagada" ? "var(--verde)" : (f.estado_pago === "credito" ? "var(--azul)" : "#b45309")) + ";font-weight:600;\">" +
-        (f.estado_pago === "pagada" ? "Pagada" : (f.estado_pago === "credito" ? "A crédito" : "Pendiente")) + "</td>";
+        (f.estado_pago === "pagada" ? "Pagada" + (f.forma_pago === "mixto" ? " (dividido)" : "") : (f.estado_pago === "credito" ? "A crédito" : "Pendiente")) + detalleDividido + "</td>";
 
       var tdAcciones = document.createElement("td");
       var btnVer = document.createElement("button");
@@ -5411,6 +5627,83 @@ the data-access layer at all.
             body: { estado_pago: "pagada", fecha_pago: new Date().toISOString(), forma_pago: selFormaPago.value }
           }).then(function () { return cargarFacturacion(); });
         }, "facturacion-error"));
+
+        // --- Pago dividido entre varias formas de pago ---
+        var etqDividir = document.createElement("label");
+        etqDividir.style.display = "block";
+        etqDividir.style.fontSize = "12px";
+        etqDividir.style.marginTop = "6px";
+        etqDividir.innerHTML = '<input type="checkbox" style="width:auto;margin-right:4px;">Pago dividido (efectivo + tarjeta + transferencia)';
+        var chkDividir = etqDividir.querySelector("input");
+        tdAcciones.appendChild(etqDividir);
+
+        var contDividir = document.createElement("div");
+        contDividir.classList.add("oculto");
+        contDividir.style.marginTop = "4px";
+        function crearInputMonto(etiqueta) {
+          var i = document.createElement("input");
+          i.type = "number"; i.min = "0"; i.step = "0.01";
+          i.placeholder = etiqueta;
+          i.style.width = "100px"; i.style.marginRight = "4px"; i.style.marginBottom = "4px";
+          return i;
+        }
+        var inpEfectivo = crearInputMonto("Efectivo");
+        var inpTarjeta = crearInputMonto("Tarjeta");
+        var inpTransferencia = crearInputMonto("Transferencia");
+        var pFalta = document.createElement("div");
+        pFalta.style.fontSize = "12px";
+        pFalta.style.marginBottom = "4px";
+        var btnConfirmarDividido = document.createElement("button");
+        btnConfirmarDividido.type = "button";
+        btnConfirmarDividido.className = "secundario";
+        btnConfirmarDividido.textContent = "Confirmar pago dividido";
+        [inpEfectivo, inpTarjeta, inpTransferencia, pFalta, btnConfirmarDividido].forEach(function (el) { contDividir.appendChild(el); });
+        tdAcciones.appendChild(contDividir);
+
+        function actualizarFalta() {
+          var suma = (parseFloat(inpEfectivo.value) || 0) + (parseFloat(inpTarjeta.value) || 0) + (parseFloat(inpTransferencia.value) || 0);
+          var falta = Number(f.total) - suma;
+          if (Math.abs(falta) < 1) {
+            pFalta.textContent = "Cuadra con el total (" + formatoMoneda(f.total) + ") ✓";
+            pFalta.style.color = "var(--verde)";
+          } else {
+            pFalta.textContent = (falta > 0 ? "Falta " : "Sobra ") + formatoMoneda(Math.abs(falta)) + " para completar " + formatoMoneda(f.total);
+            pFalta.style.color = "#b45309";
+          }
+        }
+        [inpEfectivo, inpTarjeta, inpTransferencia].forEach(function (inp) { inp.addEventListener("input", actualizarFalta); });
+
+        chkDividir.addEventListener("change", function () {
+          contDividir.classList.toggle("oculto", !chkDividir.checked);
+          selFormaPago.classList.toggle("oculto", chkDividir.checked);
+          btnPagada.classList.toggle("oculto", chkDividir.checked);
+          if (chkDividir.checked) { inputVencimiento.classList.add("oculto"); actualizarFalta(); }
+        });
+
+        btnConfirmarDividido.addEventListener("click", conManejoDeErrores(function () {
+          var partes = [
+            { forma_pago: "efectivo", monto: parseFloat(inpEfectivo.value) || 0 },
+            { forma_pago: "tarjeta", monto: parseFloat(inpTarjeta.value) || 0 },
+            { forma_pago: "transferencia", monto: parseFloat(inpTransferencia.value) || 0 }
+          ].filter(function (p) { return p.monto > 0; });
+          if (partes.length < 2) {
+            mostrarError("facturacion-error", "Escribe montos en al menos dos formas de pago para dividir. Si es solo una, usa el selector normal de arriba.");
+            return;
+          }
+          var suma = partes.reduce(function (a, p) { return a + p.monto; }, 0);
+          if (Math.abs(suma - Number(f.total)) > 1) {
+            mostrarError("facturacion-error", "La suma de los montos (" + formatoMoneda(suma) + ") debe ser igual al total de la factura (" + formatoMoneda(f.total) + ").");
+            return;
+          }
+          return restRequest("PATCH", "ordenes_trabajo", {
+            query: "id_ot=eq." + f.id_ot,
+            body: { estado_pago: "pagada", fecha_pago: new Date().toISOString(), forma_pago: "mixto" }
+          }).then(function () {
+            return restRequest("POST", "pagos_factura", {
+              body: partes.map(function (p) { return { id_ot: f.id_ot, forma_pago: p.forma_pago, monto: p.monto, id_usuario_registro: usuarioActualId }; })
+            });
+          }).then(function () { return cargarFacturacion(); });
+        }, "facturacion-error"));
       }
       tr.appendChild(tdAcciones);
       tbody.appendChild(tr);
@@ -5458,7 +5751,8 @@ the data-access layer at all.
       restRequest("GET", "egresos", { query: "select=monto&estado_pago=eq.pagado&forma_pago=eq.efectivo&fecha=eq." + hoy }),
       restRequest("GET", "cierres_caja", { query: "select=*&order=fecha.desc&limit=15" }),
       restRequest("GET", "abonos_cuentas_cobrar", { query: "select=monto,forma_pago&fecha=eq." + hoy }),
-      restRequest("GET", "abonos_cuentas_pagar", { query: "select=monto&forma_pago=eq.efectivo&fecha=eq." + hoy })
+      restRequest("GET", "abonos_cuentas_pagar", { query: "select=monto&forma_pago=eq.efectivo&fecha=eq." + hoy }),
+      restRequest("GET", "pagos_factura", { query: "select=forma_pago,monto&fecha_pago=gte." + hoy + "&fecha_pago=lt." + manana })
     ]).then(function (resultados) {
       var fondoObjetivo = (resultados[0][0] && resultados[0][0].monto_fondo_caja_menor) || 0;
       var movimientos = resultados[1] || [];
@@ -5467,6 +5761,7 @@ the data-access layer at all.
       var cierres = resultados[4] || [];
       var abonosCobradosHoy = resultados[5] || [];
       var abonosPagadosEfectivoHoy = resultados[6] || [];
+      var pagosDivididosHoy = resultados[7] || [];
 
       // --- Caja menor: saldo = reposiciones - gastos ---
       var saldoCajaMenor = 0;
@@ -5496,8 +5791,12 @@ the data-access layer at all.
       // --- Totales de hoy por forma de pago (para el cierre de caja) ---
       var totales = { efectivo: 0, tarjeta: 0, transferencia: 0, egresosEfectivo: 0 };
       pagosHoy.forEach(function (p) {
+        if (p.forma_pago === "mixto") return; // el desglose real viene de pagos_factura
         var fp = p.forma_pago || "efectivo";
         if (totales[fp] !== undefined) totales[fp] += Number(p.total || 0);
+      });
+      pagosDivididosHoy.forEach(function (p) {
+        if (totales[p.forma_pago] !== undefined) totales[p.forma_pago] += Number(p.monto || 0);
       });
       gastosEfectivoHoy.forEach(function (g) { totales.egresosEfectivo += Number(g.monto || 0); });
 
