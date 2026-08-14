@@ -79,6 +79,26 @@ the data-access layer at all.
   </section>
 </div>
 
+<div id="pantalla-consulta-publica" class="oculto">
+  <section class="tarjeta">
+    <h1 class="marca-flex marca-login"><img class="logo-taller logo-taller-grande" alt="Logo"> <span id="cp-nombre-taller">Taller Servi Motors</span></h1>
+
+    <div id="cp-cargando"><p>Buscando tu orden…</p></div>
+
+    <div id="cp-invalido" class="oculto">
+      <h2>Enlace no válido</h2>
+      <p>No encontramos esta orden. Comunícate con el taller para verificar el enlace.</p>
+    </div>
+
+    <div id="cp-contenido" class="oculto">
+      <h2>Orden OT-<span id="cp-numero-ot"></span> <span id="cp-etiqueta-garantia" class="etiqueta-garantia oculto">GARANTÍA</span></h2>
+      <p id="cp-vehiculo" class="info-vehiculo"></p>
+      <div id="cp-linea-tiempo"></div>
+      <p id="cp-fecha-entrega" class="nota-ayuda"></p>
+    </div>
+  </section>
+</div>
+
 <div id="shell" class="oculto">
 
   <header id="barra-movil">
@@ -293,6 +313,11 @@ the data-access layer at all.
         <div id="botones-estado-orden" class="agenda-controles"></div>
         <div id="estado-orden-notificar"></div>
         <div id="botones-imprimir-orden" class="agenda-controles"></div>
+        <div class="agenda-controles">
+          <button type="button" class="secundario" id="btn-enviar-consulta-whatsapp">Enviar enlace de consulta por WhatsApp</button>
+          <button type="button" class="secundario" id="btn-mostrar-qr-consulta">Mostrar código QR</button>
+        </div>
+        <div id="cp-qr-cont" class="oculto" style="text-align:center;margin:8px 0;"></div>
         <div id="autorizacion-pendiente-cont"></div>
 
         <div id="orden-datos-cliente-vehiculo" class="datos-orden-grid"></div>
@@ -465,6 +490,35 @@ the data-access layer at all.
         <div id="texto-firma-exito"></div>
         <div id="firma-exito-notificar"></div>
         <button id="btn-volver-items">Volver a la orden</button>
+      </div>
+
+      <div id="tarjeta-entrega" class="tarjeta tarjeta-formulario oculto">
+        <h1>Entrega del vehículo</h1>
+        <h2>Firma del técnico y del cliente confirmando la entrega</h2>
+
+        <label for="entrega-nombre-recibe">Nombre de quien recibe el vehículo</label>
+        <input id="entrega-nombre-recibe" type="text" placeholder="Nombre completo" autocomplete="off">
+        <label for="entrega-documento-recibe">Documento de identidad (opcional)</label>
+        <input id="entrega-documento-recibe" type="text" autocomplete="off">
+        <label for="entrega-observaciones">Observaciones (opcional)</label>
+        <textarea id="entrega-observaciones" rows="2" placeholder="Ej. Se entrega con tanque en 1/4, sin novedades"></textarea>
+
+        <div class="datos-orden-grid">
+          <div>
+            <label for="entrega-canvas-tecnico">Firma del técnico</label>
+            <canvas id="entrega-canvas-tecnico" style="width:100%;height:150px;border:1px solid var(--borde);border-radius:8px;touch-action:none;background:#fff;display:block;"></canvas>
+            <button type="button" class="secundario" id="btn-limpiar-firma-tecnico">Limpiar</button>
+          </div>
+          <div>
+            <label for="entrega-canvas-cliente">Firma del cliente</label>
+            <canvas id="entrega-canvas-cliente" style="width:100%;height:150px;border:1px solid var(--borde);border-radius:8px;touch-action:none;background:#fff;display:block;"></canvas>
+            <button type="button" class="secundario" id="btn-limpiar-firma-cliente">Limpiar</button>
+          </div>
+        </div>
+
+        <button id="btn-confirmar-entrega">Confirmar entrega y cerrar orden</button>
+        <button type="button" class="secundario" id="btn-cancelar-entrega">Cancelar</button>
+        <div id="entrega-error" class="mensaje-error"></div>
       </div>
 
     </section>
@@ -647,6 +701,10 @@ the data-access layer at all.
         <input id="vehiculo-tipo-carroceria" type="text">
         <label for="vehiculo-km">Kilometraje</label>
         <input id="vehiculo-km" type="number" min="0" value="0">
+        <label for="vehiculo-soat">Vencimiento SOAT (opcional)</label>
+        <input id="vehiculo-soat" type="date">
+        <label for="vehiculo-tecnomecanica">Vencimiento Tecnomecánica (opcional)</label>
+        <input id="vehiculo-tecnomecanica" type="date">
         <button id="btn-guardar-vehiculo">Agregar vehículo</button>
         <button id="btn-cancelar-edicion-vehiculo" class="secundario">Cancelar</button>
       </div>
@@ -1348,6 +1406,12 @@ the data-access layer at all.
         <div id="lista-recordatorios-mantenimiento"></div>
       </div>
 
+      <div class="tarjeta">
+        <h2>Documentos por vencer (SOAT / Tecnomecánica)</h2>
+        <div class="nota-ayuda">Vehículos con SOAT o Tecnomecánica vencidos o que vencen en los próximos 30 días. Se configuran en Gestión → Vehículos.</div>
+        <div id="lista-recordatorios-documentos"></div>
+      </div>
+
       <div class="tarjeta tarjeta-formulario">
         <h2>Mensaje personalizado</h2>
         <label for="msj-cliente">Cliente</label>
@@ -1395,6 +1459,7 @@ the data-access layer at all.
   #pantalla-firma-remota table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 13px; }
   #pantalla-firma-remota th, #pantalla-firma-remota td { padding: 4px 2px; border-bottom: 1px solid var(--borde); text-align: left; }
   #pantalla-firma-remota th:last-child, #pantalla-firma-remota td:last-child { text-align: right; }
+  #pantalla-consulta-publica { max-width: 480px; margin: 0 auto; padding: 12px; }
   .tarjeta {
     background: var(--tarjeta-bg);
     border-radius: 12px;
@@ -1632,7 +1697,10 @@ the data-access layer at all.
     orden_en_proceso: "Hola {cliente}, tu vehículo {placa} ya está en proceso de reparación en Taller Servi Motors.",
     firma_remota: "Hola {cliente}, para continuar con el trabajo en tu vehículo ({orden}) necesitamos tu autorización. Ingresa a este enlace y firma: {enlace}",
     autorizacion_nueva: "Hola {cliente}, tenemos listo el presupuesto de tu vehículo {placa} para tu autorización ({monto}). Por favor confírmanos o pasa por el taller a autorizarlo.",
-    autorizacion_adicional: "Hola {cliente}, encontramos algo adicional en tu vehículo {placa} que también necesita tu autorización ({monto}). Por favor confírmanos o pasa por el taller a autorizarlo."
+    autorizacion_adicional: "Hola {cliente}, encontramos algo adicional en tu vehículo {placa} que también necesita tu autorización ({monto}). Por favor confírmanos o pasa por el taller a autorizarlo.",
+    soat_vencimiento: "Hola {cliente}, te recordamos que el SOAT de tu vehículo {placa} vence el {fecha}. Te recomendamos renovarlo a tiempo para evitar multas.",
+    tecnomecanica_vencimiento: "Hola {cliente}, te recordamos que la Tecnomecánica de tu vehículo {placa} vence el {fecha}. Podemos ayudarte a agendar la revisión.",
+    consulta_estado: "Hola {cliente}, puedes consultar en cualquier momento cómo va la reparación de tu vehículo {placa} en este enlace: {enlace}"
   };
   var plantillasMensajes = {};
 
@@ -2613,13 +2681,15 @@ the data-access layer at all.
       restRequest("GET", "ordenes_trabajo", { query: "select=id_ot,numero_ot,fecha_cierre,clientes(nombre,telefono),vehiculos(placa,marca,modelo)&estado=eq.cerrada&fecha_cierre=gte." + hace14dias.toISOString() + "&order=fecha_cierre.desc&limit=100" }),
       restRequest("GET", "clientes", { query: "select=id_cliente,nombre,telefono&order=nombre.asc&limit=500" }),
       restRequest("GET", "vista_proximos_mantenimientos", { query: "select=*&limit=50" }),
-      restRequest("GET", "parametros_taller", { query: "select=enlace_resenas&id=eq.1" })
+      restRequest("GET", "parametros_taller", { query: "select=enlace_resenas&id=eq.1" }),
+      restRequest("GET", "vista_vencimientos_documentos", { query: "select=*&limit=50" })
     ]).then(function (r) {
       var ordenesCerradasRecientes = r[1] || [];
       renderizarRecordatoriosCitas(r[0] || []);
       renderizarRecordatoriosListos(ordenesCerradasRecientes);
       poblarSelectorClientesComunicaciones(r[2] || []);
       renderizarRecordatoriosMantenimiento(r[3] || []);
+      renderizarRecordatoriosDocumentos(r[5] || []);
       var enlaceResenas = (r[4] && r[4][0] && r[4][0].enlace_resenas) || "";
       var ordenesParaResena = ordenesCerradasRecientes.filter(function (o) {
         return o.fecha_cierre && new Date(o.fecha_cierre) >= hace7dias;
@@ -2716,6 +2786,38 @@ the data-access layer at all.
       fila.innerHTML =
         "<span><b>" + v.cliente_nombre + "</b> <span class=\"fila-detalle\">" + v.placa + (v.marca ? " · " + [v.marca, v.modelo].filter(Boolean).join(" ") : "") + "</span><br>" +
         "<span class=\"fila-detalle\">" + detalle + "</span></span>";
+      fila.appendChild(crearBotonWhatsApp(v.cliente_telefono, mensaje));
+      cont.appendChild(fila);
+    });
+  }
+
+  function renderizarRecordatoriosDocumentos(filas) {
+    var cont = $("lista-recordatorios-documentos");
+    cont.innerHTML = "";
+    var hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    var avisos = [];
+    filas.forEach(function (v) {
+      if (v.soat_vencimiento) avisos.push({ v: v, tipo: "SOAT", fecha: v.soat_vencimiento, clave: "soat_vencimiento" });
+      if (v.tecnomecanica_vencimiento) avisos.push({ v: v, tipo: "Tecnomecánica", fecha: v.tecnomecanica_vencimiento, clave: "tecnomecanica_vencimiento" });
+    });
+    if (!avisos.length) {
+      cont.innerHTML = "<p class=\"nota-ayuda\">No hay documentos por vencer en los próximos 30 días.</p>";
+      return;
+    }
+    avisos.sort(function (a, b) { return a.fecha < b.fecha ? -1 : 1; });
+    avisos.forEach(function (a) {
+      var v = a.v;
+      var fechaDate = new Date(a.fecha + "T00:00:00");
+      var fechaTexto = formatoFechaCorta(fechaDate);
+      var vencido = fechaDate < hoy;
+      var mensaje = aplicarPlantilla(a.clave, { cliente: v.cliente_nombre, placa: v.placa, fecha: fechaTexto });
+      var fila = document.createElement("div");
+      fila.className = "fila-renglon";
+      fila.innerHTML =
+        "<span><b>" + v.cliente_nombre + "</b> <span class=\"fila-detalle\">" + v.placa + (v.marca ? " · " + [v.marca, v.modelo].filter(Boolean).join(" ") : "") + "</span><br>" +
+        "<span class=\"fila-detalle\" style=\"color:" + (vencido ? "#dc2626" : "#b45309") + ";font-weight:600;\">" +
+        a.tipo + (vencido ? " VENCIDO el " : " vence el ") + fechaTexto + "</span></span>";
       fila.appendChild(crearBotonWhatsApp(v.cliente_telefono, mensaje));
       cont.appendChild(fila);
     });
@@ -3014,6 +3116,8 @@ the data-access layer at all.
     $("vehiculo-color").value = v.color || "";
     $("vehiculo-tipo-carroceria").value = v.tipo_carroceria || "";
     $("vehiculo-km").value = v.kilometraje || 0;
+    $("vehiculo-soat").value = v.soat_vencimiento || "";
+    $("vehiculo-tecnomecanica").value = v.tecnomecanica_vencimiento || "";
     $("vehiculos-form-titulo").textContent = "Editar vehículo";
     $("btn-guardar-vehiculo").textContent = "Guardar cambios";
     mostrarFormularioVehiculo();
@@ -3022,7 +3126,7 @@ the data-access layer at all.
 
   function reiniciarFormularioVehiculo() {
     vehiculoEditando = null;
-    ["vehiculo-placa", "vehiculo-vin", "vehiculo-marca", "vehiculo-modelo", "vehiculo-anio", "vehiculo-color", "vehiculo-tipo-carroceria"].forEach(function (id) { $(id).value = ""; });
+    ["vehiculo-placa", "vehiculo-vin", "vehiculo-marca", "vehiculo-modelo", "vehiculo-anio", "vehiculo-color", "vehiculo-tipo-carroceria", "vehiculo-soat", "vehiculo-tecnomecanica"].forEach(function (id) { $(id).value = ""; });
     $("vehiculo-km").value = "0";
     $("vehiculos-form-titulo").textContent = "Agregar vehículo";
     $("btn-guardar-vehiculo").textContent = "Agregar vehículo";
@@ -3041,6 +3145,8 @@ the data-access layer at all.
     var color = $("vehiculo-color").value.trim();
     var tipoCarroceria = $("vehiculo-tipo-carroceria").value.trim();
     var km = $("vehiculo-km").value ? parseInt($("vehiculo-km").value, 10) : 0;
+    var soatVencimiento = $("vehiculo-soat").value;
+    var tecnomecanicaVencimiento = $("vehiculo-tecnomecanica").value;
     if (!idCliente) {
       mostrarError("vehiculos-error", "Agrega primero un cliente en la pantalla Clientes.");
       return;
@@ -3053,7 +3159,7 @@ the data-access layer at all.
       mostrarError("vehiculos-error", "El VIN debe tener 17 caracteres (o déjalo vacío).");
       return;
     }
-    var body = { id_cliente: idCliente, placa: placa, vin: vin || null, marca: marca || null, modelo: modelo || null, anio: anio, color: color || null, tipo_carroceria: tipoCarroceria || null, kilometraje: km };
+    var body = { id_cliente: idCliente, placa: placa, vin: vin || null, marca: marca || null, modelo: modelo || null, anio: anio, color: color || null, tipo_carroceria: tipoCarroceria || null, kilometraje: km, soat_vencimiento: soatVencimiento || null, tecnomecanica_vencimiento: tecnomecanicaVencimiento || null };
     var pedido = vehiculoEditando
       ? restRequest("PATCH", "vehiculos", { query: "id_vehiculo=eq." + vehiculoEditando, body: body })
       : restRequest("POST", "vehiculos", { body: body });
@@ -5896,8 +6002,8 @@ the data-access layer at all.
     if (ordenActual.estado === "listo_entrega" && esAdminOAsesor) {
       $("grupo-proximo-mantenimiento").classList.remove("oculto");
       if (document.activeElement !== $("orden-proximo-mantenimiento")) $("orden-proximo-mantenimiento").value = "";
-      agregarBotonEstado(cont, "Cerrar orden", function () {
-        return cambiarEstadoOrden("cerrada", "Orden cerrada");
+      agregarBotonEstado(cont, "Registrar entrega y cerrar orden", function () {
+        mostrarPantallaEntrega();
       });
     } else {
       $("grupo-proximo-mantenimiento").classList.add("oculto");
@@ -6032,7 +6138,7 @@ the data-access layer at all.
 
   function cargarItemsDeOrden() {
     var queryItems = "select=id_detalle,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
-    var queryOrden = "select=estado,tipo_orden,fecha_apertura,fecha_cierre,diagnostico,presupuesto_tentativo,hallazgos_diagnostico,clientes(nombre,telefono,documento,direccion),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje)&id_ot=eq." + ordenActual.id_ot;
+    var queryOrden = "select=estado,tipo_orden,token_consulta,fecha_apertura,fecha_cierre,diagnostico,presupuesto_tentativo,hallazgos_diagnostico,clientes(nombre,telefono,documento,direccion),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje)&id_ot=eq." + ordenActual.id_ot;
     return Promise.all([
       restRequest("GET", "ot_detalle", { query: queryItems }),
       restRequest("GET", "ordenes_trabajo", { query: queryOrden }),
@@ -6052,6 +6158,7 @@ the data-access layer at all.
         ordenActual.clienteNombre = orden.clientes ? orden.clientes.nombre : null;
         ordenActual.clienteTelefono = orden.clientes ? orden.clientes.telefono : null;
         ordenActual.vehiculoPlaca = orden.vehiculos ? orden.vehiculos.placa : null;
+        ordenActual.tokenConsulta = orden.token_consulta || null;
         renderizarEstadoOrden();
         renderizarDatosClienteVehiculo(orden);
         // No pisar lo que el usuario esté escribiendo ahora mismo en estos
@@ -6686,6 +6793,50 @@ the data-access layer at all.
     });
   }, "item-error"));
 
+  function enlaceConsultaPublica() {
+    if (!ordenActual || !ordenActual.tokenConsulta) return null;
+    return "https://servi-motors.github.io/taller-servi-motors/?consulta=" + ordenActual.tokenConsulta;
+  }
+
+  $("btn-enviar-consulta-whatsapp").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("item-error");
+    var numero = telefonoWhatsApp(ordenActual.clienteTelefono);
+    if (!numero) {
+      mostrarError("item-error", "El cliente no tiene teléfono registrado.");
+      return;
+    }
+    var url = enlaceConsultaPublica();
+    if (!url) {
+      mostrarError("item-error", "No se pudo generar el enlace de consulta.");
+      return;
+    }
+    var mensaje = aplicarPlantilla("consulta_estado", {
+      cliente: ordenActual.clienteNombre || "",
+      placa: ordenActual.vehiculoPlaca || "",
+      enlace: url
+    });
+    window.open("https://wa.me/" + numero + "?text=" + encodeURIComponent(mensaje), "_blank");
+  }, "item-error"));
+
+  $("btn-mostrar-qr-consulta").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("item-error");
+    var url = enlaceConsultaPublica();
+    var cont = $("cp-qr-cont");
+    if (!url) {
+      mostrarError("item-error", "No se pudo generar el enlace de consulta.");
+      return;
+    }
+    var visible = !cont.classList.contains("oculto");
+    if (visible) {
+      cont.classList.add("oculto");
+      cont.innerHTML = "";
+      return;
+    }
+    cont.innerHTML = "<img alt=\"Código QR de consulta\" width=\"180\" height=\"180\" src=\"https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" + encodeURIComponent(url) + "\">" +
+      "<div class=\"nota-ayuda\">El cliente escanea este código para ver el avance de su reparación.</div>";
+    cont.classList.remove("oculto");
+  }, "item-error"));
+
   $("btn-confirmar-firma").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("firma-error");
     var nombreFirmante = $("firma-nombre").value.trim();
@@ -6740,6 +6891,151 @@ the data-access layer at all.
     $("tarjeta-items").classList.remove("oculto");
     return cargarItemsDeOrden();
   }, "item-error"));
+
+  // =====================================================================
+  // ENTREGA DEL VEHÍCULO (doble firma: técnico + cliente, al cerrar la orden)
+  // =====================================================================
+  function crearControladorFirma(idCanvas) {
+    var cvs, ctxLocal, dibujandoLocal = false, listo = false;
+
+    function inicializar() {
+      cvs = $(idCanvas);
+      var rect = cvs.getBoundingClientRect();
+      cvs.width = rect.width;
+      cvs.height = rect.height;
+      ctxLocal = cvs.getContext("2d");
+      ctxLocal.strokeStyle = "#111827";
+      ctxLocal.lineWidth = 2;
+      ctxLocal.lineCap = "round";
+
+      function posicion(e) {
+        var r = cvs.getBoundingClientRect();
+        var punto = e.touches && e.touches.length ? e.touches[0] : e;
+        return { x: punto.clientX - r.left, y: punto.clientY - r.top };
+      }
+      function empezar(e) { dibujandoLocal = true; var p = posicion(e); ctxLocal.beginPath(); ctxLocal.moveTo(p.x, p.y); e.preventDefault(); }
+      function mover(e) { if (!dibujandoLocal) return; var p = posicion(e); ctxLocal.lineTo(p.x, p.y); ctxLocal.stroke(); e.preventDefault(); }
+      function terminar() { dibujandoLocal = false; }
+
+      cvs.addEventListener("mousedown", empezar);
+      cvs.addEventListener("mousemove", mover);
+      window.addEventListener("mouseup", terminar);
+      cvs.addEventListener("touchstart", empezar, { passive: false });
+      cvs.addEventListener("touchmove", mover, { passive: false });
+      cvs.addEventListener("touchend", terminar);
+      listo = true;
+    }
+    function asegurarInicializado() { if (!listo) inicializar(); }
+    function limpiar() { if (ctxLocal) ctxLocal.clearRect(0, 0, cvs.width, cvs.height); }
+    function estaVacia() {
+      if (!ctxLocal) return true;
+      var datos = ctxLocal.getImageData(0, 0, cvs.width, cvs.height).data;
+      for (var i = 3; i < datos.length; i += 4) { if (datos[i] !== 0) return false; }
+      return true;
+    }
+    function obtenerBlob() {
+      return new Promise(function (resolve, reject) {
+        cvs.toBlob(function (blob) {
+          if (!blob) { reject(new Error("Falta una firma. Dibújala en el recuadro.")); return; }
+          resolve(blob);
+        }, "image/png");
+      });
+    }
+    return { asegurarInicializado: asegurarInicializado, limpiar: limpiar, estaVacia: estaVacia, obtenerBlob: obtenerBlob };
+  }
+
+  var firmaEntregaTecnico = crearControladorFirma("entrega-canvas-tecnico");
+  var firmaEntregaCliente = crearControladorFirma("entrega-canvas-cliente");
+
+  function mostrarPantallaEntrega() {
+    $("tarjeta-items").classList.add("oculto");
+    $("tarjeta-entrega").classList.remove("oculto");
+    $("entrega-nombre-recibe").value = ordenActual.clienteNombre || "";
+    $("entrega-documento-recibe").value = "";
+    $("entrega-observaciones").value = "";
+    ocultarError("entrega-error");
+    firmaEntregaTecnico.asegurarInicializado();
+    firmaEntregaCliente.asegurarInicializado();
+    firmaEntregaTecnico.limpiar();
+    firmaEntregaCliente.limpiar();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  $("btn-limpiar-firma-tecnico").addEventListener("click", function () { firmaEntregaTecnico.limpiar(); });
+  $("btn-limpiar-firma-cliente").addEventListener("click", function () { firmaEntregaCliente.limpiar(); });
+
+  $("btn-cancelar-entrega").addEventListener("click", function () {
+    $("tarjeta-entrega").classList.add("oculto");
+    $("tarjeta-items").classList.remove("oculto");
+  });
+
+  function subirFirmaEntrega(blob, sufijo) {
+    var ruta = "entregas/" + ordenActual.id_ot + "/" + Date.now() + "-" + sufijo + ".png";
+    return fetch(SUPABASE_URL + "/storage/v1/object/firmas/" + ruta, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": "Bearer " + accessToken,
+        "Content-Type": "image/png"
+      },
+      body: blob
+    }).then(function (res) {
+      if (!res.ok) return res.text().then(function (t) { throw new Error("No se pudo guardar la firma: " + t); });
+      return ruta;
+    });
+  }
+
+  $("btn-confirmar-entrega").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("entrega-error");
+    var nombreRecibe = $("entrega-nombre-recibe").value.trim();
+    var documentoRecibe = $("entrega-documento-recibe").value.trim();
+    var observaciones = $("entrega-observaciones").value.trim();
+    if (!nombreRecibe) {
+      mostrarError("entrega-error", "Escribe el nombre de quien recibe el vehículo.");
+      return;
+    }
+    if (firmaEntregaTecnico.estaVacia()) {
+      mostrarError("entrega-error", "Falta la firma del técnico.");
+      return;
+    }
+    if (firmaEntregaCliente.estaVacia()) {
+      mostrarError("entrega-error", "Falta la firma del cliente.");
+      return;
+    }
+
+    var rutaTecnico, rutaCliente;
+    return firmaEntregaTecnico.obtenerBlob()
+      .then(function (blob) { return subirFirmaEntrega(blob, "tecnico"); })
+      .then(function (ruta) {
+        rutaTecnico = ruta;
+        return firmaEntregaCliente.obtenerBlob();
+      })
+      .then(function (blob) { return subirFirmaEntrega(blob, "cliente"); })
+      .then(function (ruta) {
+        rutaCliente = ruta;
+        return restRequest("POST", "entregas_ot", {
+          body: {
+            id_ot: ordenActual.id_ot,
+            nombre_recibe: nombreRecibe,
+            documento_recibe: documentoRecibe || null,
+            observaciones: observaciones || null,
+            firma_tecnico_imagen: rutaTecnico,
+            firma_cliente_imagen: rutaCliente,
+            id_usuario_registro: usuarioActualId
+          }
+        });
+      })
+      .then(function () {
+        return cambiarEstadoOrden("cerrada", "Orden cerrada");
+      })
+      .then(function () {
+        $("tarjeta-entrega").classList.add("oculto");
+        $("tarjeta-items").classList.remove("oculto");
+      })
+      .catch(function (err) {
+        mostrarError("entrega-error", err.message);
+      });
+  }, "entrega-error"));
 
   // =====================================================================
   // FIRMA REMOTA POR WHATSAPP (página pública, sin login, activada por ?firmar=token)
@@ -6851,11 +7147,76 @@ the data-access layer at all.
     });
   }, "firma-remota-error"));
 
+  // =====================================================================
+  // CONSULTA PÚBLICA DE ESTADO (página pública, sin login, ?consulta=token)
+  // Enlace fijo (no vence) para que el cliente vea en qué va su reparación,
+  // sin mostrar precios ni datos sensibles.
+  // =====================================================================
+  var ETAPAS_PUBLICAS = [
+    { clave: "recepcion", etiqueta: "Vehículo recibido" },
+    { clave: "diagnostico", etiqueta: "En diagnóstico" },
+    { clave: "sin_autorizacion", etiqueta: "Cotización enviada, esperando tu autorización" },
+    { clave: "en_proceso", etiqueta: "En reparación" },
+    { clave: "control_calidad", etiqueta: "Control de calidad" },
+    { clave: "listo_entrega", etiqueta: "Listo para entrega" },
+    { clave: "cerrada", etiqueta: "Entregado" }
+  ];
+
+  function renderizarLineaTiempoPublica(estadoActual) {
+    var cont = $("cp-linea-tiempo");
+    cont.innerHTML = "";
+    if (estadoActual === "cancelada") {
+      cont.innerHTML = "<p style=\"color:#dc2626;font-weight:600;\">Esta orden fue cancelada.</p>";
+      return;
+    }
+    var indiceActual = -1;
+    ETAPAS_PUBLICAS.forEach(function (e, i) { if (e.clave === estadoActual) indiceActual = i; });
+    ETAPAS_PUBLICAS.forEach(function (e, i) {
+      var activo = i === indiceActual;
+      var completado = indiceActual >= 0 && i < indiceActual;
+      var div = document.createElement("div");
+      div.style.cssText = "padding:8px 0;display:flex;align-items:center;gap:10px;" +
+        (activo ? "font-weight:700;" : "") + (completado ? "opacity:0.55;" : "");
+      div.innerHTML = "<span style=\"font-size:18px;\">" + (completado ? "✅" : (activo ? "🔧" : "⬜")) + "</span><span>" + e.etiqueta + "</span>";
+      cont.appendChild(div);
+    });
+  }
+
+  function iniciarConsultaPublica(token) {
+    $("contenedor-login").classList.add("oculto");
+    $("pantalla-consulta-publica").classList.remove("oculto");
+
+    return restRequest("POST", "rpc/obtener_estado_publico", { body: { p_token: token } })
+      .then(function (resumen) {
+        if (!resumen) throw new Error("Enlace inválido");
+        $("cp-cargando").classList.add("oculto");
+        $("cp-contenido").classList.remove("oculto");
+        $("cp-nombre-taller").textContent = resumen.nombre_taller || "Taller Servi Motors";
+        $("cp-numero-ot").textContent = resumen.numero_ot || "";
+        $("cp-vehiculo").textContent = resumen.vehiculo || "";
+        $("cp-etiqueta-garantia").classList.toggle("oculto", resumen.tipo_orden !== "garantia");
+        renderizarLineaTiempoPublica(resumen.estado);
+        $("cp-fecha-entrega").textContent = resumen.fecha_cierre
+          ? "Entregado el " + formatoFechaCorta(new Date(resumen.fecha_cierre))
+          : "Ingresó el " + formatoFechaCorta(new Date(resumen.fecha_apertura));
+      })
+      .catch(function (err) {
+        $("cp-cargando").classList.add("oculto");
+        $("cp-invalido").classList.remove("oculto");
+        var p = document.querySelector("#cp-invalido p:last-child");
+        if (p && err && err.message) p.textContent = err.message;
+      });
+  }
+
   var parametrosUrl = new URLSearchParams(location.search);
   var tokenEnUrl = parametrosUrl.get("firmar");
   if (tokenEnUrl) {
     tokenFirmaRemotaActual = tokenEnUrl;
     iniciarFirmaRemota(tokenEnUrl);
+  }
+  var tokenConsultaEnUrl = parametrosUrl.get("consulta");
+  if (tokenConsultaEnUrl) {
+    iniciarConsultaPublica(tokenConsultaEnUrl);
   }
 
 })();
