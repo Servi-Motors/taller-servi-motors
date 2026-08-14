@@ -18,6 +18,11 @@ the data-access layer at all.
 </head>
 <body>
 
+<div id="alerta-flotante" class="alerta-flotante oculto" role="alert">
+  <span id="alerta-flotante-texto"></span>
+  <button type="button" id="alerta-flotante-cerrar" aria-label="Cerrar">×</button>
+</div>
+
 <section id="seccion-error-carga" class="tarjeta oculto" style="background:#fef2f2;border:1px solid #fecaca;max-width:480px;margin:12px auto;">
   <b style="color:#dc2626;">No se pudo cargar la aplicación</b>
   <p id="error-carga-detalle" style="font-size:14px;margin-top:8px;"></p>
@@ -105,6 +110,7 @@ the data-access layer at all.
     <a href="#" class="nav-link" data-pagina="egreso">💸 Registrar gasto</a>
     <a href="#" class="nav-link oculto" id="nav-contabilidad" data-pagina="contabilidad">📊 Contabilidad</a>
     <a href="#" class="nav-link oculto" id="nav-facturacion" data-pagina="facturacion">🧾 Facturación</a>
+    <a href="#" class="nav-link oculto" id="nav-caja" data-pagina="caja">💰 Caja</a>
 
     <div class="nav-seccion">Configuración</div>
     <a href="#" class="nav-link oculto" id="nav-configuracion" data-pagina="configuracion">⚙️ Configuración</a>
@@ -870,6 +876,12 @@ the data-access layer at all.
         </div>
         <label for="egreso-monto">Monto</label>
         <input id="egreso-monto" type="number" min="0" step="0.01">
+        <label for="egreso-forma-pago">Forma de pago</label>
+        <select id="egreso-forma-pago">
+          <option value="efectivo">Efectivo</option>
+          <option value="tarjeta">Tarjeta</option>
+          <option value="transferencia">Transferencia</option>
+        </select>
         <button id="btn-agregar-egreso">Registrar egreso</button>
         <div id="egreso-error" class="mensaje-error"></div>
         <div id="egreso-exito" class="mensaje-error oculto" style="background:#f0fdf4;color:var(--verde);border-color:#bbf7d0;"></div>
@@ -941,6 +953,60 @@ the data-access layer at all.
       </div>
     </section>
 
+    <section id="pantalla-caja" class="pagina pagina-ancha oculto">
+      <h1>Caja</h1>
+      <div class="nota-ayuda">Caja menor para gastos pequeños y cierre de caja del día.</div>
+      <div id="caja-error" class="mensaje-error"></div>
+
+      <div class="tarjeta">
+        <h2>Caja menor</h2>
+        <div id="caja-menor-resumen" class="info-vehiculo"></div>
+        <div class="tabla-scroll">
+          <table class="tabla-datos" id="tabla-caja-menor">
+            <thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Monto</th><th>Usuario</th></tr></thead>
+            <tbody id="cuerpo-caja-menor"></tbody>
+          </table>
+        </div>
+        <h3>Registrar gasto de caja menor</h3>
+        <label for="cm-gasto-concepto">Concepto</label>
+        <input id="cm-gasto-concepto" type="text" placeholder="Ej. Domicilio, papelería...">
+        <label for="cm-gasto-monto">Monto</label>
+        <input id="cm-gasto-monto" type="number" min="0" step="0.01">
+        <button id="btn-cm-gasto">Registrar gasto</button>
+        <h3>Reponer caja menor</h3>
+        <div class="nota-ayuda">Esto no es un gasto — es plata que entra a caja menor desde otra fuente (caja del día, banco, etc.) para volver a completar el fondo.</div>
+        <label for="cm-reponer-monto">Monto a reponer</label>
+        <input id="cm-reponer-monto" type="number" min="0" step="0.01">
+        <button id="btn-cm-reponer" class="secundario">Reponer</button>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Cierre de caja del día</h2>
+        <div id="cierre-caja-resumen" class="info-vehiculo"></div>
+        <div id="cierre-caja-ya-hecho" class="nota-ayuda oculto"></div>
+        <div id="cierre-caja-form">
+          <label for="cc-efectivo-inicial">Efectivo inicial (con el que se abrió hoy)</label>
+          <input id="cc-efectivo-inicial" type="number" min="0" step="0.01">
+          <label for="cc-efectivo-contado">Efectivo contado ahora (conteo físico)</label>
+          <input id="cc-efectivo-contado" type="number" min="0" step="0.01">
+          <div id="cc-diferencia" class="info-vehiculo"></div>
+          <label for="cc-notas">Notas (opcional)</label>
+          <input id="cc-notas" type="text" placeholder="Ej. Faltaron $2.000 de vueltas">
+          <button id="btn-cerrar-caja">Cerrar caja de hoy</button>
+        </div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Historial de cierres</h2>
+        <div class="tabla-scroll">
+          <table class="tabla-datos" id="tabla-cierres-caja">
+            <thead><tr><th>Fecha</th><th>Inicial</th><th>Ingresos efvo.</th><th>Egresos efvo.</th><th>Esperado</th><th>Contado</th><th>Diferencia</th></tr></thead>
+            <tbody id="cuerpo-cierres-caja"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <section id="pantalla-configuracion" class="pagina oculto">
       <h1>Configuración del taller</h1>
       <div id="config-error" class="mensaje-error"></div>
@@ -970,6 +1036,8 @@ the data-access layer at all.
         <input id="taller-prefijo-ot" type="text" placeholder="Ej. OT-">
         <label for="taller-prefijo-factura">Prefijo para número de factura</label>
         <input id="taller-prefijo-factura" type="text" placeholder="Ej. FV-">
+        <label for="taller-fondo-caja-menor">Fondo objetivo de caja menor ($)</label>
+        <input id="taller-fondo-caja-menor" type="number" min="0" step="0.01" placeholder="Ej. 200000">
 
         <button id="btn-guardar-datos-taller">Guardar datos del taller</button>
         <div id="datos-taller-error" class="mensaje-error"></div>
@@ -1225,6 +1293,23 @@ the data-access layer at all.
     background: #fef2f2; color: var(--rojo); border: 1px solid #fecaca;
     padding: 10px 12px; border-radius: 8px; font-size: 14px; margin-top: 12px; display: none;
   }
+  .alerta-flotante {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    z-index: 9999; background: #fef2f2; color: var(--rojo); border: 1px solid #fecaca;
+    border-left: 5px solid var(--rojo); border-radius: 10px; padding: 16px 40px 16px 18px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3); max-width: 90vw; width: 420px;
+    font-size: 14px; font-weight: 600; line-height: 1.5; animation: alerta-flotante-aparecer .15s ease-out;
+  }
+  #alerta-flotante-cerrar {
+    position: absolute; top: 6px; right: 8px; width: auto; margin: 0; padding: 2px 7px;
+    background: transparent; color: inherit; border: none; font-size: 18px; line-height: 1; cursor: pointer;
+  }
+  #alerta-flotante-cerrar:hover { background: rgba(220,38,38,0.1); border-radius: 6px; }
+  @keyframes alerta-flotante-aparecer {
+    from { opacity: 0; transform: translate(-50%, -50%) scale(.92); }
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+  @media (max-width: 480px) { .alerta-flotante { width: 88vw; } }
   #tarjeta-exito {
     background: #f0fdf4; color: var(--verde); border: 1px solid #bbf7d0; text-align: center;
   }
@@ -1411,8 +1496,30 @@ the data-access layer at all.
     var el = $(elId);
     el.textContent = mensaje;
     el.style.display = "block";
+    mostrarAlertaFlotante(mensaje);
   }
   function ocultarError(elId) { $(elId).style.display = "none"; }
+
+  // Alerta flotante centrada: además del texto que queda escrito en la
+  // pantalla, esto salta encima de todo para que la advertencia no pase
+  // desapercibida (por ejemplo, "faltan fotos para avanzar de estado").
+  // Se llama sola desde mostrarError(), así que aplica en toda la app sin
+  // tener que tocar cada aviso uno por uno.
+  var temporizadorAlertaFlotante = null;
+  function mostrarAlertaFlotante(mensaje) {
+    var el = $("alerta-flotante");
+    if (!el) return;
+    $("alerta-flotante-texto").textContent = mensaje;
+    el.classList.remove("oculto");
+    // Reinicia la animación de aparición aunque ya estuviera visible.
+    el.style.animation = "none";
+    void el.offsetWidth;
+    el.style.animation = "";
+    if (temporizadorAlertaFlotante) clearTimeout(temporizadorAlertaFlotante);
+    temporizadorAlertaFlotante = setTimeout(function () {
+      el.classList.add("oculto");
+    }, 6000);
+  }
 
   function mostrarErrorCarga(mensaje) {
     $("error-carga-detalle").textContent = mensaje;
@@ -1518,6 +1625,8 @@ the data-access layer at all.
         $("nav-reportes").classList.toggle("oculto", !puedeVerContabilidad);
         var puedeVerFacturacion = rolActual === "administrador" || rolActual === "asesor" || rolActual === "contador";
         $("nav-facturacion").classList.toggle("oculto", !puedeVerFacturacion);
+        var puedeVerCaja = rolActual === "administrador" || rolActual === "asesor" || rolActual === "contador";
+        $("nav-caja").classList.toggle("oculto", !puedeVerCaja);
         var puedeVerInventario = rolActual === "administrador" || rolActual === "asesor" || rolActual === "contador";
         $("nav-inventario").classList.toggle("oculto", !puedeVerInventario);
         $("nav-agenda").classList.toggle("oculto", !puedeVerInventario);
@@ -1543,9 +1652,9 @@ the data-access layer at all.
   // =====================================================================
   // NAVEGACIÓN (menú lateral)
   // =====================================================================
-  var PAGINAS = ["inicio", "app", "agenda", "clientes", "vehiculos", "proveedores", "personal", "inventario", "contabilidad", "facturacion", "egreso", "configuracion", "nomina", "reportes", "comunicaciones"];
-  var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", agenda: "Agenda", clientes: "Clientes", vehiculos: "Vehículos", proveedores: "Proveedores", personal: "Personal", inventario: "Inventario", contabilidad: "Contabilidad", facturacion: "Facturación", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes", comunicaciones: "Comunicaciones" };
-  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", agenda: "agenda-error", clientes: "clientes-error", vehiculos: "vehiculos-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", contabilidad: "contab-horas-error", facturacion: "facturacion-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error", comunicaciones: "comunicaciones-error" };
+  var PAGINAS = ["inicio", "app", "agenda", "clientes", "vehiculos", "proveedores", "personal", "inventario", "contabilidad", "facturacion", "caja", "egreso", "configuracion", "nomina", "reportes", "comunicaciones"];
+  var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", agenda: "Agenda", clientes: "Clientes", vehiculos: "Vehículos", proveedores: "Proveedores", personal: "Personal", inventario: "Inventario", contabilidad: "Contabilidad", facturacion: "Facturación", caja: "Caja", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes", comunicaciones: "Comunicaciones" };
+  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", agenda: "agenda-error", clientes: "clientes-error", vehiculos: "vehiculos-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", contabilidad: "contab-horas-error", facturacion: "facturacion-error", caja: "caja-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error", comunicaciones: "comunicaciones-error" };
 
   function mostrarPagina(nombre) {
     if (PAGINAS.indexOf(nombre) === -1) nombre = "inicio";
@@ -1570,6 +1679,7 @@ the data-access layer at all.
     else if (nombre === "inventario") promesa = cargarInventario();
     else if (nombre === "contabilidad") promesa = cargarContabilidad();
     else if (nombre === "facturacion") promesa = cargarFacturacion();
+    else if (nombre === "caja") promesa = cargarCaja();
     else if (nombre === "configuracion") promesa = cargarConfiguracion();
     else if (nombre === "nomina") promesa = cargarNomina();
     else if (nombre === "reportes") promesa = cargarReportes();
@@ -1635,6 +1745,11 @@ the data-access layer at all.
     if ($("sidebar").classList.contains("abierto")) cerrarMenuMovil(); else abrirMenuMovil();
   });
   $("fondo-menu-movil").addEventListener("click", cerrarMenuMovil);
+
+  $("alerta-flotante-cerrar").addEventListener("click", function () {
+    $("alerta-flotante").classList.add("oculto");
+    if (temporizadorAlertaFlotante) clearTimeout(temporizadorAlertaFlotante);
+  });
 
   function reiniciarFlujoOrden() {
     vehiculoSeleccionado = null;
@@ -2991,6 +3106,7 @@ the data-access layer at all.
     var categoria = $("egreso-categoria").value;
     var monto = parseFloat($("egreso-monto").value);
     var idOt = $("egreso-orden").value || null;
+    var formaPago = $("egreso-forma-pago").value;
     if (!concepto || !(monto >= 0)) {
       mostrarError("egreso-error", "Escribe el concepto y un monto válido.");
       return;
@@ -3006,6 +3122,7 @@ the data-access layer at all.
         concepto: concepto,
         categoria: categoria,
         monto: monto,
+        forma_pago: formaPago,
         id_ot: categoria === "compra" ? idOt : null,
         id_usuario_registro: usuarioActualId
       }
@@ -3216,7 +3333,7 @@ the data-access layer at all.
       restRequest("GET", "empleados", { query: "select=*,usuarios(nombre,rol,correo)&order=creado_en.desc" }),
       restRequest("GET", "usuarios", { query: "select=id_usuario,nombre,rol&estado=eq.activo&order=nombre.asc" }),
       restRequest("GET", "prestamos", { query: "select=*,empleados(nombre,usuarios(nombre))&order=fecha.desc" }),
-      restRequest("GET", "parametros_taller", { query: "select=nombre_taller,nit,direccion,telefono,regimen_tributario,responsable_iva,horarios_semana,prefijo_ot,prefijo_factura&id=eq.1" })
+      restRequest("GET", "parametros_taller", { query: "select=nombre_taller,nit,direccion,telefono,regimen_tributario,responsable_iva,horarios_semana,prefijo_ot,prefijo_factura,monto_fondo_caja_menor&id=eq.1" })
     ]).then(function (r) {
       var empleados = r[0] || [];
       var usuarios = r[1] || [];
@@ -3231,6 +3348,7 @@ the data-access layer at all.
       $("taller-responsable-iva").value = datosTaller.responsable_iva === false ? "false" : "true";
       $("taller-prefijo-ot").value = datosTaller.prefijo_ot || "";
       $("taller-prefijo-factura").value = datosTaller.prefijo_factura || "";
+      $("taller-fondo-caja-menor").value = (datosTaller.monto_fondo_caja_menor || datosTaller.monto_fondo_caja_menor === 0) ? datosTaller.monto_fondo_caja_menor : "";
       renderizarTablaJornada(datosTaller.horarios_semana || {});
 
       var listaEmp = $("lista-empleados");
@@ -3306,8 +3424,14 @@ the data-access layer at all.
     var responsableIva = $("taller-responsable-iva").value === "true";
     var prefOT = $("taller-prefijo-ot").value.trim();
     var prefFactura = $("taller-prefijo-factura").value.trim();
+    var fondoCajaMenorTexto = $("taller-fondo-caja-menor").value.trim();
+    var fondoCajaMenor = fondoCajaMenorTexto === "" ? 0 : parseFloat(fondoCajaMenorTexto);
     if (!nombre) {
       mostrarError("datos-taller-error", "Escribe el nombre del taller.");
+      return;
+    }
+    if (!(fondoCajaMenor >= 0)) {
+      mostrarError("datos-taller-error", "El fondo de caja menor debe ser un número válido (0 o mayor).");
       return;
     }
     return restRequest("PATCH", "parametros_taller", {
@@ -3320,7 +3444,8 @@ the data-access layer at all.
         regimen_tributario: regimen,
         responsable_iva: responsableIva,
         prefijo_ot: prefOT,
-        prefijo_factura: prefFactura
+        prefijo_factura: prefFactura,
+        monto_fondo_caja_menor: fondoCajaMenor
       }
     }).then(function () {
       prefijoOT = prefOT;
@@ -4666,6 +4791,14 @@ the data-access layer at all.
       tdAcciones.appendChild(btnVer);
 
       if (f.estado_pago !== "pagada" && esAdminOAsesor) {
+        var selFormaPago = document.createElement("select");
+        selFormaPago.style.marginRight = "6px";
+        selFormaPago.innerHTML =
+          '<option value="efectivo">Efectivo</option>' +
+          '<option value="tarjeta">Tarjeta</option>' +
+          '<option value="transferencia">Transferencia</option>';
+        tdAcciones.appendChild(selFormaPago);
+
         var btnPagada = document.createElement("button");
         btnPagada.type = "button";
         btnPagada.className = "secundario";
@@ -4673,7 +4806,7 @@ the data-access layer at all.
         btnPagada.addEventListener("click", conManejoDeErrores(function () {
           return restRequest("PATCH", "ordenes_trabajo", {
             query: "id_ot=eq." + f.id_ot,
-            body: { estado_pago: "pagada", fecha_pago: new Date().toISOString() }
+            body: { estado_pago: "pagada", fecha_pago: new Date().toISOString(), forma_pago: selFormaPago.value }
           }).then(function () { return cargarFacturacion(); });
         }, "facturacion-error"));
         tdAcciones.appendChild(btnPagada);
@@ -4704,6 +4837,207 @@ the data-access layer at all.
       cont.appendChild(btnFac);
     }
   }
+
+  // =====================================================================
+  // CAJA — caja menor (fondo fijo) y cierre de caja diario (arqueo)
+  // =====================================================================
+  var cajaTotalesHoy = { efectivo: 0, tarjeta: 0, transferencia: 0, egresosEfectivo: 0 };
+
+  function cargarCaja() {
+    ocultarError("caja-error");
+    var hoy = aFechaISO(new Date());
+    var mananaDate = new Date();
+    mananaDate.setDate(mananaDate.getDate() + 1);
+    var manana = aFechaISO(mananaDate);
+
+    return Promise.all([
+      restRequest("GET", "parametros_taller", { query: "select=monto_fondo_caja_menor&id=eq.1" }),
+      restRequest("GET", "caja_menor_movimientos", { query: "select=*,usuarios(nombre)&order=fecha.desc,creado_en.desc&limit=100" }),
+      restRequest("GET", "vista_facturacion", { query: "select=total,forma_pago,fecha_pago&estado_pago=eq.pagada&fecha_pago=gte." + hoy + "&fecha_pago=lt." + manana }),
+      restRequest("GET", "egresos", { query: "select=monto&categoria=eq.gasto&forma_pago=eq.efectivo&fecha=eq." + hoy }),
+      restRequest("GET", "cierres_caja", { query: "select=*&order=fecha.desc&limit=15" })
+    ]).then(function (resultados) {
+      var fondoObjetivo = (resultados[0][0] && resultados[0][0].monto_fondo_caja_menor) || 0;
+      var movimientos = resultados[1] || [];
+      var pagosHoy = resultados[2] || [];
+      var gastosEfectivoHoy = resultados[3] || [];
+      var cierres = resultados[4] || [];
+
+      // --- Caja menor: saldo = reposiciones - gastos ---
+      var saldoCajaMenor = 0;
+      movimientos.forEach(function (m) {
+        saldoCajaMenor += m.tipo === "reposicion" ? Number(m.monto) : -Number(m.monto);
+      });
+      var resumenCM = $("caja-menor-resumen");
+      resumenCM.innerHTML =
+        "<div><strong>Saldo actual:</strong> " + formatoMoneda(saldoCajaMenor) + "</div>" +
+        "<div><strong>Fondo objetivo:</strong> " + formatoMoneda(fondoObjetivo) + "</div>" +
+        (saldoCajaMenor < fondoObjetivo ? "<div style=\"color:#b45309;\">Falta reponer " + formatoMoneda(fondoObjetivo - saldoCajaMenor) + " para llegar al fondo objetivo.</div>" : "");
+
+      var cuerpoCM = $("cuerpo-caja-menor");
+      cuerpoCM.innerHTML = movimientos.length ? "" : "<tr><td colspan=\"5\" class=\"tabla-vacia\">Sin movimientos.</td></tr>";
+      movimientos.forEach(function (m) {
+        var tr = document.createElement("tr");
+        tr.innerHTML =
+          "<td>" + formatoFechaCorta(new Date(m.fecha + "T00:00:00")) + "</td>" +
+          "<td>" + (m.tipo === "reposicion" ? "Reposición" : "Gasto") + "</td>" +
+          "<td>" + m.concepto + "</td>" +
+          "<td class=\"celda-numero\" style=\"color:" + (m.tipo === "reposicion" ? "var(--verde)" : "var(--rojo)") + ";\">" +
+          (m.tipo === "reposicion" ? "+" : "-") + formatoMoneda(m.monto) + "</td>" +
+          "<td>" + (m.usuarios ? m.usuarios.nombre : "—") + "</td>";
+        cuerpoCM.appendChild(tr);
+      });
+
+      // --- Totales de hoy por forma de pago (para el cierre de caja) ---
+      var totales = { efectivo: 0, tarjeta: 0, transferencia: 0, egresosEfectivo: 0 };
+      pagosHoy.forEach(function (p) {
+        var fp = p.forma_pago || "efectivo";
+        if (totales[fp] !== undefined) totales[fp] += Number(p.total || 0);
+      });
+      gastosEfectivoHoy.forEach(function (g) { totales.egresosEfectivo += Number(g.monto || 0); });
+      cajaTotalesHoy = totales;
+
+      var resumenCC = $("cierre-caja-resumen");
+      resumenCC.innerHTML =
+        "<div><strong>Ingresos efectivo hoy:</strong> " + formatoMoneda(totales.efectivo) + "</div>" +
+        "<div><strong>Ingresos tarjeta hoy:</strong> " + formatoMoneda(totales.tarjeta) + "</div>" +
+        "<div><strong>Ingresos transferencia hoy:</strong> " + formatoMoneda(totales.transferencia) + "</div>" +
+        "<div><strong>Gastos en efectivo hoy:</strong> " + formatoMoneda(totales.egresosEfectivo) + "</div>";
+
+      // --- ¿Ya se cerró la caja hoy? ---
+      var cierreHoy = cierres.filter(function (c) { return c.fecha === hoy; })[0];
+      if (cierreHoy) {
+        $("cierre-caja-form").classList.add("oculto");
+        var elYaHecho = $("cierre-caja-ya-hecho");
+        elYaHecho.classList.remove("oculto");
+        elYaHecho.innerHTML =
+          "La caja de hoy ya fue cerrada.<br>Efectivo esperado: " + formatoMoneda(cierreHoy.efectivo_esperado) +
+          " · Contado: " + formatoMoneda(cierreHoy.efectivo_contado) +
+          " · Diferencia: " + formatoMoneda(cierreHoy.diferencia) +
+          (cierreHoy.notas ? "<br>Notas: " + cierreHoy.notas : "");
+      } else {
+        $("cierre-caja-form").classList.remove("oculto");
+        $("cierre-caja-ya-hecho").classList.add("oculto");
+        // Prefill efectivo inicial con lo contado en el cierre anterior (si existe)
+        if (!$("cc-efectivo-inicial").value && cierres[0]) {
+          $("cc-efectivo-inicial").value = cierres[0].efectivo_contado;
+        }
+        actualizarDiferenciaCierre();
+      }
+
+      // --- Historial de cierres ---
+      var cuerpoCC = $("cuerpo-cierres-caja");
+      cuerpoCC.innerHTML = cierres.length ? "" : "<tr><td colspan=\"7\" class=\"tabla-vacia\">Sin cierres registrados.</td></tr>";
+      cierres.forEach(function (c) {
+        var tr = document.createElement("tr");
+        tr.innerHTML =
+          "<td>" + formatoFechaCorta(new Date(c.fecha + "T00:00:00")) + "</td>" +
+          "<td class=\"celda-numero\">" + formatoMoneda(c.efectivo_inicial) + "</td>" +
+          "<td class=\"celda-numero\">" + formatoMoneda(c.total_efectivo_ingresos) + "</td>" +
+          "<td class=\"celda-numero\">" + formatoMoneda(c.total_efectivo_egresos) + "</td>" +
+          "<td class=\"celda-numero\">" + formatoMoneda(c.efectivo_esperado) + "</td>" +
+          "<td class=\"celda-numero\">" + formatoMoneda(c.efectivo_contado) + "</td>" +
+          "<td class=\"celda-numero\" style=\"color:" + (Number(c.diferencia) === 0 ? "var(--verde)" : "var(--rojo)") + ";\">" + formatoMoneda(c.diferencia) + "</td>";
+        cuerpoCC.appendChild(tr);
+      });
+    });
+  }
+
+  function actualizarDiferenciaCierre() {
+    var el = $("cc-diferencia");
+    if (!el) return;
+    var inicial = parseFloat($("cc-efectivo-inicial").value);
+    var contado = parseFloat($("cc-efectivo-contado").value);
+    if (isNaN(inicial) || isNaN(contado)) {
+      el.innerHTML = "";
+      return;
+    }
+    var esperado = inicial + cajaTotalesHoy.efectivo - cajaTotalesHoy.egresosEfectivo;
+    var diferencia = contado - esperado;
+    var color = diferencia === 0 ? "var(--verde)" : (diferencia > 0 ? "#b45309" : "var(--rojo)");
+    el.innerHTML = "<strong>Efectivo esperado:</strong> " + formatoMoneda(esperado) +
+      " · <strong style=\"color:" + color + ";\">Diferencia: " + formatoMoneda(diferencia) + "</strong>";
+  }
+  $("cc-efectivo-inicial").addEventListener("input", actualizarDiferenciaCierre);
+  $("cc-efectivo-contado").addEventListener("input", actualizarDiferenciaCierre);
+
+  $("btn-cm-gasto").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("caja-error");
+    var concepto = $("cm-gasto-concepto").value.trim();
+    var monto = parseFloat($("cm-gasto-monto").value);
+    if (!concepto || !(monto > 0)) {
+      mostrarError("caja-error", "Escribe el concepto y un monto válido para el gasto.");
+      return;
+    }
+    var hoy = aFechaISO(new Date());
+    return restRequest("POST", "egresos", {
+      body: {
+        fecha: hoy, concepto: concepto, categoria: "gasto", monto: monto,
+        forma_pago: "efectivo", id_usuario_registro: usuarioActualId
+      }
+    }).then(function (filasEgreso) {
+      return restRequest("POST", "caja_menor_movimientos", {
+        body: {
+          fecha: hoy, tipo: "gasto", monto: monto, concepto: concepto,
+          id_egreso: filasEgreso[0].id_egreso, id_usuario_registro: usuarioActualId
+        }
+      });
+    }).then(function () {
+      $("cm-gasto-concepto").value = "";
+      $("cm-gasto-monto").value = "";
+      return cargarCaja();
+    });
+  }, "caja-error"));
+
+  $("btn-cm-reponer").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("caja-error");
+    var monto = parseFloat($("cm-reponer-monto").value);
+    if (!(monto > 0)) {
+      mostrarError("caja-error", "Escribe un monto válido para la reposición.");
+      return;
+    }
+    return restRequest("POST", "caja_menor_movimientos", {
+      body: {
+        fecha: aFechaISO(new Date()), tipo: "reposicion", monto: monto,
+        concepto: "Reposición de fondo de caja menor", id_usuario_registro: usuarioActualId
+      }
+    }).then(function () {
+      $("cm-reponer-monto").value = "";
+      return cargarCaja();
+    });
+  }, "caja-error"));
+
+  $("btn-cerrar-caja").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("caja-error");
+    var inicial = parseFloat($("cc-efectivo-inicial").value);
+    var contado = parseFloat($("cc-efectivo-contado").value);
+    var notas = $("cc-notas").value.trim();
+    if (!(inicial >= 0) || !(contado >= 0)) {
+      mostrarError("caja-error", "Escribe el efectivo inicial y el efectivo contado.");
+      return;
+    }
+    return restRequest("POST", "cierres_caja", {
+      body: {
+        fecha: aFechaISO(new Date()),
+        efectivo_inicial: inicial,
+        total_efectivo_ingresos: cajaTotalesHoy.efectivo,
+        total_tarjeta_ingresos: cajaTotalesHoy.tarjeta,
+        total_transferencia_ingresos: cajaTotalesHoy.transferencia,
+        total_efectivo_egresos: cajaTotalesHoy.egresosEfectivo,
+        efectivo_contado: contado,
+        notas: notas || null,
+        id_usuario_cierre: usuarioActualId
+      }
+    }).then(function () {
+      $("cc-notas").value = "";
+      return cargarCaja();
+    }).catch(function (err) {
+      if (err && /duplicate key|unique/i.test(err.message || "")) {
+        throw new Error("La caja de hoy ya fue cerrada.");
+      }
+      throw err;
+    });
+  }, "caja-error"));
 
   // =====================================================================
   // ÍTEMS DE LA ORDEN
