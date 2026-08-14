@@ -195,6 +195,28 @@ the data-access layer at all.
         </div>
       </div>
 
+      <div class="tarjeta oculto" id="tarjeta-resumen-financiero-hoy">
+        <h2>Resumen financiero de hoy</h2>
+        <div class="grid-kpis">
+          <div class="tarjeta-kpi">
+            <div class="kpi-numero" id="kpi-ventas-hoy">—</div>
+            <div class="kpi-etiqueta">Ventas de hoy</div>
+          </div>
+          <div class="tarjeta-kpi">
+            <div class="kpi-numero" id="kpi-efectivo-hoy">—</div>
+            <div class="kpi-etiqueta">Efectivo en caja hoy</div>
+          </div>
+          <div class="tarjeta-kpi">
+            <div class="kpi-numero" id="kpi-cxc-pendiente">—</div>
+            <div class="kpi-etiqueta">Por cobrar (clientes)</div>
+          </div>
+          <div class="tarjeta-kpi">
+            <div class="kpi-numero" id="kpi-cxp-pendiente">—</div>
+            <div class="kpi-etiqueta">Por pagar (proveedores/gastos)</div>
+          </div>
+        </div>
+      </div>
+
       <div class="tarjeta">
         <h2>Accesos rápidos</h2>
         <button id="btn-inicio-nueva-orden">+ Nueva orden</button>
@@ -637,6 +659,17 @@ the data-access layer at all.
         <button id="btn-guardar-cliente">Agregar cliente</button>
         <button id="btn-cancelar-edicion-cliente" class="secundario">Cancelar</button>
       </div>
+
+      <div class="tarjeta">
+        <h2>Importar clientes y vehículos por CSV (varios a la vez)</h2>
+        <div class="nota-ayuda">Sube un archivo con columnas: cliente_nombre, cliente_tipo (particular o empresa), cliente_documento, cliente_telefono, cliente_correo, cliente_direccion, placa, marca, modelo, anio, color, vin (todas menos cliente_nombre y placa son opcionales). Si el documento o la placa ya existen, esa fila se omite para no duplicar.</div>
+        <button id="btn-plantilla-clientes" type="button" class="secundario">Descargar plantilla CSV</button>
+        <label for="importar-clientes-archivo">Archivo CSV</label>
+        <input id="importar-clientes-archivo" type="file" accept=".csv">
+        <button id="btn-importar-clientes">Importar</button>
+        <div id="importar-clientes-error" class="mensaje-error"></div>
+        <div id="importar-clientes-resultado" class="nota-ayuda oculto"></div>
+      </div>
     </section>
 
     <section id="pantalla-vehiculos" class="pagina pagina-ancha oculto">
@@ -982,6 +1015,10 @@ the data-access layer at all.
       <div class="tarjeta">
         <h1>Inventario</h1>
         <h2>Stock de insumos que manejas por volumen</h2>
+        <label for="stock-filtro-categoria">Filtrar por categoría</label>
+        <select id="stock-filtro-categoria">
+          <option value="">Todas las categorías</option>
+        </select>
         <div id="lista-stock"></div>
       </div>
 
@@ -998,6 +1035,9 @@ the data-access layer at all.
           </select>
           <label for="stock-nuevo-nombre">Nombre</label>
           <input id="stock-nuevo-nombre" type="text" placeholder="Ej. Aceite Kixx 5W30 (galón)">
+          <label for="stock-nuevo-categoria">Categoría (opcional)</label>
+          <input id="stock-nuevo-categoria" type="text" list="lista-categorias-items" placeholder="Ej. Frenos, Motor, Eléctrico...">
+          <datalist id="lista-categorias-items"></datalist>
           <label for="stock-nuevo-minimo">Stock mínimo (para alertarte)</label>
           <input id="stock-nuevo-minimo" type="number" min="0" step="0.01" value="0">
         </div>
@@ -1015,7 +1055,7 @@ the data-access layer at all.
 
       <div class="tarjeta">
         <h2>Importar repuestos/insumos por CSV (varios a la vez)</h2>
-        <div class="nota-ayuda">Sube un archivo con columnas: nombre, tipo (repuesto o insumo), costo, precio_sugerido (opcional), stock_actual (opcional), stock_minimo (opcional). Descarga la plantilla para verlo en Excel.</div>
+        <div class="nota-ayuda">Sube un archivo con columnas: nombre, tipo (repuesto o insumo), categoria (opcional, ej. Frenos/Motor/Eléctrico), costo, precio_sugerido (opcional), stock_actual (opcional), stock_minimo (opcional). Descarga la plantilla para verlo en Excel.</div>
         <button id="btn-plantilla-repuestos" type="button" class="secundario">Descargar plantilla CSV</button>
         <label for="importar-repuestos-archivo">Archivo CSV</label>
         <input id="importar-repuestos-archivo" type="file" accept=".csv">
@@ -1377,6 +1417,7 @@ the data-access layer at all.
         <label for="reportes-mes">Mes</label>
         <select id="reportes-mes"></select>
         <h3>Técnicos</h3>
+        <canvas id="grafico-meta-tecnico" height="180" class="oculto"></canvas>
         <div id="tabla-productividad-tecnico"></div>
         <h3>Asesores</h3>
         <div id="tabla-productividad-asesor"></div>
@@ -1743,6 +1784,7 @@ the data-access layer at all.
   var graficoEstados = null;
   var graficoFlujoCaja = null;
   var graficoMediosPago = null;
+  var graficoMetaTecnico = null;
 
   function $(id) { return document.getElementById(id); }
 
@@ -2140,12 +2182,28 @@ the data-access layer at all.
     var inicioMesStr = inicioMesDate.toISOString().slice(0, 10);
     var mesActualEtiqueta = inicioMesStr.slice(0, 7);
 
-    return Promise.all([
+    var hoyStr = aFechaISO(new Date());
+    var mananaDate2 = new Date();
+    mananaDate2.setDate(mananaDate2.getDate() + 1);
+    var mananaStr = aFechaISO(mananaDate2);
+    var puedeVerFinanzasHoy = rolActual === "administrador" || rolActual === "contador";
+
+    var pedidosInicio = [
       restRequest("GET", "ordenes_trabajo", { query: "select=id_ot,estado,fecha_cierre,tipo_orden" }),
       restRequest("GET", "items", { query: "select=id_item,stock_actual,stock_minimo&stock_gestionado=eq.true" }),
       restRequest("GET", "vista_estado_ordenes", { query: "select=*" }),
       restRequest("GET", "vista_resultado_mensual", { query: "select=periodo,ordenes_cerradas,ingresos&order=periodo.asc&limit=6" })
-    ]).then(function (r) {
+    ];
+    if (puedeVerFinanzasHoy) {
+      pedidosInicio.push(
+        restRequest("GET", "vista_facturacion", { query: "select=total,forma_pago&estado_pago=eq.pagada&forma_pago=neq.credito&fecha_pago=gte." + hoyStr + "&fecha_pago=lt." + mananaStr }),
+        restRequest("GET", "pagos_factura", { query: "select=forma_pago,monto&fecha_pago=gte." + hoyStr + "&fecha_pago=lt." + mananaStr }),
+        restRequest("GET", "vista_cuentas_por_cobrar", { query: "select=saldo" }),
+        restRequest("GET", "vista_cuentas_por_pagar", { query: "select=saldo" })
+      );
+    }
+
+    return Promise.all(pedidosInicio).then(function (r) {
       var ordenes = r[0] || [];
       var itemsStock = r[1] || [];
       var estados = r[2] || [];
@@ -2170,6 +2228,29 @@ the data-access layer at all.
       if (puedeVerFinanzas) {
         var filaMesActual = resultadoMensual.filter(function (f) { return f.periodo.slice(0, 7) === mesActualEtiqueta; })[0];
         $("kpi-ingresos-mes").textContent = formatoMoneda(filaMesActual ? filaMesActual.ingresos : 0);
+      }
+
+      $("tarjeta-resumen-financiero-hoy").classList.toggle("oculto", !puedeVerFinanzasHoy);
+      if (puedeVerFinanzasHoy) {
+        var ventasHoyFilas = r[4] || [];
+        var pagosDivididosHoyFilas = r[5] || [];
+        var cxcFilas = r[6] || [];
+        var cxpFilas = r[7] || [];
+
+        var ventasHoy = ventasHoyFilas.reduce(function (a, f) { return a + Number(f.total || 0); }, 0);
+        var efectivoHoy = ventasHoyFilas.reduce(function (a, f) {
+          return a + (f.forma_pago === "efectivo" ? Number(f.total || 0) : 0);
+        }, 0);
+        pagosDivididosHoyFilas.forEach(function (p) {
+          if (p.forma_pago === "efectivo") efectivoHoy += Number(p.monto || 0);
+        });
+        var cxcPendiente = cxcFilas.reduce(function (a, f) { return a + Number(f.saldo || 0); }, 0);
+        var cxpPendiente = cxpFilas.reduce(function (a, f) { return a + Number(f.saldo || 0); }, 0);
+
+        $("kpi-ventas-hoy").textContent = formatoMoneda(ventasHoy);
+        $("kpi-efectivo-hoy").textContent = formatoMoneda(efectivoHoy);
+        $("kpi-cxc-pendiente").textContent = formatoMoneda(cxcPendiente);
+        $("kpi-cxp-pendiente").textContent = formatoMoneda(cxpPendiente);
       }
 
       dibujarGraficoMensual(resultadoMensual, puedeVerFinanzas);
@@ -2246,25 +2327,54 @@ the data-access layer at all.
   // =====================================================================
   // INVENTARIO
   // =====================================================================
+  var itemsStockActual = [];
+
+  function renderizarListaStock() {
+    var categoriaFiltro = $("stock-filtro-categoria").value;
+    var itemsStock = categoriaFiltro ? itemsStockActual.filter(function (it) { return (it.categoria || "") === categoriaFiltro; }) : itemsStockActual;
+    var listaStock = $("lista-stock");
+    listaStock.innerHTML = itemsStock.length ? "" : "<p class=\"nota-ayuda\">Todavía no tienes ítems con stock gestionado. Agrega uno abajo al registrar una entrada.</p>";
+    itemsStock.forEach(function (it) {
+      var bajo = Number(it.stock_actual) <= Number(it.stock_minimo);
+      var fila = document.createElement("div");
+      fila.className = "fila-renglon" + (bajo ? " alerta-stock" : "");
+      fila.innerHTML =
+        "<span>" + it.nombre + (bajo ? " ⚠️ bajo mínimo" : "") + "<br><span class=\"fila-detalle\">" + (it.categoria ? it.categoria + " · " : "") + "Mínimo: " + it.stock_minimo + "</span></span>" +
+        "<span>" + it.stock_actual + "</span>";
+      listaStock.appendChild(fila);
+    });
+  }
+  $("stock-filtro-categoria").addEventListener("change", renderizarListaStock);
+
   function cargarInventario() {
     return Promise.all([
-      restRequest("GET", "items", { query: "select=id_item,nombre,tipo,stock_actual,stock_minimo&stock_gestionado=eq.true&order=nombre.asc" }),
+      restRequest("GET", "items", { query: "select=id_item,nombre,tipo,categoria,stock_actual,stock_minimo&stock_gestionado=eq.true&order=nombre.asc" }),
       restRequest("GET", "proveedores", { query: "select=*&order=nombre.asc" })
     ]).then(function (r) {
       var itemsStock = r[0] || [];
       var proveedores = r[1] || [];
+      itemsStockActual = itemsStock;
 
-      var listaStock = $("lista-stock");
-      listaStock.innerHTML = itemsStock.length ? "" : "<p class=\"nota-ayuda\">Todavía no tienes ítems con stock gestionado. Agrega uno abajo al registrar una entrada.</p>";
-      itemsStock.forEach(function (it) {
-        var bajo = Number(it.stock_actual) <= Number(it.stock_minimo);
-        var fila = document.createElement("div");
-        fila.className = "fila-renglon" + (bajo ? " alerta-stock" : "");
-        fila.innerHTML =
-          "<span>" + it.nombre + (bajo ? " ⚠️ bajo mínimo" : "") + "<br><span class=\"fila-detalle\">Mínimo: " + it.stock_minimo + "</span></span>" +
-          "<span>" + it.stock_actual + "</span>";
-        listaStock.appendChild(fila);
+      var categorias = Array.from(new Set(itemsStock.map(function (it) { return it.categoria; }).filter(Boolean))).sort();
+      var selFiltroCategoria = $("stock-filtro-categoria");
+      var categoriaPrevia = selFiltroCategoria.value;
+      selFiltroCategoria.innerHTML = "<option value=\"\">Todas las categorías</option>";
+      categorias.forEach(function (c) {
+        var opt = document.createElement("option");
+        opt.value = c; opt.textContent = c;
+        selFiltroCategoria.appendChild(opt);
       });
+      if (categorias.indexOf(categoriaPrevia) !== -1) selFiltroCategoria.value = categoriaPrevia;
+
+      var listaCategoriasDatalist = $("lista-categorias-items");
+      listaCategoriasDatalist.innerHTML = "";
+      categorias.forEach(function (c) {
+        var opt = document.createElement("option");
+        opt.value = c;
+        listaCategoriasDatalist.appendChild(opt);
+      });
+
+      renderizarListaStock();
 
       var selItem = $("stock-item");
       selItem.innerHTML = "";
@@ -2316,6 +2426,7 @@ the data-access layer at all.
     if (itemSeleccionado === "__nuevo__") {
       var nombreNuevo = $("stock-nuevo-nombre").value.trim();
       var tipoNuevo = $("stock-nuevo-tipo").value;
+      var categoriaNueva = $("stock-nuevo-categoria").value.trim();
       var minimoNuevo = parseFloat($("stock-nuevo-minimo").value) || 0;
       if (!nombreNuevo) {
         mostrarError("stock-error", "Escribe el nombre del ítem nuevo.");
@@ -2325,6 +2436,7 @@ the data-access layer at all.
         body: {
           tipo: tipoNuevo,
           nombre: nombreNuevo,
+          categoria: categoriaNueva || null,
           costo: costoUnitario,
           stock_gestionado: true,
           stock_minimo: minimoNuevo
@@ -2350,6 +2462,7 @@ the data-access layer at all.
       });
     }).then(function () {
       $("stock-nuevo-nombre").value = "";
+      $("stock-nuevo-categoria").value = "";
       $("stock-nuevo-minimo").value = "0";
       $("stock-cantidad").value = "";
       $("stock-costo-unitario").value = "";
@@ -2391,10 +2504,10 @@ the data-access layer at all.
   }
 
   $("btn-plantilla-repuestos").addEventListener("click", function () {
-    var csv = "nombre,tipo,costo,precio_sugerido,stock_actual,stock_minimo\n" +
-      "Filtro de aceite,repuesto,15000,25000,10,2\n" +
-      "Pastillas de freno,repuesto,60000,90000,4,1\n" +
-      "Aceite Kixx 5W30 (galon),insumo,45000,,20,3\n";
+    var csv = "nombre,tipo,categoria,costo,precio_sugerido,stock_actual,stock_minimo\n" +
+      "Filtro de aceite,repuesto,Motor,15000,25000,10,2\n" +
+      "Pastillas de freno,repuesto,Frenos,60000,90000,4,1\n" +
+      "Aceite Kixx 5W30 (galon),insumo,Motor,45000,,20,3\n";
     var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     var enlace = document.createElement("a");
     enlace.href = URL.createObjectURL(blob);
@@ -2423,6 +2536,7 @@ the data-access layer at all.
       var encabezado = filas[0].map(function (h) { return h.trim().toLowerCase(); });
       var idxNombre = encabezado.indexOf("nombre");
       var idxTipo = encabezado.indexOf("tipo");
+      var idxCategoria = encabezado.indexOf("categoria");
       var idxCosto = encabezado.indexOf("costo");
       var idxPrecio = encabezado.indexOf("precio_sugerido");
       var idxStock = encabezado.indexOf("stock_actual");
@@ -2440,12 +2554,14 @@ the data-access layer at all.
           erroresFilas.push("Fila " + (i + 2));
           return;
         }
+        var categoriaTxt = idxCategoria !== -1 ? (f[idxCategoria] || "").trim() : "";
         var precioSugeridoTxt = idxPrecio !== -1 ? (f[idxPrecio] || "").trim() : "";
         var stockActualTxt = idxStock !== -1 ? (f[idxStock] || "").trim() : "";
         var stockMinimoTxt = idxMinimo !== -1 ? (f[idxMinimo] || "").trim() : "";
         items.push({
           tipo: tipo,
           nombre: nombre,
+          categoria: categoriaTxt || null,
           costo: costo,
           precio_sugerido: precioSugeridoTxt !== "" ? parseFloat(precioSugeridoTxt) : null,
           stock_gestionado: true,
@@ -3184,6 +3300,133 @@ the data-access layer at all.
       return cargarClientes();
     });
   }, "clientes-error"));
+
+  // --- Importación masiva de clientes y vehículos por CSV ---
+  $("btn-plantilla-clientes").addEventListener("click", function () {
+    var csv = "cliente_nombre,cliente_tipo,cliente_documento,cliente_telefono,cliente_correo,cliente_direccion,placa,marca,modelo,anio,color,vin\n" +
+      "Juan Perez,particular,123456789,3001234567,juan@correo.com,Calle 1 # 2-3,ABC123,Chevrolet,Spark,2018,Rojo,\n" +
+      "Taller Los Andes SAS,empresa,900123456,3109876543,,,DEF456,Renault,Logan,2020,Blanco,\n";
+    var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    var enlace = document.createElement("a");
+    enlace.href = URL.createObjectURL(blob);
+    enlace.download = "plantilla_clientes_vehiculos.csv";
+    document.body.appendChild(enlace);
+    enlace.click();
+    document.body.removeChild(enlace);
+  });
+
+  $("btn-importar-clientes").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("importar-clientes-error");
+    $("importar-clientes-resultado").classList.add("oculto");
+    var archivo = $("importar-clientes-archivo").files[0];
+    if (!archivo) {
+      mostrarError("importar-clientes-error", "Selecciona un archivo CSV.");
+      return;
+    }
+    return new Promise(function (resolve, reject) {
+      var lector = new FileReader();
+      lector.onload = function () { resolve(lector.result); };
+      lector.onerror = function () { reject(new Error("No se pudo leer el archivo.")); };
+      lector.readAsText(archivo, "utf-8");
+    }).then(function (texto) {
+      var filas = analizarCSV(texto).filter(function (f) { return f.length && f.some(function (v) { return v.trim() !== ""; }); });
+      if (!filas.length) throw new Error("El archivo está vacío.");
+      var encabezado = filas[0].map(function (h) { return h.trim().toLowerCase(); });
+      var idx = {};
+      ["cliente_nombre", "cliente_tipo", "cliente_documento", "cliente_telefono", "cliente_correo", "cliente_direccion", "placa", "marca", "modelo", "anio", "color", "vin"].forEach(function (col) {
+        idx[col] = encabezado.indexOf(col);
+      });
+      if (idx.cliente_nombre === -1) {
+        throw new Error("El CSV debe tener al menos la columna cliente_nombre.");
+      }
+
+      function valor(f, col) {
+        var i = idx[col];
+        return i !== -1 && f[i] !== undefined ? f[i].trim() : "";
+      }
+
+      var filasDatos = filas.slice(1);
+      var clientesCreados = 0, clientesReutilizados = 0, vehiculosCreados = 0;
+      var omitidas = [];
+      var cacheDocumentoAId = {};
+
+      var promesa = Promise.resolve();
+      filasDatos.forEach(function (f, i) {
+        promesa = promesa.then(function () {
+          var nombreCliente = valor(f, "cliente_nombre");
+          var placa = valor(f, "placa").toUpperCase();
+          if (!nombreCliente) {
+            omitidas.push("Fila " + (i + 2) + ": falta cliente_nombre");
+            return;
+          }
+          var documento = valor(f, "cliente_documento");
+          var tipoCliente = valor(f, "cliente_tipo").toLowerCase();
+          if (tipoCliente !== "particular" && tipoCliente !== "empresa") tipoCliente = "particular";
+          var telefono = valor(f, "cliente_telefono");
+          var correo = valor(f, "cliente_correo");
+          var direccion = valor(f, "cliente_direccion");
+
+          function obtenerOCrearCliente() {
+            if (documento && cacheDocumentoAId[documento]) {
+              return Promise.resolve(cacheDocumentoAId[documento]);
+            }
+            var buscar = documento
+              ? restRequest("GET", "clientes", { query: "select=id_cliente&documento=eq." + encodeURIComponent(documento) })
+              : Promise.resolve([]);
+            return buscar.then(function (encontrados) {
+              if (encontrados && encontrados[0]) {
+                clientesReutilizados++;
+                if (documento) cacheDocumentoAId[documento] = encontrados[0].id_cliente;
+                return encontrados[0].id_cliente;
+              }
+              return restRequest("POST", "clientes", {
+                body: { nombre: nombreCliente, tipo: tipoCliente, documento: documento || null, telefono: telefono || null, correo: correo || null, direccion: direccion || null }
+              }).then(function (creado) {
+                clientesCreados++;
+                var idNuevo = creado[0].id_cliente;
+                if (documento) cacheDocumentoAId[documento] = idNuevo;
+                return idNuevo;
+              });
+            });
+          }
+
+          return obtenerOCrearCliente().then(function (idCliente) {
+            if (!placa) return;
+            return restRequest("GET", "vehiculos", { query: "select=id_vehiculo&placa=eq." + encodeURIComponent(placa) }).then(function (existentes) {
+              if (existentes && existentes.length) {
+                omitidas.push("Fila " + (i + 2) + ": la placa " + placa + " ya existe");
+                return;
+              }
+              var marca = valor(f, "marca");
+              var modelo = valor(f, "modelo");
+              var anioTxt = valor(f, "anio");
+              var color = valor(f, "color");
+              var vin = valor(f, "vin");
+              return restRequest("POST", "vehiculos", {
+                body: {
+                  id_cliente: idCliente, placa: placa,
+                  marca: marca || null, modelo: modelo || null,
+                  anio: anioTxt !== "" ? parseInt(anioTxt, 10) : null,
+                  color: color || null, vin: vin || null
+                }
+              }).then(function () { vehiculosCreados++; });
+            });
+          }).catch(function (err) {
+            omitidas.push("Fila " + (i + 2) + ": " + err.message);
+          });
+        });
+      });
+
+      return promesa.then(function () {
+        var resultado = $("importar-clientes-resultado");
+        resultado.classList.remove("oculto");
+        resultado.textContent = "Clientes nuevos: " + clientesCreados + ". Clientes ya existentes (reutilizados): " + clientesReutilizados + ". Vehículos nuevos: " + vehiculosCreados + "." +
+          (omitidas.length ? " Se omitieron " + omitidas.length + " fila(s): " + omitidas.join("; ") : "");
+        $("importar-clientes-archivo").value = "";
+        return Promise.all([cargarClientes(), cargarVehiculos()]);
+      });
+    });
+  }, "importar-clientes-error"));
 
   var vehiculoEditando = null;
   var todosVehiculos = [];
@@ -4779,6 +5022,8 @@ the data-access layer at all.
       var metasPorTecnico = {};
       (r[3] || []).forEach(function (u) { if (u.meta_mensual) metasPorTecnico[u.id_usuario] = Number(u.meta_mensual); });
 
+      dibujarGraficoMetaTecnico(tecnicos, metasPorTecnico);
+
       var tTec = $("tabla-productividad-tecnico");
       tTec.innerHTML = tecnicos.length ? "" : "<p class=\"nota-ayuda\">Sin órdenes cerradas por técnico ese mes.</p>";
       tecnicos.forEach(function (t) {
@@ -4874,6 +5119,34 @@ the data-access layer at all.
         responsive: true,
         plugins: {
           tooltip: { callbacks: { label: function (ctx) { return ctx.label + ": " + formatoMoneda(ctx.parsed); } } }
+        }
+      }
+    });
+  }
+
+  function dibujarGraficoMetaTecnico(tecnicos, metasPorTecnico) {
+    if (graficoMetaTecnico) { graficoMetaTecnico.destroy(); graficoMetaTecnico = null; }
+    var conMeta = (tecnicos || []).filter(function (t) { return metasPorTecnico[t.id_tecnico]; });
+    var canvas = $("grafico-meta-tecnico");
+    if (!conMeta.length || typeof Chart === "undefined") {
+      canvas.classList.add("oculto");
+      return;
+    }
+    canvas.classList.remove("oculto");
+    graficoMetaTecnico = new Chart(canvas.getContext("2d"), {
+      type: "bar",
+      data: {
+        labels: conMeta.map(function (t) { return t.tecnico_nombre || "—"; }),
+        datasets: [
+          { label: "Alcanzado", data: conMeta.map(function (t) { return Number(t.valor_generado); }), backgroundColor: "#2563eb" },
+          { label: "Meta", data: conMeta.map(function (t) { return metasPorTecnico[t.id_tecnico]; }), backgroundColor: "#94a3b8" }
+        ]
+      },
+      options: {
+        responsive: true,
+        scales: { y: { beginAtZero: true } },
+        plugins: {
+          tooltip: { callbacks: { label: function (ctx) { return ctx.dataset.label + ": " + formatoMoneda(ctx.parsed.y); } } }
         }
       }
     });
