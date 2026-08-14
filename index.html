@@ -3146,6 +3146,9 @@ the data-access layer at all.
       mostrarError("egreso-error", "Elige a qué orden pertenece esta compra.");
       return;
     }
+    var btnAgregarEgreso = $("btn-agregar-egreso");
+    btnAgregarEgreso.disabled = true;
+    btnAgregarEgreso.textContent = "Registrando…";
     return restRequest("POST", "egresos", {
       body: {
         fecha: fecha,
@@ -3164,6 +3167,13 @@ the data-access layer at all.
       var exito = $("egreso-exito");
       exito.textContent = "Gasto registrado. Puedes seguir registrando otro o ir a otra sección.";
       exito.classList.remove("oculto");
+    }).then(function () {
+      btnAgregarEgreso.disabled = false;
+      btnAgregarEgreso.textContent = "Registrar egreso";
+    }).catch(function (err) {
+      btnAgregarEgreso.disabled = false;
+      btnAgregarEgreso.textContent = "Registrar egreso";
+      throw err;
     });
   }, "egreso-error"));
 
@@ -5026,6 +5036,9 @@ the data-access layer at all.
       return;
     }
     var hoy = aFechaISO(new Date());
+    var btnCmGasto = $("btn-cm-gasto");
+    btnCmGasto.disabled = true;
+    btnCmGasto.textContent = "Registrando…";
     return restRequest("POST", "egresos", {
       body: {
         fecha: hoy, concepto: concepto, categoria: "gasto", monto: monto,
@@ -5042,6 +5055,13 @@ the data-access layer at all.
       $("cm-gasto-concepto").value = "";
       $("cm-gasto-monto").value = "";
       return cargarCaja();
+    }).then(function () {
+      btnCmGasto.disabled = false;
+      btnCmGasto.textContent = "Registrar gasto";
+    }).catch(function (err) {
+      btnCmGasto.disabled = false;
+      btnCmGasto.textContent = "Registrar gasto";
+      throw err;
     });
   }, "caja-error"));
 
@@ -5052,6 +5072,9 @@ the data-access layer at all.
       mostrarError("caja-error", "Escribe un monto válido para la reposición.");
       return;
     }
+    var btnCmReponer = $("btn-cm-reponer");
+    btnCmReponer.disabled = true;
+    btnCmReponer.textContent = "Reponiendo…";
     return restRequest("POST", "caja_menor_movimientos", {
       body: {
         fecha: aFechaISO(new Date()), tipo: "reposicion", monto: monto,
@@ -5060,6 +5083,13 @@ the data-access layer at all.
     }).then(function () {
       $("cm-reponer-monto").value = "";
       return cargarCaja();
+    }).then(function () {
+      btnCmReponer.disabled = false;
+      btnCmReponer.textContent = "Reponer";
+    }).catch(function (err) {
+      btnCmReponer.disabled = false;
+      btnCmReponer.textContent = "Reponer";
+      throw err;
     });
   }, "caja-error"));
 
@@ -5072,6 +5102,9 @@ the data-access layer at all.
       mostrarError("caja-error", "Escribe el efectivo inicial y cuenta el efectivo por denominación.");
       return;
     }
+    var btnCerrarCaja = $("btn-cerrar-caja");
+    btnCerrarCaja.disabled = true;
+    btnCerrarCaja.textContent = "Cerrando…";
     return restRequest("POST", "cierres_caja", {
       body: {
         fecha: aFechaISO(new Date()),
@@ -5088,7 +5121,12 @@ the data-access layer at all.
       $("cc-notas").value = "";
       reiniciarDenominaciones();
       return cargarCaja();
+    }).then(function () {
+      btnCerrarCaja.disabled = false;
+      btnCerrarCaja.textContent = "Cerrar caja de hoy";
     }).catch(function (err) {
+      btnCerrarCaja.disabled = false;
+      btnCerrarCaja.textContent = "Cerrar caja de hoy";
       if (err && /duplicate key|unique/i.test(err.message || "")) {
         throw new Error("La caja de hoy ya fue cerrada.");
       }
