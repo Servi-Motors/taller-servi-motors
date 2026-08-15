@@ -1050,6 +1050,11 @@ the data-access layer at all.
         <input id="stock-costo-unitario" type="number" min="0" step="0.01">
         <label for="stock-proveedor">Proveedor</label>
         <select id="stock-proveedor"></select>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:10px;">
+          <input type="checkbox" id="stock-pagado-caja-menor" style="width:auto;margin:0;">
+          Pagado con caja menor (efectivo)
+        </label>
+        <div class="nota-ayuda" style="margin-top:2px;">Marca esto solo si pagaste esta compra con efectivo de caja menor. Se descuenta del fondo y queda registrada como salida de caja, pero no afecta tu utilidad del mes — ese costo se contabiliza cuando el repuesto se use en una orden.</div>
         <button id="btn-registrar-entrada">Registrar entrada</button>
         <div id="stock-error" class="mensaje-error"></div>
         <div id="stock-exito" class="mensaje-error oculto" style="background:#f0fdf4;color:var(--verde);border-color:#bbf7d0;"></div>
@@ -2433,6 +2438,8 @@ the data-access layer at all.
     var cantidad = parseFloat($("stock-cantidad").value);
     var costoUnitario = parseFloat($("stock-costo-unitario").value);
     var idProveedor = $("stock-proveedor").value || null;
+    var nombreProveedor = idProveedor ? $("stock-proveedor").selectedOptions[0].textContent.trim() : null;
+    var pagadoConCajaMenor = $("stock-pagado-caja-menor").checked;
 
     if (!(cantidad > 0) || !(costoUnitario >= 0)) {
       mostrarError("stock-error", "Escribe una cantidad y un costo por unidad válidos.");
@@ -2440,6 +2447,7 @@ the data-access layer at all.
     }
 
     var obtenerIdItem;
+    var nombreItemFinal;
     if (itemSeleccionado === "__nuevo__") {
       var nombreNuevo = $("stock-nuevo-nombre").value.trim();
       var tipoNuevo = $("stock-nuevo-tipo").value;
@@ -2449,6 +2457,7 @@ the data-access layer at all.
         mostrarError("stock-error", "Escribe el nombre del ítem nuevo.");
         return;
       }
+      nombreItemFinal = nombreNuevo;
       obtenerIdItem = restRequest("POST", "items", {
         body: {
           tipo: tipoNuevo,
@@ -2460,6 +2469,7 @@ the data-access layer at all.
         }
       }).then(function (items) { return items[0].id_item; });
     } else {
+      nombreItemFinal = $("stock-item").selectedOptions[0].textContent.replace(/\s*\(hay.*\)$/, "").trim();
       obtenerIdItem = restRequest("PATCH", "items", {
         query: "id_item=eq." + itemSeleccionado,
         body: { costo: costoUnitario }
@@ -2478,13 +2488,32 @@ the data-access layer at all.
         }
       });
     }).then(function () {
+      if (!pagadoConCajaMenor) return null;
+      var concepto = "Compra de stock: " + nombreItemFinal + " (" + cantidad + ")";
+      var monto = cantidad * costoUnitario;
+      return restRequest("POST", "egresos", {
+        body: {
+          fecha: aFechaISO(new Date()), proveedor: nombreProveedor, concepto: concepto,
+          categoria: "compra", monto: monto, forma_pago: "efectivo", estado_pago: "pagado",
+          id_usuario_registro: usuarioActualId
+        }
+      }).then(function (filasEgreso) {
+        return restRequest("POST", "caja_menor_movimientos", {
+          body: {
+            fecha: aFechaISO(new Date()), tipo: "gasto", monto: monto, concepto: concepto,
+            id_egreso: filasEgreso[0].id_egreso, id_usuario_registro: usuarioActualId
+          }
+        });
+      });
+    }).then(function () {
       $("stock-nuevo-nombre").value = "";
       $("stock-nuevo-categoria").value = "";
       $("stock-nuevo-minimo").value = "0";
       $("stock-cantidad").value = "";
       $("stock-costo-unitario").value = "";
+      $("stock-pagado-caja-menor").checked = false;
       var exito = $("stock-exito");
-      exito.textContent = "Entrada registrada correctamente.";
+      exito.textContent = "Entrada registrada correctamente." + (pagadoConCajaMenor ? " Se descontó de caja menor." : "");
       exito.classList.remove("oculto");
       return cargarInventario();
     });
