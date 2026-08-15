@@ -6075,6 +6075,7 @@ the data-access layer at all.
   function renderizarBotonesImprimir() {
     var cont = $("botones-imprimir-orden");
     cont.innerHTML = "";
+    if (rolActual === "tecnico") return;
     var btnCot = document.createElement("button");
     btnCot.type = "button";
     btnCot.className = "secundario";
@@ -6689,13 +6690,20 @@ the data-access layer at all.
     });
     var nota = document.createElement("div");
     nota.className = "nota-ayuda";
-    nota.textContent = (esAdicional ? "Hay ítems adicionales" : "Hay ítems") + " pendientes de autorización (" + formatoMoneda(monto) + "). ¿Avisar al cliente?";
+    nota.textContent = (esAdicional ? "Hay ítems adicionales" : "Hay ítems") + " pendientes de autorización" +
+      (rolActual === "tecnico" ? "" : " (" + formatoMoneda(monto) + ")") + ". ¿Avisar al cliente?";
     cont.appendChild(nota);
     cont.appendChild(crearBotonWhatsApp(ordenActual.clienteTelefono, mensaje));
   }
 
   function totalLineaOrden(f) {
     return f.cantidad * f.precio_aplicado_cliente * (1 - (f.pct_descuento || 0) / 100);
+  }
+
+  // El técnico solo trabaja con nombres y cantidades — nunca con montos en
+  // dinero (ni al agregar ítems, ni al ver los que ya están en la orden).
+  function celdaMonedaTecnico(monto) {
+    return rolActual === "tecnico" ? "—" : formatoMoneda(monto);
   }
 
   function colorEstadoLinea(estado) {
@@ -6738,8 +6746,8 @@ the data-access layer at all.
 
   function renderizarTablaManoObra(filas) {
     var html = filas.map(function (f) {
-      return "<tr><td>" + (f.codigo || "—") + "</td><td>" + f.items.nombre + "</td><td>" + f.cantidad + "</td><td>" + formatoMoneda(f.precio_aplicado_cliente) + "</td>" +
-        "<td>" + celdaDescuentoLinea(f) + "</td><td class=\"celda-numero\">" + formatoMoneda(totalLineaOrden(f)) + "</td><td>" + celdaEstadoLinea(f) + botonEliminarLinea(f) + "</td></tr>";
+      return "<tr><td>" + (f.codigo || "—") + "</td><td>" + f.items.nombre + "</td><td>" + f.cantidad + "</td><td>" + celdaMonedaTecnico(f.precio_aplicado_cliente) + "</td>" +
+        "<td>" + celdaDescuentoLinea(f) + "</td><td class=\"celda-numero\">" + celdaMonedaTecnico(totalLineaOrden(f)) + "</td><td>" + celdaEstadoLinea(f) + botonEliminarLinea(f) + "</td></tr>";
     }).join("");
     $("cuerpo-mano-obra").innerHTML = html || "<tr><td colspan=\"7\" class=\"tabla-vacia\">Sin ítems de mano de obra todavía.</td></tr>";
   }
@@ -6749,8 +6757,8 @@ the data-access layer at all.
   function renderizarTablaPartes(filas) {
     var html = filas.map(function (f) {
       return "<tr><td>" + (ETIQUETAS_TIPO_ITEM[f.items.tipo] || f.items.tipo) + "</td><td>" + (f.codigo || "—") + "</td><td>" + f.cantidad + "</td><td>" + f.items.nombre + "</td><td>—</td>" +
-        "<td>" + formatoMoneda(f.costo_interno) + "</td><td>" + celdaDescuentoLinea(f) + "</td>" +
-        "<td class=\"celda-numero\">" + formatoMoneda(totalLineaOrden(f)) + botonEditarPrecio(f) + botonEliminarLinea(f) + "</td><td>" + celdaEstadoLinea(f) + "</td></tr>";
+        "<td>" + celdaMonedaTecnico(f.costo_interno) + "</td><td>" + celdaDescuentoLinea(f) + "</td>" +
+        "<td class=\"celda-numero\">" + celdaMonedaTecnico(totalLineaOrden(f)) + botonEditarPrecio(f) + botonEliminarLinea(f) + "</td><td>" + celdaEstadoLinea(f) + "</td></tr>";
     }).join("");
     $("cuerpo-partes").innerHTML = html || "<tr><td colspan=\"9\" class=\"tabla-vacia\">Sin repuestos ni insumos todavía.</td></tr>";
   }
@@ -6772,6 +6780,10 @@ the data-access layer at all.
     var pctIva = ordenActual.pctIva || 0;
     var iva = subtotal * pctIva / 100;
     var total = subtotal + iva;
+    if (rolActual === "tecnico") {
+      $("orden-totales").innerHTML = '<div class="nota-ayuda">Los montos y el total de la orden los maneja el asesor o el administrador.</div>';
+      return;
+    }
     $("orden-totales").innerHTML = '<div class="totales-doc">' +
       "Mano de obra: " + formatoMoneda(subtotalMO) + "<br>" +
       "Repuestos e insumos: " + formatoMoneda(subtotalPartes) + "<br>" +
