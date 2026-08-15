@@ -346,6 +346,7 @@ the data-access layer at all.
         <h1>Ítems de la orden</h1>
         <h2 id="items-subtitulo"></h2>
         <div id="estado-orden-info" class="nota-ayuda"></div>
+        <div id="orden-devolucion-aviso" class="oculto"></div>
         <div id="grupo-proximo-mantenimiento" class="oculto">
           <label for="orden-proximo-mantenimiento">Próximo mantenimiento recomendado (opcional)</label>
           <input id="orden-proximo-mantenimiento" type="date">
@@ -1663,6 +1664,7 @@ the data-access layer at all.
   .kpi-flecha-abajo { color: #dc2626; }
   .kpi-flecha-igual { color: var(--gris); }
   .etiqueta-garantia { display: inline-block; font-size: 12px; font-weight: 700; color: #7c3aed; background: #ede9fe; border-radius: 6px; padding: 2px 8px; vertical-align: middle; }
+  .etiqueta-devuelta { display: inline-block; font-size: 12px; font-weight: 700; color: #b45309; background: #fef3c7; border-radius: 6px; padding: 2px 8px; vertical-align: middle; }
   .grid-graficos { display: grid; grid-template-columns: 1.3fr 1fr; gap: 12px; }
   .grafico-cont { position: relative; height: 150px; }
 
@@ -2126,7 +2128,7 @@ the data-access layer at all.
 
   function cargarTableroOrdenes() {
     ocultarError("tablero-error");
-    var query = "select=id_ot,numero_ot,estado,tipo_orden,fecha_apertura,vehiculos(placa,marca,modelo),clientes(nombre)," +
+    var query = "select=id_ot,numero_ot,estado,tipo_orden,fecha_apertura,veces_devuelta_calidad,vehiculos(placa,marca,modelo),clientes(nombre)," +
       "asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre)" +
       "&order=fecha_apertura.desc&limit=100";
     return restRequest("GET", "ordenes_trabajo", { query: query }).then(function (ordenes) {
@@ -2155,7 +2157,8 @@ the data-access layer at all.
           tarjeta.className = "kanban-tarjeta";
           tarjeta.innerHTML =
             "<b>" + prefijoOT + o.numero_ot + " · " + (veh.placa || "—") + "</b>" +
-            (o.tipo_orden === "garantia" ? ' <span class="etiqueta-garantia">GARANTÍA</span>' : "") + "<br>" +
+            (o.tipo_orden === "garantia" ? ' <span class="etiqueta-garantia">GARANTÍA</span>' : "") +
+            (o.veces_devuelta_calidad > 0 && (o.estado === "en_proceso" || o.estado === "control_calidad") ? ' <span class="etiqueta-devuelta">↩ DEVUELTA</span>' : "") + "<br>" +
             (cli.nombre || "—") + "<br>" +
             "<span class=\"fila-detalle\">" + [veh.marca, veh.modelo].filter(Boolean).join(" ") + "</span><br>" +
             "<span class=\"fila-detalle\">Técnico: " + (o.tecnico ? o.tecnico.nombre : "—") + "</span><br>" +
@@ -4990,9 +4993,16 @@ the data-access layer at all.
       rentabilidadOt.forEach(function (o) {
         var fila = document.createElement("div");
         fila.className = "fila-renglon";
+        var horasReales = o.horas_reales_invertidas === null || o.horas_reales_invertidas === undefined ? null : Number(o.horas_reales_invertidas);
+        var eficiencia = o.eficiencia_tiempo_real_pct === null || o.eficiencia_tiempo_real_pct === undefined ? null : Number(o.eficiencia_tiempo_real_pct);
+        var lineaTiempoReal = horasReales === null
+          ? ""
+          : "<br><span class=\"fila-detalle\">Horas facturadas " + Number(o.horas_facturadas).toFixed(2) + " vs. reales " + horasReales.toFixed(2) +
+            (eficiencia === null ? "" : " · <b style=\"color:" + (eficiencia >= 100 ? "var(--verde)" : "#b45309") + ";\">Productividad " + eficiencia.toFixed(0) + "%</b>") +
+            (o.veces_devuelta_calidad > 0 ? " · ↩ Devuelta " + o.veces_devuelta_calidad + " vez(es)" : "") + "</span>";
         fila.innerHTML =
           "<span>" + prefijoOT + o.numero_ot + " <span class=\"fila-detalle\">(" + (o.fecha_cierre ? o.fecha_cierre.slice(0, 10) : "—") + ")</span><br>" +
-          "<span class=\"fila-detalle\">Asesor: " + (o.asesor_nombre || "—") + " · Técnico: " + (o.tecnico_nombre || "—") + "</span></span>" +
+          "<span class=\"fila-detalle\">Asesor: " + (o.asesor_nombre || "—") + " · Técnico: " + (o.tecnico_nombre || "—") + "</span>" + lineaTiempoReal + "</span>" +
           "<span>Ingreso " + formatoMoneda(o.ingreso) + "<br>Margen " + formatoMoneda(o.margen) + (o.margen_pct === null || o.margen_pct === undefined ? "" : " (" + (o.margen_pct * 100).toFixed(0) + "%)") + "</span>";
         tRent.appendChild(fila);
       });
@@ -6601,12 +6611,15 @@ the data-access layer at all.
     cont.appendChild(crearBotonWhatsApp(ordenActual.clienteTelefono, mensaje));
   }
 
-  function cambiarEstadoOrden(nuevoEstado, accionTexto) {
+  function cambiarEstadoOrden(nuevoEstado, accionTexto, camposExtra) {
     ocultarError("item-error");
     var body = { estado: nuevoEstado };
     if (nuevoEstado === "cerrada") {
       body.fecha_cierre = new Date().toISOString();
       body.proximo_mantenimiento_fecha = $("orden-proximo-mantenimiento").value || null;
+    }
+    if (camposExtra) {
+      for (var clave in camposExtra) { body[clave] = camposExtra[clave]; }
     }
     return restRequest("PATCH", "ordenes_trabajo", { query: "id_ot=eq." + ordenActual.id_ot, body: body })
       .then(function () {
@@ -6643,6 +6656,22 @@ the data-access layer at all.
     $("estado-orden-info").textContent = "Estado actual: " + (ETIQUETAS_ESTADO_ORDEN[ordenActual.estado] || ordenActual.estado);
     $("estado-orden-notificar").innerHTML = "";
 
+    var avisoDevolucion = $("orden-devolucion-aviso");
+    var mostrarAviso = ordenActual.vecesDevueltaCalidad > 0 &&
+      (ordenActual.estado === "en_proceso" || ordenActual.estado === "control_calidad");
+    if (mostrarAviso) {
+      var fechaTexto = ordenActual.fechaDevolucionCalidad ? new Date(ordenActual.fechaDevolucionCalidad).toLocaleString("es-CO") : "";
+      avisoDevolucion.innerHTML =
+        '<div style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;border-left:5px solid #b45309;border-radius:8px;padding:10px 12px;font-size:13px;margin:6px 0;">' +
+        "⚠️ <b>Esta orden fue devuelta por control de calidad" + (fechaTexto ? " el " + fechaTexto : "") + ".</b>" +
+        (ordenActual.motivoDevolucionCalidad ? "<br>Motivo: " + ordenActual.motivoDevolucionCalidad : "") +
+        "</div>";
+      avisoDevolucion.classList.remove("oculto");
+    } else {
+      avisoDevolucion.innerHTML = "";
+      avisoDevolucion.classList.add("oculto");
+    }
+
     var cont = $("botones-estado-orden");
     cont.innerHTML = "";
     var esAdminOAsesor = rolActual === "administrador" || rolActual === "asesor";
@@ -6657,6 +6686,17 @@ the data-access layer at all.
       agregarBotonEstado(cont, "Marcar listo para entrega", function () {
         if (!exigirEvidencias("control_calidad")) return;
         return cambiarEstadoOrden("listo_entrega", "Orden marcada como lista para entrega");
+      });
+      agregarBotonEstado(cont, "Devolver a en proceso (no pasó control de calidad)", function () {
+        if (!window.confirm("¿Devolver esta orden a \"En proceso\"? El técnico verá el aviso y deberá corregir el trabajo.")) return;
+        var motivo = window.prompt("¿Por qué se devuelve? (opcional, el técnico lo va a ver)", "");
+        if (motivo === null) motivo = "";
+        motivo = motivo.trim();
+        return cambiarEstadoOrden(
+          "en_proceso",
+          "Orden devuelta a en proceso (no pasó control de calidad)" + (motivo ? ": " + motivo : ""),
+          { motivo_devolucion_calidad: motivo || null }
+        );
       });
     }
     if (ordenActual.estado === "listo_entrega" && esAdminOAsesor) {
@@ -6809,7 +6849,7 @@ the data-access layer at all.
 
   function cargarItemsDeOrden() {
     var queryItems = "select=id_detalle,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
-    var queryOrden = "select=estado,tipo_orden,token_consulta,fecha_apertura,fecha_cierre,diagnostico,presupuesto_tentativo,hallazgos_diagnostico,clientes(nombre,telefono,documento,direccion),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje)&id_ot=eq." + ordenActual.id_ot;
+    var queryOrden = "select=estado,tipo_orden,token_consulta,fecha_apertura,fecha_cierre,diagnostico,presupuesto_tentativo,hallazgos_diagnostico,veces_devuelta_calidad,motivo_devolucion_calidad,fecha_devolucion_calidad,clientes(nombre,telefono,documento,direccion),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje)&id_ot=eq." + ordenActual.id_ot;
     return Promise.all([
       restRequest("GET", "ot_detalle", { query: queryItems }),
       restRequest("GET", "ordenes_trabajo", { query: queryOrden }),
@@ -6830,6 +6870,9 @@ the data-access layer at all.
         ordenActual.clienteTelefono = orden.clientes ? orden.clientes.telefono : null;
         ordenActual.vehiculoPlaca = orden.vehiculos ? orden.vehiculos.placa : null;
         ordenActual.tokenConsulta = orden.token_consulta || null;
+        ordenActual.vecesDevueltaCalidad = orden.veces_devuelta_calidad || 0;
+        ordenActual.motivoDevolucionCalidad = orden.motivo_devolucion_calidad || null;
+        ordenActual.fechaDevolucionCalidad = orden.fecha_devolucion_calidad || null;
         renderizarEstadoOrden();
         renderizarDatosClienteVehiculo(orden);
         // No pisar lo que el usuario esté escribiendo ahora mismo en estos
