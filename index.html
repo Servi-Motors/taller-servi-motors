@@ -224,6 +224,22 @@ the data-access layer at all.
           <button id="btn-inicio-registrar-gasto" class="secundario">+ Registrar gasto</button>
         </div>
       </div>
+
+      <div class="tarjeta oculto" id="tarjeta-productividad-inicio">
+        <h2>Productividad de técnicos y asesores (mes actual vs. anterior)</h2>
+        <div class="grid-graficos">
+          <div>
+            <h3>Técnicos</h3>
+            <div class="grafico-cont"><canvas id="grafico-productividad-tecnico"></canvas></div>
+            <div id="sin-datos-productividad-tecnico" class="nota-ayuda oculto">Todavía no hay órdenes cerradas por técnico.</div>
+          </div>
+          <div>
+            <h3>Asesores</h3>
+            <div class="grafico-cont"><canvas id="grafico-productividad-asesor"></canvas></div>
+            <div id="sin-datos-productividad-asesor" class="nota-ayuda oculto">Todavía no hay órdenes cerradas por asesor.</div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <section id="pantalla-app" class="pagina pagina-ancha oculto">
@@ -1419,18 +1435,6 @@ the data-access layer at all.
       </div>
 
       <div class="tarjeta">
-        <h2>Productividad por técnico y asesor</h2>
-        <div class="nota-ayuda">La eficiencia del técnico compara sus horas facturadas contra las horas disponibles configuradas para todo el taller (Contabilidad), no contra un horario individual.</div>
-        <label for="reportes-mes">Mes</label>
-        <select id="reportes-mes"></select>
-        <h3>Técnicos</h3>
-        <div class="grafico-cont oculto" id="grafico-meta-tecnico-cont"><canvas id="grafico-meta-tecnico"></canvas></div>
-        <div id="tabla-productividad-tecnico"></div>
-        <h3>Asesores</h3>
-        <div id="tabla-productividad-asesor"></div>
-      </div>
-
-      <div class="tarjeta">
         <h2>Rentabilidad por orden de trabajo</h2>
         <div class="nota-ayuda">Las 20 órdenes cerradas más recientes.</div>
         <div id="tabla-rentabilidad-ot"></div>
@@ -1801,7 +1805,8 @@ the data-access layer at all.
   var graficoEstados = null;
   var graficoFlujoCaja = null;
   var graficoMediosPago = null;
-  var graficoMetaTecnico = null;
+  var graficoProductividadTecnico = null;
+  var graficoProductividadAsesor = null;
 
   function $(id) { return document.getElementById(id); }
 
@@ -2272,6 +2277,11 @@ the data-access layer at all.
 
       dibujarGraficoMensual(resultadoMensual, puedeVerFinanzas);
       dibujarGraficoEstados(estados);
+
+      $("tarjeta-productividad-inicio").classList.toggle("oculto", !puedeVerFinanzasHoy);
+      if (puedeVerFinanzasHoy) {
+        return cargarProductividadInicio();
+      }
     });
   }
 
@@ -4831,21 +4841,6 @@ the data-access layer at all.
     return d.toLocaleDateString("es-CO", { month: "long", year: "numeric" });
   }
 
-  function poblarSelectorMeses() {
-    var sel = $("reportes-mes");
-    var valorPrevio = sel.value;
-    sel.innerHTML = "";
-    var hoy = new Date();
-    for (var i = 0; i < 12; i++) {
-      var d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
-      var opt = document.createElement("option");
-      opt.value = aFechaISO(d);
-      opt.textContent = d.toLocaleDateString("es-CO", { month: "long", year: "numeric" });
-      sel.appendChild(opt);
-    }
-    if (valorPrevio) sel.value = valorPrevio;
-  }
-
   // Flecha que compara un valor contra el del mes anterior. Verde/arriba si
   // subió, rojo/abajo si bajó, con el % de cambio. Si no hay dato de algún
   // mes, no muestra nada (en vez de un cambio engañoso).
@@ -4868,7 +4863,6 @@ the data-access layer at all.
 
   function cargarReportes() {
     ocultarError("reportes-error");
-    poblarSelectorMeses();
 
     var hoy = new Date();
     var inicioMes = aFechaISO(primerDiaMes(hoy));
@@ -5053,7 +5047,6 @@ the data-access layer at all.
         tRot.appendChild(fila);
       });
 
-      return cargarProductividadPorMes();
     });
   }
 
@@ -5082,52 +5075,24 @@ the data-access layer at all.
     });
   }
 
-  function cargarProductividadPorMes() {
-    var periodo = $("reportes-mes").value;
-    if (!periodo) return Promise.resolve();
+  // Productividad de técnicos y asesores (mes actual vs. mes anterior), en Inicio.
+  function cargarProductividadInicio() {
+    var hoy = new Date();
+    var inicioMes = aFechaISO(primerDiaMes(hoy));
+    var inicioMesAnterior = aFechaISO(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1));
     return Promise.all([
-      restRequest("GET", "vista_productividad_tecnico", { query: "select=*&periodo=eq." + periodo }),
-      restRequest("GET", "vista_productividad_asesor", { query: "select=*&periodo=eq." + periodo }),
-      restRequest("GET", "parametros_taller", { query: "select=horas_disponibles_mes&id=eq.1" }),
+      restRequest("GET", "vista_productividad_tecnico", { query: "select=*&periodo=in.(" + inicioMes + "," + inicioMesAnterior + ")" }),
+      restRequest("GET", "vista_productividad_asesor", { query: "select=*&periodo=in.(" + inicioMes + "," + inicioMesAnterior + ")" }),
       restRequest("GET", "usuarios", { query: "select=id_usuario,meta_mensual&rol=eq.tecnico" })
     ]).then(function (r) {
-      var tecnicos = r[0] || [];
-      var asesores = r[1] || [];
-      var horasDisponiblesMes = Number((r[2] && r[2][0] && r[2][0].horas_disponibles_mes) || 0);
+      var filasTecnico = r[0] || [];
+      var filasAsesor = r[1] || [];
       var metasPorTecnico = {};
-      (r[3] || []).forEach(function (u) { if (u.meta_mensual) metasPorTecnico[u.id_usuario] = Number(u.meta_mensual); });
-
-      dibujarGraficoMetaTecnico(tecnicos, metasPorTecnico);
-
-      var tTec = $("tabla-productividad-tecnico");
-      tTec.innerHTML = tecnicos.length ? "" : "<p class=\"nota-ayuda\">Sin órdenes cerradas por técnico ese mes.</p>";
-      tecnicos.forEach(function (t) {
-        var eficiencia = horasDisponiblesMes > 0 ? (Number(t.horas_trabajadas) / horasDisponiblesMes) * 100 : null;
-        var meta = metasPorTecnico[t.id_tecnico];
-        var pctMeta = meta ? (Number(t.valor_generado) / meta) * 100 : null;
-        var fila = document.createElement("div");
-        fila.className = "fila-renglon";
-        fila.innerHTML =
-          "<span>" + (t.tecnico_nombre || "—") + "<br><span class=\"fila-detalle\">" + t.ordenes + " órdenes</span></span>" +
-          "<span>" + Number(t.horas_trabajadas).toFixed(2) + " horas<br>" + formatoMoneda(t.valor_generado) +
-          (eficiencia === null ? "" : "<br><b style=\"color:" + (eficiencia >= 100 ? "var(--verde)" : "#b45309") + ";\">Eficiencia " + eficiencia.toFixed(0) + "%</b>") +
-          (pctMeta === null ? "" : "<br><b style=\"color:" + (pctMeta >= 100 ? "var(--verde)" : "#b45309") + ";\">Meta " + pctMeta.toFixed(0) + "% (" + formatoMoneda(meta) + ")</b>") + "</span>";
-        tTec.appendChild(fila);
-      });
-
-      var tAse = $("tabla-productividad-asesor");
-      tAse.innerHTML = asesores.length ? "" : "<p class=\"nota-ayuda\">Sin órdenes cerradas por asesor ese mes.</p>";
-      asesores.forEach(function (a) {
-        var fila = document.createElement("div");
-        fila.className = "fila-renglon";
-        fila.innerHTML =
-          "<span>" + (a.asesor_nombre || "—") + "<br><span class=\"fila-detalle\">" + a.ordenes + " órdenes</span></span>" +
-          "<span>Ingreso " + formatoMoneda(a.ingreso_generado) + "<br>Margen " + formatoMoneda(a.margen_generado) + "</span>";
-        tAse.appendChild(fila);
-      });
+      (r[2] || []).forEach(function (u) { if (u.meta_mensual) metasPorTecnico[u.id_usuario] = Number(u.meta_mensual); });
+      dibujarGraficoProductividadTecnico(filasTecnico, inicioMes, inicioMesAnterior, metasPorTecnico);
+      dibujarGraficoProductividadAsesor(filasAsesor, inicioMes, inicioMesAnterior);
     });
   }
-  $("reportes-mes").addEventListener("change", conManejoDeErrores(cargarProductividadPorMes, "reportes-error"));
 
   function dibujarGraficoFlujoCaja(filas) {
     if (graficoFlujoCaja) { graficoFlujoCaja.destroy(); graficoFlujoCaja = null; }
@@ -5200,23 +5165,66 @@ the data-access layer at all.
     });
   }
 
-  function dibujarGraficoMetaTecnico(tecnicos, metasPorTecnico) {
-    if (graficoMetaTecnico) { graficoMetaTecnico.destroy(); graficoMetaTecnico = null; }
-    var conMeta = (tecnicos || []).filter(function (t) { return metasPorTecnico[t.id_tecnico]; });
-    var cont = $("grafico-meta-tecnico-cont");
-    var canvas = $("grafico-meta-tecnico");
-    if (!conMeta.length || typeof Chart === "undefined") {
-      cont.classList.add("oculto");
-      return;
+  function dibujarGraficoProductividadTecnico(filas, mesActual, mesAnterior, metasPorTecnico) {
+    if (graficoProductividadTecnico) { graficoProductividadTecnico.destroy(); graficoProductividadTecnico = null; }
+    var porTecnico = {};
+    (filas || []).forEach(function (f) {
+      if (!porTecnico[f.id_tecnico]) porTecnico[f.id_tecnico] = { nombre: f.tecnico_nombre || "—", actual: 0, anterior: 0 };
+      if (f.periodo === mesActual) porTecnico[f.id_tecnico].actual = Number(f.valor_generado);
+      if (f.periodo === mesAnterior) porTecnico[f.id_tecnico].anterior = Number(f.valor_generado);
+    });
+    var lista = Object.keys(porTecnico).map(function (id) {
+      var t = porTecnico[id];
+      t.meta = metasPorTecnico[id] || null;
+      return t;
+    }).sort(function (a, b) { return b.actual - a.actual; });
+
+    $("sin-datos-productividad-tecnico").classList.toggle("oculto", !!lista.length);
+    if (!lista.length || typeof Chart === "undefined") return;
+
+    var datasets = [
+      { label: "Mes actual", data: lista.map(function (t) { return t.actual; }), backgroundColor: "#2563eb" },
+      { label: "Mes anterior", data: lista.map(function (t) { return t.anterior; }), backgroundColor: "#94a3b8" }
+    ];
+    if (lista.some(function (t) { return t.meta; })) {
+      datasets.push({ label: "Meta", data: lista.map(function (t) { return t.meta || 0; }), backgroundColor: "#16a34a" });
     }
-    cont.classList.remove("oculto");
-    graficoMetaTecnico = new Chart(canvas.getContext("2d"), {
+    graficoProductividadTecnico = new Chart($("grafico-productividad-tecnico").getContext("2d"), {
+      type: "bar",
+      data: { labels: lista.map(function (t) { return t.nombre; }), datasets: datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: { y: { beginAtZero: true } },
+        plugins: {
+          legend: { labels: { boxWidth: 10, font: { size: 10 } } },
+          tooltip: { callbacks: { label: function (ctx) { return ctx.dataset.label + ": " + formatoMoneda(ctx.parsed.y); } } }
+        }
+      }
+    });
+  }
+
+  function dibujarGraficoProductividadAsesor(filas, mesActual, mesAnterior) {
+    if (graficoProductividadAsesor) { graficoProductividadAsesor.destroy(); graficoProductividadAsesor = null; }
+    var porAsesor = {};
+    (filas || []).forEach(function (f) {
+      if (!porAsesor[f.id_asesor]) porAsesor[f.id_asesor] = { nombre: f.asesor_nombre || "—", actual: 0, anterior: 0 };
+      if (f.periodo === mesActual) porAsesor[f.id_asesor].actual = Number(f.ingreso_generado);
+      if (f.periodo === mesAnterior) porAsesor[f.id_asesor].anterior = Number(f.ingreso_generado);
+    });
+    var lista = Object.keys(porAsesor).map(function (id) { return porAsesor[id]; })
+      .sort(function (a, b) { return b.actual - a.actual; });
+
+    $("sin-datos-productividad-asesor").classList.toggle("oculto", !!lista.length);
+    if (!lista.length || typeof Chart === "undefined") return;
+
+    graficoProductividadAsesor = new Chart($("grafico-productividad-asesor").getContext("2d"), {
       type: "bar",
       data: {
-        labels: conMeta.map(function (t) { return t.tecnico_nombre || "—"; }),
+        labels: lista.map(function (a) { return a.nombre; }),
         datasets: [
-          { label: "Alcanzado", data: conMeta.map(function (t) { return Number(t.valor_generado); }), backgroundColor: "#2563eb" },
-          { label: "Meta", data: conMeta.map(function (t) { return metasPorTecnico[t.id_tecnico]; }), backgroundColor: "#94a3b8" }
+          { label: "Mes actual", data: lista.map(function (a) { return a.actual; }), backgroundColor: "#2563eb" },
+          { label: "Mes anterior", data: lista.map(function (a) { return a.anterior; }), backgroundColor: "#94a3b8" }
         ]
       },
       options: {
@@ -5224,6 +5232,7 @@ the data-access layer at all.
         maintainAspectRatio: false,
         scales: { y: { beginAtZero: true } },
         plugins: {
+          legend: { labels: { boxWidth: 10, font: { size: 10 } } },
           tooltip: { callbacks: { label: function (ctx) { return ctx.dataset.label + ": " + formatoMoneda(ctx.parsed.y); } } }
         }
       }
