@@ -1391,14 +1391,14 @@ the data-access layer at all.
 
       <div class="tarjeta">
         <h2>Flujo de caja (ingresos vs egresos por mes)</h2>
-        <canvas id="grafico-flujo-caja" height="140"></canvas>
+        <div class="grafico-cont"><canvas id="grafico-flujo-caja"></canvas></div>
         <div id="sin-datos-flujo" class="nota-ayuda oculto"></div>
         <div id="tabla-flujo-caja" style="margin-top:12px;"></div>
       </div>
 
       <div class="tarjeta">
         <h2>Medios de pago más usados (mes actual)</h2>
-        <canvas id="grafico-medios-pago" height="180"></canvas>
+        <div class="grafico-cont"><canvas id="grafico-medios-pago"></canvas></div>
         <div id="sin-datos-medios-pago" class="nota-ayuda oculto"></div>
       </div>
 
@@ -1419,7 +1419,7 @@ the data-access layer at all.
         <label for="reportes-mes">Mes</label>
         <select id="reportes-mes"></select>
         <h3>Técnicos</h3>
-        <canvas id="grafico-meta-tecnico" height="180" class="oculto"></canvas>
+        <div class="grafico-cont oculto" id="grafico-meta-tecnico-cont"><canvas id="grafico-meta-tecnico"></canvas></div>
         <div id="tabla-productividad-tecnico"></div>
         <h3>Asesores</h3>
         <div id="tabla-productividad-asesor"></div>
@@ -1528,24 +1528,24 @@ the data-access layer at all.
   .tarjeta {
     background: var(--tarjeta-bg);
     border-radius: 12px;
-    padding: 18px;
+    padding: 14px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    margin-bottom: 12px;
+    margin-bottom: 10px;
   }
-  h1 { font-size: 19px; margin: 0 0 3px; }
-  h2 { font-size: 15px; margin: 0 0 10px; color: var(--gris); }
-  h3 { font-size: 13px; margin: 10px 0 6px; text-transform: uppercase; color: var(--gris); letter-spacing: 0.03em; }
-  label { display: block; font-size: 13px; font-weight: 600; margin: 8px 0 3px; }
+  h1 { font-size: 17px; margin: 0 0 3px; }
+  h2 { font-size: 14px; margin: 0 0 7px; color: var(--gris); }
+  h3 { font-size: 13px; margin: 8px 0 5px; text-transform: uppercase; color: var(--gris); letter-spacing: 0.03em; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 6px 0 3px; }
   input, select, textarea {
-    width: 100%; padding: 10px; font-size: 16px;
+    width: 100%; padding: 8px; font-size: 16px;
     border: 1px solid var(--borde); border-radius: 8px;
     background: var(--tarjeta-bg); color: var(--texto);
   }
   textarea { font-family: inherit; resize: vertical; }
   button {
-    width: 100%; padding: 12px; font-size: 15px; font-weight: 600;
+    width: 100%; padding: 10px; font-size: 15px; font-weight: 600;
     border: none; border-radius: 8px; background: var(--azul); color: white;
-    margin-top: 12px; cursor: pointer;
+    margin-top: 8px; cursor: pointer;
   }
   button:hover { background: var(--azul-oscuro); }
   button.secundario { background: transparent; color: var(--azul); border: 1px solid var(--azul); }
@@ -1575,10 +1575,10 @@ the data-access layer at all.
     background: #f0fdf4; color: var(--verde); border: 1px solid #bbf7d0; text-align: center;
   }
   .oculto { display: none !important; }
-  .nota-ayuda { font-size: 13px; color: var(--gris); margin: -6px 0 10px; }
-  .info-vehiculo { background: var(--gris-claro); border-radius: 8px; padding: 12px; font-size: 14px; margin-top: 8px; }
+  .nota-ayuda { font-size: 13px; color: var(--gris); margin: -4px 0 8px; }
+  .info-vehiculo { background: var(--gris-claro); border-radius: 8px; padding: 10px 12px; font-size: 14px; margin-top: 6px; }
   .info-vehiculo b { display: block; margin-bottom: 4px; }
-  .fila-renglon { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--borde); font-size: 14px; }
+  .fila-renglon { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--borde); font-size: 14px; }
   .fila-renglon:last-child { border-bottom: none; }
   .fila-renglon .fila-detalle { color: var(--gris); font-size: 12px; }
   .fila-renglon button { width: auto; margin: 0; padding: 5px 10px; font-size: 12px; }
@@ -1611,7 +1611,7 @@ the data-access layer at all.
   .nav-link.activo { background: var(--azul); color: #fff; }
   .nav-logout { width: auto; margin: 16px 10px 0; padding: 8px 12px; font-size: 13px; background: transparent; color: var(--rojo); border: 1px solid var(--rojo); }
 
-  #contenido-principal { flex: 1; padding: 22px; min-width: 0; }
+  #contenido-principal { flex: 1; padding: 16px 20px; min-width: 0; }
   .pagina:not(.pagina-ancha) { max-width: 560px; }
   .pagina-ancha { max-width: 1500px; }
   .tarjeta-formulario { max-width: 560px; }
@@ -1645,27 +1645,20 @@ the data-access layer at all.
     #tarjeta-tablero-ordenes { grid-column: 1 / -1; }
   }
 
-  .grid-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
-  .tarjeta-kpi { background: var(--tarjeta-bg); border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-  .kpi-numero { font-size: 26px; font-weight: 700; }
-  .kpi-etiqueta { font-size: 13px; color: var(--gris); margin-top: 4px; }
+  .grid-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 10px; }
+  .tarjeta-kpi { background: var(--tarjeta-bg); border-radius: 12px; padding: 11px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .kpi-numero { font-size: 21px; font-weight: 700; }
+  .kpi-etiqueta { font-size: 12px; color: var(--gris); margin-top: 2px; }
   .kpi-flecha { font-size: 13px; font-weight: 600; margin-left: 8px; vertical-align: middle; }
   .kpi-flecha-arriba { color: #16a34a; }
   .kpi-flecha-abajo { color: #dc2626; }
   .kpi-flecha-igual { color: var(--gris); }
   .etiqueta-garantia { display: inline-block; font-size: 12px; font-weight: 700; color: #7c3aed; background: #ede9fe; border-radius: 6px; padding: 2px 8px; vertical-align: middle; }
   .grid-graficos { display: grid; grid-template-columns: 1.3fr 1fr; gap: 12px; }
+  .grafico-cont { position: relative; height: 150px; }
 
-  /* Panel principal: todo más compacto para que quepa sin scroll en PC/tablet */
-  #pantalla-inicio h1 { margin: 0 0 2px; font-size: 18px; }
-  #pantalla-inicio h2 { margin: 0 0 8px; }
-  #pantalla-inicio .tarjeta { padding: 12px 16px; margin-bottom: 10px; }
-  #pantalla-inicio .grid-kpis { gap: 8px; margin-bottom: 10px; }
-  #pantalla-inicio .tarjeta-kpi { padding: 10px 12px; }
-  #pantalla-inicio .kpi-numero { font-size: 20px; }
-  #pantalla-inicio .kpi-etiqueta { font-size: 11px; margin-top: 2px; }
+  /* Panel principal: ajustes propios además de la compactación general */
   #pantalla-inicio .grid-graficos { gap: 10px; margin-bottom: 10px; }
-  #pantalla-inicio .grafico-cont { position: relative; height: 150px; }
   #pantalla-inicio .fila-inferior-inicio { display: flex; gap: 10px; flex-wrap: wrap; }
   #pantalla-inicio .fila-inferior-inicio > .tarjeta { flex: 1; min-width: 260px; margin-bottom: 0; }
   #pantalla-inicio #tarjeta-accesos-rapidos { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -1681,9 +1674,9 @@ the data-access layer at all.
   .kanban-tarjeta b { display: block; font-size: 13px; }
   .kanban-vacio { font-size: 12px; color: var(--gris); padding: 4px 2px; }
 
-  .boton-agregar { width: auto; display: inline-block; background: var(--verde); margin: 0 0 12px; padding: 10px 16px; }
+  .boton-agregar { width: auto; display: inline-block; background: var(--verde); margin: 0 0 8px; padding: 8px 14px; }
   .boton-agregar:hover { background: #15803d; }
-  .tabla-toolbar { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; justify-content: space-between; margin-bottom: 12px; font-size: 13px; }
+  .tabla-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 13px; }
   .tabla-toolbar label { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; margin: 0; }
   .tabla-toolbar select, .tabla-toolbar input { width: auto; padding: 6px 8px; font-size: 13px; margin: 0; }
   .tabla-scroll { overflow-x: auto; }
@@ -1692,14 +1685,14 @@ the data-access layer at all.
   .miniatura-evidencia img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; border: 1px solid var(--borde); }
   .miniatura-evidencia button { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; padding: 0; border-radius: 50%; background: var(--rojo); color: #fff; border: none; font-size: 12px; line-height: 1; cursor: pointer; }
   table.tabla-datos { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
-  table.tabla-datos th { text-align: left; padding: 8px 10px; border-bottom: 2px solid var(--borde); color: var(--gris); font-size: 12px; text-transform: uppercase; letter-spacing: .02em; cursor: pointer; user-select: none; }
+  table.tabla-datos th { text-align: left; padding: 6px 8px; border-bottom: 2px solid var(--borde); color: var(--gris); font-size: 12px; text-transform: uppercase; letter-spacing: .02em; cursor: pointer; user-select: none; }
   table.tabla-datos th:hover { color: var(--texto); }
   table.tabla-datos th.orden-activo { color: var(--azul); }
-  table.tabla-datos td { padding: 8px 10px; border-bottom: 1px solid var(--borde); }
+  table.tabla-datos td { padding: 6px 8px; border-bottom: 1px solid var(--borde); }
   table.tabla-datos tbody tr:hover { background: var(--gris-claro); }
   table.tabla-datos td.tabla-vacia { text-align: center; color: var(--gris); white-space: normal; }
   table.tabla-datos td button { width: auto; margin: 0; padding: 5px 10px; font-size: 12px; }
-  .tabla-pie { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; font-size: 13px; color: var(--gris); }
+  .tabla-pie { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; font-size: 13px; color: var(--gris); }
   .tabla-pie button { width: auto; margin: 0; padding: 6px 12px; font-size: 13px; }
   .tabla-pie button:disabled { opacity: .4; cursor: default; }
   .tabla-pagina-actual { font-weight: 600; color: var(--texto); }
@@ -5126,7 +5119,7 @@ the data-access layer at all.
           { label: "Egresos", data: filas.map(function (f) { return f.egresos; }), backgroundColor: "#dc2626" }
         ]
       },
-      options: { responsive: true, scales: { y: { beginAtZero: true } } }
+      options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
     });
   }
 
@@ -5170,6 +5163,7 @@ the data-access layer at all.
       },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
         plugins: {
           tooltip: { callbacks: { label: function (ctx) { return ctx.label + ": " + formatoMoneda(ctx.parsed); } } }
         }
@@ -5180,12 +5174,13 @@ the data-access layer at all.
   function dibujarGraficoMetaTecnico(tecnicos, metasPorTecnico) {
     if (graficoMetaTecnico) { graficoMetaTecnico.destroy(); graficoMetaTecnico = null; }
     var conMeta = (tecnicos || []).filter(function (t) { return metasPorTecnico[t.id_tecnico]; });
+    var cont = $("grafico-meta-tecnico-cont");
     var canvas = $("grafico-meta-tecnico");
     if (!conMeta.length || typeof Chart === "undefined") {
-      canvas.classList.add("oculto");
+      cont.classList.add("oculto");
       return;
     }
-    canvas.classList.remove("oculto");
+    cont.classList.remove("oculto");
     graficoMetaTecnico = new Chart(canvas.getContext("2d"), {
       type: "bar",
       data: {
@@ -5197,6 +5192,7 @@ the data-access layer at all.
       },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
         scales: { y: { beginAtZero: true } },
         plugins: {
           tooltip: { callbacks: { label: function (ctx) { return ctx.dataset.label + ": " + formatoMoneda(ctx.parsed.y); } } }
