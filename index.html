@@ -2305,15 +2305,18 @@ the data-access layer at all.
     });
   });
 
-  // Refresco automático de la pantalla de Órdenes: cuando un cliente autoriza
-  // remotamente por WhatsApp, el estado ya cambia solo en la base de datos
-  // (esto pasa dentro de registrar_autorizacion / registrar_autorizacion_remota,
-  // sin que nadie del taller tenga que hacer nada). Lo que faltaba era que la
-  // pantalla que el personal tiene abierta se enterara sin recargar a mano.
-  // Este intervalo revisa cada 15s, solo si hay sesión iniciada, la pestaña
+  // Refresco automático de la pantalla de Órdenes: cuando otra persona (un
+  // técnico marcando el avance de un servicio, un cliente autorizando por
+  // WhatsApp, etc.) cambia algo en una orden, esto pasa directo en la base
+  // de datos, sin que nadie del taller tenga que hacer nada. Lo que faltaba
+  // era que la pantalla que cada quien tiene abierta se enterara sola, sin
+  // tener que salir a otro módulo y volver a entrar para forzar la recarga.
+  // Este intervalo revisa cada 5s, solo si hay sesión iniciada, la pestaña
   // está visible y la persona está en Órdenes — y no toca nada si está en
-  // otra pantalla (para no gastar peticiones de más).
-  setInterval(function () {
+  // otra pantalla (para no gastar peticiones de más). Además, al volver a
+  // esta pestaña del navegador (por ejemplo, si la persona estuvo en otra
+  // app un rato), se refresca de inmediato en vez de esperar al próximo tic.
+  function refrescarPantallaOrdenesSiAplica() {
     if (document.hidden) return;
     if (!accessToken) return;
     if ($("shell").classList.contains("oculto")) return;
@@ -2324,7 +2327,9 @@ the data-access layer at all.
     } else {
       cargarTableroOrdenes().catch(function (err) { console.error(err); });
     }
-  }, 15000);
+  }
+  setInterval(refrescarPantallaOrdenesSiAplica, 5000);
+  document.addEventListener("visibilitychange", refrescarPantallaOrdenesSiAplica);
 
   function abrirMenuMovil() {
     $("sidebar").classList.add("abierto");
