@@ -6842,36 +6842,61 @@ the data-access layer at all.
       "</div>";
   }
 
-  function construirTextoLegalImpresion(modo) {
+  // Si ya se capturó una firma digital (autorización o entrega), se muestra
+  // la imagen real con nombre y fecha; si no, se deja la línea en blanco de
+  // toda la vida para firmar a mano sobre el papel impreso.
+  function bloqueFirma(datos, etiqueta, conFechaEnBlanco) {
+    if (datos && datos.dataUrl) {
+      var fechaTexto = datos.fecha ? formatoFechaHoraCorta(new Date(datos.fecha)) : "";
+      return "<div class=\"firma-linea\"><img src=\"" + datos.dataUrl + "\" style=\"height:46px;display:block;margin-bottom:2px;\" alt=\"Firma\">" +
+        "<div style=\"font-size:10.5px;color:#4b5563;\">" + etiqueta + (datos.nombre ? ": " + datos.nombre : "") + (fechaTexto ? " — " + fechaTexto : "") + "</div></div>";
+    }
+    return conFechaEnBlanco
+      ? "<div class=\"firma-linea\">" + etiqueta + ": ____________________________________ &nbsp;&nbsp;&nbsp; Fecha: __________</div>"
+      : "<div class=\"firma-linea\">" + etiqueta + ": ____________________________________</div>";
+  }
+
+  function construirTextoLegalImpresion(modo, datosFirma) {
+    datosFirma = datosFirma || {};
     if (modo === "factura") {
+      var hayEntrega = datosFirma.entregaTecnico || datosFirma.entregaCliente;
+      var bloqueFirmas = hayEntrega
+        ? "<div style=\"display:flex;gap:24px;flex-wrap:wrap;\">" +
+          "<div style=\"flex:1;min-width:200px;\">" + bloqueFirma(datosFirma.entregaTecnico, "Firma técnico", false) + "</div>" +
+          "<div style=\"flex:1;min-width:200px;\">" + bloqueFirma(datosFirma.entregaCliente, "Firma cliente (recibe)", false) + "</div>" +
+          "</div>"
+        : bloqueFirma(datosFirma.autorizacion, "Autorizado por", false);
       return "<div class=\"texto-legal\">Esta compañía no asume ninguna responsabilidad sobre el vehículo después de que ha salido del taller, incluyendo artículos dejados en él. El vehículo pudo ser conducido por nuestros empleados a riesgo del dueño del vehículo. En caso de que no sea pagado el precio total de la factura, el dueño autoriza a la compañía a retener el vehículo hasta que la cuenta sea pagada.<br><br>" +
         "Todos los trabajos de garantía deben ser hechos por esta compañía; no se aceptará ninguna responsabilidad de garantía si se realiza algún trabajo sobre las mismas partes posteriormente a la entrega del vehículo.</div>" +
-        "<div class=\"firma-linea\">Autorizado por: ____________________________________</div>";
+        bloqueFirmas;
     }
     return "<div class=\"texto-legal\">Yo entiendo que conforme a la ley tengo derecho a un presupuesto por escrito para el trabajo que se realizará en mi vehículo.<br>" +
       "&#9744; Solicité un presupuesto por escrito &nbsp;&nbsp; &#9744; He revisado el presupuesto y estoy de acuerdo con su contenido &nbsp;&nbsp; &#9744; Autorizo a comenzar los trabajos expuestos en este presupuesto.</div>" +
-      "<div class=\"firma-linea\">Firma: ____________________________________ &nbsp;&nbsp;&nbsp; Fecha: __________</div>" +
+      bloqueFirma(datosFirma.autorizacion, "Firma", true) +
       "<div class=\"texto-legal\">Este presupuesto tiene una validez de 30 días. Entiendo que cualquier parte adicional y/o trabajo requerido durante la reparación que no esté contemplado en este presupuesto tendrá un cargo adicional. No serán responsables por daños causados por robo, fuego o fenómeno natural. Sus empleados pueden conducir el vehículo con el propósito de probarlo y/o inspeccionarlo.</div>" +
-      "<div class=\"firma-linea\">Firma: ____________________________________ &nbsp;&nbsp;&nbsp; Fecha: __________</div>";
+      bloqueFirma(datosFirma.autorizacion, "Firma", true);
   }
 
   function imprimirOrdenActual(modo, idError) {
     idError = idError || "item-error";
     ocultarError(idError);
-    var queryOrden = "select=numero_ot,estado,tipo_orden,fecha_apertura,fecha_cierre,diagnostico,numero_factura,estado_pago,token_consulta,clientes(nombre,telefono,direccion,documento),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje),asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre)&id_ot=eq." + ordenActual.id_ot;
+    var queryOrden = "select=numero_ot,estado,tipo_orden,fecha_apertura,fecha_cierre,diagnostico,numero_factura,estado_pago,token_consulta,clientes(nombre,telefono,direccion,documento),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje),asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre)&id_ot=eq." + ordenActual.id_ot;
     var queryItems = "select=cantidad,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
-    var queryAutorizacionInicial = "select=fecha_hora&id_ot=eq." + ordenActual.id_ot + "&tipo=eq.inicial&limit=1";
+    var queryAutorizacionInicial = "select=fecha_hora,nombre_firmante,firma_imagen&id_ot=eq." + ordenActual.id_ot + "&tipo=eq.inicial&order=fecha_hora.desc&limit=1";
+    var queryEntrega = "select=nombre_recibe,firma_tecnico_imagen,firma_cliente_imagen,creado_en&id_ot=eq." + ordenActual.id_ot + "&limit=1";
 
     return Promise.all([
       restRequest("GET", "ordenes_trabajo", { query: queryOrden }),
       restRequest("GET", "ot_detalle", { query: queryItems }),
       obtenerDatosTaller(),
-      restRequest("GET", "autorizaciones_ot", { query: queryAutorizacionInicial })
+      restRequest("GET", "autorizaciones_ot", { query: queryAutorizacionInicial }),
+      restRequest("GET", "entregas_ot", { query: queryEntrega })
     ]).then(function (r) {
       var orden = r[0] && r[0][0];
       var items = (r[1] || []).filter(function (it) { return it.estado_autorizacion !== "rechazado"; });
       var taller = r[2];
       var autorizacionInicial = r[3] && r[3][0];
+      var entrega = r[4] && r[4][0];
       if (!orden) {
         mostrarError(idError, "No se pudo cargar la orden para imprimir.");
         return;
@@ -6891,14 +6916,30 @@ the data-access layer at all.
         ? sumarHorasLaborales(fechaAutorizacionInicial, totalHorasMO, taller.horarios_semana)
         : null;
 
-      var titulo = modo === "factura" ? "Factura — " + prefijoOT + orden.numero_ot : "Presupuesto / Cotización — " + prefijoOT + orden.numero_ot;
-      var contenido = construirEncabezadoDocImpresion(orden, modo, fechaEntregaEstimada, fechaAutorizacionInicial) +
-        construirTablaManoObraImpresion(itemsMO) +
-        construirTablaPartesImpresion(itemsPartes) +
-        construirTablaExternosImpresion(itemsExternos) +
-        construirTotalesFinalesImpresion(items, taller.pct_iva) +
-        construirTextoLegalImpresion(modo);
-      abrirVentanaImpresion(titulo, contenido, taller, urlConsultaPublicaDeOrden(orden));
+      // Trae la imagen real de cada firma ya capturada (autorización del
+      // cliente y, si el vehículo ya se entregó, técnico + cliente en la
+      // entrega). Si algo falla al traer una imagen, se sigue de largo con
+      // la línea en blanco de siempre — nunca bloquea la impresión.
+      return Promise.all([
+        obtenerDataUrlFirma(autorizacionInicial && autorizacionInicial.firma_imagen),
+        entrega ? obtenerDataUrlFirma(entrega.firma_tecnico_imagen) : Promise.resolve(null),
+        entrega ? obtenerDataUrlFirma(entrega.firma_cliente_imagen) : Promise.resolve(null)
+      ]).then(function (urlsFirma) {
+        var datosFirma = {
+          autorizacion: autorizacionInicial ? { nombre: autorizacionInicial.nombre_firmante, fecha: autorizacionInicial.fecha_hora, dataUrl: urlsFirma[0] } : null,
+          entregaTecnico: entrega ? { nombre: orden.tecnico ? orden.tecnico.nombre : null, dataUrl: urlsFirma[1] } : null,
+          entregaCliente: entrega ? { nombre: entrega.nombre_recibe, fecha: entrega.creado_en, dataUrl: urlsFirma[2] } : null
+        };
+
+        var titulo = modo === "factura" ? "Factura — " + prefijoOT + orden.numero_ot : "Presupuesto / Cotización — " + prefijoOT + orden.numero_ot;
+        var contenido = construirEncabezadoDocImpresion(orden, modo, fechaEntregaEstimada, fechaAutorizacionInicial) +
+          construirTablaManoObraImpresion(itemsMO) +
+          construirTablaPartesImpresion(itemsPartes) +
+          construirTablaExternosImpresion(itemsExternos) +
+          construirTotalesFinalesImpresion(items, taller.pct_iva) +
+          construirTextoLegalImpresion(modo, datosFirma);
+        abrirVentanaImpresion(titulo, contenido, taller, urlConsultaPublicaDeOrden(orden));
+      });
     }).catch(function (err) {
       mostrarError(idError, "No se pudo preparar la impresión: " + err.message);
     });
@@ -8179,6 +8220,35 @@ the data-access layer at all.
       if (!res.ok) throw new Error("No se pudo cargar la foto.");
       return res.blob();
     }).then(function (blob) { return URL.createObjectURL(blob); });
+  }
+
+  // Para incrustar una firma en la ventana de impresión (que es un documento
+  // aparte, como el logo del taller) hace falta un data:URL, no un blob:URL
+  // — estos últimos a veces no funcionan bien entre ventanas distintas. Las
+  // firmas quedan en un bucket privado ("firmas"), salvo las firmadas por
+  // WhatsApp (firma remota) que ya se guardan directamente como data:URL.
+  function obtenerDataUrlImagenPrivada(bucket, ruta) {
+    var headers = { "apikey": SUPABASE_KEY };
+    if (accessToken) headers["Authorization"] = "Bearer " + accessToken;
+    return fetch(SUPABASE_URL + "/storage/v1/object/" + bucket + "/" + ruta, { headers: headers })
+      .then(function (res) {
+        if (!res.ok) throw new Error("No se pudo cargar la firma.");
+        return res.blob();
+      })
+      .then(function (blob) {
+        return new Promise(function (resolve, reject) {
+          var lector = new FileReader();
+          lector.onerror = function () { reject(new Error("No se pudo leer la firma.")); };
+          lector.onload = function () { resolve(lector.result); };
+          lector.readAsDataURL(blob);
+        });
+      });
+  }
+
+  function obtenerDataUrlFirma(valor) {
+    if (!valor) return Promise.resolve(null);
+    if (valor.indexOf("data:") === 0) return Promise.resolve(valor);
+    return obtenerDataUrlImagenPrivada("firmas", valor).catch(function () { return null; });
   }
 
   function cargarEvidencias(etapa) {
