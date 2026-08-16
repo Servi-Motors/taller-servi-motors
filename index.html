@@ -6058,6 +6058,8 @@ the data-access layer at all.
       ".datos-doc{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:10px;font-size:12px;}" +
       ".bloque{min-width:200px;line-height:1.6;}" +
       ".bloque b{display:block;margin-bottom:2px;font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:#4b5563;}" +
+      ".bloque-qr{min-width:110px;text-align:center;}" +
+      ".bloque-qr img{margin-top:2px;}" +
       ".texto-legal{font-size:9.5px;color:#374151;line-height:1.5;margin:10px 0;text-align:justify;}" +
       ".firma-linea{font-size:12px;margin:22px 0 4px;}" +
       ".nota-periodo{color:#4b5563;margin-bottom:10px;}" +
@@ -6089,6 +6091,15 @@ the data-access layer at all.
     return formatoFechaCorta(d) + " " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
   }
 
+  function construirQrImpresion(orden) {
+    if (!orden.token_consulta) return "";
+    var url = "https://servi-motors.github.io/taller-servi-motors/?consulta=" + orden.token_consulta;
+    var srcQr = "https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=" + encodeURIComponent(url);
+    return "<div class=\"bloque bloque-qr\"><b>Consulte su orden en línea</b>" +
+      "<img src=\"" + srcQr + "\" width=\"90\" height=\"90\" alt=\"Código QR de consulta\">" +
+      "<div style=\"font-size:9.5px;color:#4b5563;margin-top:2px;\">Escanee para ver el estado</div></div>";
+  }
+
   function construirEncabezadoDocImpresion(orden, modo, fechaEntregaEstimada, fechaAutorizacionInicial) {
     var c = orden.clientes || {};
     var v = orden.vehiculos || {};
@@ -6109,6 +6120,7 @@ the data-access layer at all.
       "<div class=\"bloque\"><b>Asesor</b>" +
       (orden.asesor ? orden.asesor.nombre : "—") +
       (fechaEntregaEstimada ? "<br><b style=\"margin-top:6px;\">Entrega estimada</b>" + formatoFechaHoraCorta(fechaEntregaEstimada) : "") + "</div>" +
+      construirQrImpresion(orden) +
       "</div>" +
       "<div class=\"fila-datos-ancha\"><b>Datos del cliente</b>" +
       [c.nombre || "—", c.documento ? "Cédula/NIT: " + c.documento : null, c.telefono ? "Tel: " + c.telefono : null, c.direccion || null]
@@ -6187,7 +6199,7 @@ the data-access layer at all.
   function imprimirOrdenActual(modo, idError) {
     idError = idError || "item-error";
     ocultarError(idError);
-    var queryOrden = "select=numero_ot,estado,tipo_orden,fecha_apertura,fecha_cierre,diagnostico,numero_factura,estado_pago,clientes(nombre,telefono,direccion,documento),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje),asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre)&id_ot=eq." + ordenActual.id_ot;
+    var queryOrden = "select=numero_ot,estado,tipo_orden,fecha_apertura,fecha_cierre,diagnostico,numero_factura,estado_pago,token_consulta,clientes(nombre,telefono,direccion,documento),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje),asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre)&id_ot=eq." + ordenActual.id_ot;
     var queryItems = "select=cantidad,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
     var queryAutorizacionInicial = "select=fecha_hora&id_ot=eq." + ordenActual.id_ot + "&tipo=eq.inicial&limit=1";
 
