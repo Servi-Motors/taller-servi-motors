@@ -399,8 +399,11 @@ the data-access layer at all.
         </div>
         <div id="orden-devolucion-aviso" class="oculto"></div>
         <div id="grupo-proximo-mantenimiento" class="oculto">
-          <label for="orden-proximo-mantenimiento">Próximo mantenimiento recomendado (opcional)</label>
+          <label for="orden-proximo-mantenimiento">Próximo mantenimiento recomendado — fecha (opcional)</label>
           <input id="orden-proximo-mantenimiento" type="date">
+          <label for="orden-proximo-mantenimiento-km">Próximo mantenimiento recomendado — kilometraje (opcional)</label>
+          <input id="orden-proximo-mantenimiento-km" type="number" min="0" step="1" placeholder="Ej. 45000">
+          <div id="proximo-mantenimiento-sugerencia-nota" class="nota-ayuda oculto"></div>
         </div>
         <div id="botones-estado-orden" class="agenda-controles"></div>
         <div id="estado-orden-notificar"></div>
@@ -1197,7 +1200,7 @@ the data-access layer at all.
 
     <section id="pantalla-servicios" class="pagina pagina-ancha oculto">
       <h1>Servicios</h1>
-      <div class="nota-ayuda">Catálogo de servicios de mano de obra que ofrece el taller: nombre, descripción y tiempo estimado. Sirve como referencia rápida al agregar mano de obra en una orden (el precio por hora lo sigue fijando Contabilidad, no cambia aquí).</div>
+      <div class="nota-ayuda">Catálogo de servicios de mano de obra que ofrece el taller: nombre, descripción, tiempo estimado y frecuencia recomendada. Sirve como referencia rápida al agregar mano de obra en una orden (el precio por hora lo sigue fijando Contabilidad, no cambia aquí). La frecuencia se usa para sugerir automáticamente el próximo mantenimiento en Comunicaciones.</div>
       <div id="servicios-error" class="mensaje-error"></div>
 
       <div class="tarjeta">
@@ -1211,6 +1214,7 @@ the data-access layer at all.
                 <th>Nombre</th>
                 <th>Descripción</th>
                 <th>Tiempo estimado</th>
+                <th>Frecuencia</th>
                 <th>Estado</th>
                 <th>Acciones</th>
               </tr>
@@ -1230,6 +1234,11 @@ the data-access layer at all.
       <textarea id="servicio-descripcion" rows="2" placeholder="Ej. Incluye revisión de discos y limpieza de mordazas"></textarea>
       <label for="servicio-tiempo-estimado">Tiempo estimado (horas, opcional)</label>
       <input id="servicio-tiempo-estimado" type="number" min="0" step="0.25" placeholder="Ej. 1.5">
+      <label for="servicio-frecuencia-meses">Repetir cada (meses, opcional)</label>
+      <input id="servicio-frecuencia-meses" type="number" min="1" step="1" placeholder="Ej. 6">
+      <label for="servicio-frecuencia-km">Repetir cada (kilómetros, opcional)</label>
+      <input id="servicio-frecuencia-km" type="number" min="1" step="1" placeholder="Ej. 10000">
+      <div class="nota-ayuda">Si defines uno o ambos, al cerrar una orden que incluya este servicio se sugerirá automáticamente la fecha y/o el kilometraje del próximo mantenimiento (editable antes de guardar).</div>
       <label style="display:flex;align-items:center;gap:8px;">
         <input type="checkbox" id="servicio-activo" style="width:auto;margin:0;" checked>
         Servicio activo (disponible para usar en órdenes)
@@ -1507,6 +1516,9 @@ the data-access layer at all.
         <label for="taller-enlace-resenas">Enlace para pedir reseñas (opcional)</label>
         <input id="taller-enlace-resenas" type="text" placeholder="Ej. enlace de reseñas de Google">
         <div class="nota-ayuda">Se usa en Comunicaciones para pedirle al cliente que deje su opinión después de entregar el vehículo.</div>
+        <label for="taller-dias-sin-visita">Recordatorio de mantenimiento: avisar tras (días sin visita)</label>
+        <input id="taller-dias-sin-visita" type="number" min="1" step="1" placeholder="Ej. 150">
+        <div class="nota-ayuda">Solo aplica a vehículos sin fecha ni kilometraje de próximo mantenimiento definidos. Se usa en Comunicaciones → Próximo mantenimiento.</div>
 
         <button id="btn-guardar-datos-taller">Guardar datos del taller</button>
         <div id="datos-taller-error" class="mensaje-error"></div>
@@ -1699,7 +1711,7 @@ the data-access layer at all.
 
       <div class="tarjeta">
         <h2>Próximo mantenimiento</h2>
-        <div class="nota-ayuda">Vehículos con fecha de mantenimiento recomendada ya cumplida (se pone al cerrar la orden), o sin visita hace más de 5 meses si no se dejó una fecha.</div>
+        <div class="nota-ayuda">Vehículos con fecha o kilometraje de próximo mantenimiento ya cumplidos (se sugieren solos al cerrar la orden, según la frecuencia configurada en Servicios, o se escriben a mano), o sin visita hace más tiempo del configurado en Configuración → Datos del taller si no se dejó ninguno de los dos. Al enviar el WhatsApp, el vehículo deja de aparecer aquí hasta el siguiente mantenimiento.</div>
         <div id="lista-recordatorios-mantenimiento"></div>
       </div>
 
@@ -2025,6 +2037,7 @@ the data-access layer at all.
     vehiculo_listo: "Hola {cliente}, tu vehículo {placa} ya está listo en Taller Servi Motors. ¡Puedes pasar a recogerlo cuando gustes!",
     resena: "Hola {cliente}, gracias por confiar en Taller Servi Motors para tu vehículo {placa}. Si tienes un minuto, nos ayudarías mucho dejando tu opinión aquí: {enlace}. ¡Gracias!",
     mantenimiento_fecha: "Hola {cliente}, en tu última visita a Taller Servi Motors con el vehículo {placa} te recomendamos un mantenimiento preventivo para el {fecha}. ¿Quieres agendar tu cita?",
+    mantenimiento_km: "Hola {cliente}, en tu última visita a Taller Servi Motors con el vehículo {placa} te recomendamos un mantenimiento preventivo a los {km} km (ya vas en {actual} km). ¿Quieres agendar tu cita?",
     mantenimiento_estimado: "Hola {cliente}, en Taller Servi Motors notamos que ya pasó un tiempo desde tu última visita con el vehículo {placa}. ¿Quieres agendar un mantenimiento preventivo?",
     orden_cancelada: "Hola {cliente}, tu orden {orden} en Taller Servi Motors fue cancelada. Cualquier duda, contáctanos.",
     orden_en_proceso: "Hola {cliente}, tu vehículo {placa} ya está en proceso de reparación en Taller Servi Motors.",
@@ -2050,6 +2063,11 @@ the data-access layer at all.
   var clientesCacheOrden = [];
   var clienteExistenteIdOrden = null;
   var ordenActual = null; // { id_ot, numero_ot }
+  // Evita recalcular (y pisar lo que la persona ya haya cambiado) la
+  // sugerencia de próximo mantenimiento en cada refresco automático; se
+  // reinicia solo al abrir una orden desde cero (ver abrirOrdenExistente y
+  // btn-ir-items).
+  var sugerenciaMantenimientoCalculada = false;
   var canvas, ctx, dibujando = false;
   var graficoMensual = null;
   var graficoEstados = null;
@@ -2459,6 +2477,7 @@ the data-access layer at all.
 
   function abrirOrdenExistente(idOt, numeroOt) {
     ordenActual = { id_ot: idOt, numero_ot: numeroOt };
+    sugerenciaMantenimientoCalculada = false;
     ["tarjeta-buscar", "tarjeta-encontrado", "tarjeta-nuevo", "tarjeta-asignar", "tarjeta-exito", "tarjeta-firma", "tarjeta-firma-exito"].forEach(function (id) {
       $(id).classList.add("oculto");
     });
@@ -3273,7 +3292,7 @@ the data-access layer at all.
     return limpio;
   }
 
-  function crearBotonWhatsApp(telefono, mensaje) {
+  function crearBotonWhatsApp(telefono, mensaje, alHacerClic) {
     var numero = telefonoWhatsApp(telefono);
     var btn = document.createElement("button");
     btn.type = "button";
@@ -3285,6 +3304,11 @@ the data-access layer at all.
       btn.textContent = "WhatsApp";
       btn.addEventListener("click", function () {
         window.open("https://wa.me/" + numero + "?text=" + encodeURIComponent(mensaje), "_blank");
+        // Efecto extra opcional (ej. marcar como contactado). No debe
+        // impedir que el WhatsApp ya se haya abierto si falla.
+        if (alHacerClic) {
+          try { alHacerClic(); } catch (err) { console.error(err); }
+        }
       });
     }
     return btn;
@@ -3397,10 +3421,13 @@ the data-access layer at all.
     filas.forEach(function (v) {
       var meses = Math.floor(v.dias_desde_ultima_visita / 30);
       var mensaje, detalle;
-      if (v.tiene_fecha_recomendada) {
+      if (v.tiene_fecha_recomendada && v.proximo_mantenimiento_fecha && new Date(v.proximo_mantenimiento_fecha + "T00:00:00") <= new Date()) {
         var fechaRecomendada = formatoFechaCorta(new Date(v.proximo_mantenimiento_fecha + "T00:00:00"));
         mensaje = aplicarPlantilla("mantenimiento_fecha", { cliente: v.cliente_nombre, placa: v.placa, fecha: fechaRecomendada });
         detalle = "Mantenimiento recomendado para el " + fechaRecomendada;
+      } else if (v.cumplio_por_km) {
+        mensaje = aplicarPlantilla("mantenimiento_km", { cliente: v.cliente_nombre, placa: v.placa, km: Number(v.proximo_mantenimiento_km).toLocaleString("es-CO"), actual: Number(v.kilometraje).toLocaleString("es-CO") });
+        detalle = "Mantenimiento recomendado a los " + Number(v.proximo_mantenimiento_km).toLocaleString("es-CO") + " km (ya va en " + Number(v.kilometraje).toLocaleString("es-CO") + " km)";
       } else {
         mensaje = aplicarPlantilla("mantenimiento_estimado", { cliente: v.cliente_nombre, placa: v.placa });
         detalle = "Última visita hace " + meses + " meses (" + v.dias_desde_ultima_visita + " días) — estimado, confirma antes de contactar";
@@ -3410,7 +3437,14 @@ the data-access layer at all.
       fila.innerHTML =
         "<span><b>" + v.cliente_nombre + "</b> <span class=\"fila-detalle\">" + v.placa + (v.marca ? " · " + [v.marca, v.modelo].filter(Boolean).join(" ") : "") + "</span><br>" +
         "<span class=\"fila-detalle\">" + detalle + "</span></span>";
-      fila.appendChild(crearBotonWhatsApp(v.cliente_telefono, mensaje));
+      fila.appendChild(crearBotonWhatsApp(v.cliente_telefono, mensaje, function () {
+        // Al abrir WhatsApp se marca como "ya contactado": no vuelve a
+        // aparecer acá hasta que se defina un nuevo próximo mantenimiento
+        // (se resetea solo al cerrar la siguiente orden de este vehículo).
+        restRequest("PATCH", "vehiculos", { query: "id_vehiculo=eq." + v.id_vehiculo, body: { recordatorio_mantenimiento_enviado_en: new Date().toISOString() } })
+          .then(function () { fila.remove(); })
+          .catch(function (err) { console.error(err); });
+      }));
       cont.appendChild(fila);
     });
   }
@@ -4695,7 +4729,7 @@ the data-access layer at all.
       restRequest("GET", "empleados", { query: "select=*,usuarios(nombre,rol,correo)&order=creado_en.desc" }),
       restRequest("GET", "usuarios", { query: "select=id_usuario,nombre,rol&estado=eq.activo&order=nombre.asc" }),
       restRequest("GET", "prestamos", { query: "select=*,empleados(nombre,usuarios(nombre))&order=fecha.desc" }),
-      restRequest("GET", "parametros_taller", { query: "select=nombre_taller,nit,direccion,telefono,regimen_tributario,responsable_iva,horarios_semana,prefijo_ot,prefijo_factura,monto_fondo_caja_menor,enlace_resenas&id=eq.1" }),
+      restRequest("GET", "parametros_taller", { query: "select=nombre_taller,nit,direccion,telefono,regimen_tributario,responsable_iva,horarios_semana,prefijo_ot,prefijo_factura,monto_fondo_caja_menor,enlace_resenas,dias_sin_visita_mantenimiento&id=eq.1" }),
       restRequest("GET", "plantillas_mensajes", { query: "select=*&order=etiqueta.asc" })
     ]).then(function (r) {
       var empleados = r[0] || [];
@@ -4715,6 +4749,7 @@ the data-access layer at all.
       $("taller-prefijo-factura").value = datosTaller.prefijo_factura || "";
       $("taller-fondo-caja-menor").value = (datosTaller.monto_fondo_caja_menor || datosTaller.monto_fondo_caja_menor === 0) ? datosTaller.monto_fondo_caja_menor : "";
       $("taller-enlace-resenas").value = datosTaller.enlace_resenas || "";
+      $("taller-dias-sin-visita").value = datosTaller.dias_sin_visita_mantenimiento || 150;
       renderizarTablaJornada(datosTaller.horarios_semana || {});
 
       var listaEmp = $("lista-empleados");
@@ -4793,12 +4828,18 @@ the data-access layer at all.
     var fondoCajaMenorTexto = $("taller-fondo-caja-menor").value.trim();
     var fondoCajaMenor = fondoCajaMenorTexto === "" ? 0 : parseFloat(fondoCajaMenorTexto);
     var enlaceResenas = $("taller-enlace-resenas").value.trim();
+    var diasSinVisitaTexto = $("taller-dias-sin-visita").value.trim();
+    var diasSinVisita = diasSinVisitaTexto === "" ? 150 : parseInt(diasSinVisitaTexto, 10);
     if (!nombre) {
       mostrarError("datos-taller-error", "Escribe el nombre del taller.");
       return;
     }
     if (!(fondoCajaMenor >= 0)) {
       mostrarError("datos-taller-error", "El fondo de caja menor debe ser un número válido (0 o mayor).");
+      return;
+    }
+    if (!(diasSinVisita > 0)) {
+      mostrarError("datos-taller-error", "Los días sin visita para el recordatorio de mantenimiento deben ser un número mayor a 0.");
       return;
     }
     return restRequest("PATCH", "parametros_taller", {
@@ -4813,7 +4854,8 @@ the data-access layer at all.
         prefijo_ot: prefOT,
         prefijo_factura: prefFactura,
         monto_fondo_caja_menor: fondoCajaMenor,
-        enlace_resenas: enlaceResenas || null
+        enlace_resenas: enlaceResenas || null,
+        dias_sin_visita_mantenimiento: diasSinVisita
       }
     }).then(function () {
       prefijoOT = prefOT;
@@ -5759,7 +5801,7 @@ the data-access layer at all.
 
   function renderizarListaServicios(servicios) {
     var cuerpo = $("cuerpo-tabla-servicios");
-    cuerpo.innerHTML = servicios.length ? "" : "<tr><td colspan=\"5\" class=\"tabla-vacia\">Todavía no tienes servicios cargados.</td></tr>";
+    cuerpo.innerHTML = servicios.length ? "" : "<tr><td colspan=\"6\" class=\"tabla-vacia\">Todavía no tienes servicios cargados.</td></tr>";
     servicios.forEach(function (s) {
       var tr = document.createElement("tr");
       var tdNombre = document.createElement("td");
@@ -5768,6 +5810,11 @@ the data-access layer at all.
       tdDescripcion.textContent = s.descripcion || "—";
       var tdTiempo = document.createElement("td");
       tdTiempo.textContent = s.tiempo_estimado_horas ? horasAMinutos(s.tiempo_estimado_horas) : "—";
+      var tdFrecuencia = document.createElement("td");
+      var partesFrecuencia = [];
+      if (s.frecuencia_meses) partesFrecuencia.push("cada " + s.frecuencia_meses + " " + (s.frecuencia_meses === 1 ? "mes" : "meses"));
+      if (s.frecuencia_km) partesFrecuencia.push("cada " + s.frecuencia_km.toLocaleString("es-CO") + " km");
+      tdFrecuencia.textContent = partesFrecuencia.length ? partesFrecuencia.join(" · ") : "—";
       var tdEstado = document.createElement("td");
       tdEstado.textContent = s.activo ? "Activo" : "Inactivo";
       tdEstado.style.color = s.activo ? "var(--verde)" : "#b45309";
@@ -5775,6 +5822,7 @@ the data-access layer at all.
       tr.appendChild(tdNombre);
       tr.appendChild(tdDescripcion);
       tr.appendChild(tdTiempo);
+      tr.appendChild(tdFrecuencia);
       tr.appendChild(tdEstado);
 
       var tdAcciones = document.createElement("td");
@@ -5813,6 +5861,8 @@ the data-access layer at all.
     $("servicio-nombre").value = "";
     $("servicio-descripcion").value = "";
     $("servicio-tiempo-estimado").value = "";
+    $("servicio-frecuencia-meses").value = "";
+    $("servicio-frecuencia-km").value = "";
     $("servicio-activo").checked = true;
 
     var promesa = servicioEditandoId
@@ -5822,6 +5872,8 @@ the data-access layer at all.
           $("servicio-nombre").value = s.nombre;
           $("servicio-descripcion").value = s.descripcion || "";
           $("servicio-tiempo-estimado").value = s.tiempo_estimado_horas || "";
+          $("servicio-frecuencia-meses").value = s.frecuencia_meses || "";
+          $("servicio-frecuencia-km").value = s.frecuencia_km || "";
           $("servicio-activo").checked = s.activo;
         })
       : Promise.resolve();
@@ -5849,10 +5901,14 @@ the data-access layer at all.
       return;
     }
     var tiempoTexto = $("servicio-tiempo-estimado").value;
+    var frecuenciaMesesTexto = $("servicio-frecuencia-meses").value;
+    var frecuenciaKmTexto = $("servicio-frecuencia-km").value;
     var body = {
       nombre: nombre,
       descripcion: $("servicio-descripcion").value.trim() || null,
       tiempo_estimado_horas: tiempoTexto ? parseFloat(tiempoTexto) : null,
+      frecuencia_meses: frecuenciaMesesTexto ? parseInt(frecuenciaMesesTexto, 10) : null,
+      frecuencia_km: frecuenciaKmTexto ? parseInt(frecuenciaKmTexto, 10) : null,
       activo: $("servicio-activo").checked
     };
     var peticion;
@@ -6121,7 +6177,7 @@ the data-access layer at all.
 
   function cargarServiciosParaOrden() {
     return restRequest("GET", "servicios_catalogo", {
-      query: "select=nombre,tiempo_estimado_horas&activo=eq.true&order=nombre.asc"
+      query: "select=nombre,tiempo_estimado_horas,frecuencia_meses,frecuencia_km&activo=eq.true&order=nombre.asc"
     }).then(function (servicios) {
       serviciosCatalogoCache = servicios || [];
       var lista = $("lista-servicios-mano-obra");
@@ -7591,6 +7647,7 @@ the data-access layer at all.
     if (nuevoEstado === "cerrada") {
       body.fecha_cierre = new Date().toISOString();
       body.proximo_mantenimiento_fecha = $("orden-proximo-mantenimiento").value || null;
+      body.proximo_mantenimiento_km = $("orden-proximo-mantenimiento-km").value ? parseInt($("orden-proximo-mantenimiento-km").value, 10) : null;
     }
     if (camposExtra) {
       for (var clave in camposExtra) { body[clave] = camposExtra[clave]; }
@@ -7698,6 +7755,34 @@ the data-access layer at all.
     });
   }, "responsables-error"));
 
+  // Sugiere fecha y/o kilometraje del próximo mantenimiento cruzando los
+  // nombres de mano de obra de esta orden con la frecuencia configurada en
+  // Servicios (Gestión → Servicios). Si varios servicios de la orden tienen
+  // frecuencia, se usa la más próxima (el número menor). Coincide por
+  // nombre exacto, igual que el autocompletado de horas estimadas.
+  function calcularSugerenciaProximoMantenimiento() {
+    var nombres = ordenActual.manoDeObraNombres || [];
+    var mesesCandidatos = [];
+    var kmCandidatos = [];
+    nombres.forEach(function (nombre) {
+      var match = serviciosCatalogoCache.find(function (s) { return s.nombre === nombre; });
+      if (match && match.frecuencia_meses) mesesCandidatos.push(match.frecuencia_meses);
+      if (match && match.frecuencia_km) kmCandidatos.push(match.frecuencia_km);
+    });
+    var sugerencia = { fecha: null, km: null };
+    if (mesesCandidatos.length) {
+      var minMeses = Math.min.apply(null, mesesCandidatos);
+      var fecha = new Date();
+      fecha.setMonth(fecha.getMonth() + minMeses);
+      sugerencia.fecha = fecha.toISOString().slice(0, 10);
+    }
+    if (kmCandidatos.length && (ordenActual.vehiculoKilometraje || ordenActual.vehiculoKilometraje === 0)) {
+      var minKm = Math.min.apply(null, kmCandidatos);
+      sugerencia.km = ordenActual.vehiculoKilometraje + minKm;
+    }
+    return sugerencia;
+  }
+
   function renderizarEstadoOrden() {
     $("estado-orden-info").textContent = "Estado actual: " + (ETIQUETAS_ESTADO_ORDEN[ordenActual.estado] || ordenActual.estado);
     $("estado-orden-notificar").innerHTML = "";
@@ -7747,7 +7832,24 @@ the data-access layer at all.
     }
     if (ordenActual.estado === "listo_entrega" && esAdminOAsesor) {
       $("grupo-proximo-mantenimiento").classList.remove("oculto");
-      if (document.activeElement !== $("orden-proximo-mantenimiento")) $("orden-proximo-mantenimiento").value = "";
+      // Solo se calcula la sugerencia una vez por orden abierta (no en cada
+      // refresco automático de 5s), y nunca si la persona está justo
+      // escribiendo en alguno de los dos campos — igual que el resto de
+      // campos que conviven con el auto-refresco.
+      var enfocado = document.activeElement === $("orden-proximo-mantenimiento") || document.activeElement === $("orden-proximo-mantenimiento-km");
+      if (!sugerenciaMantenimientoCalculada && !enfocado) {
+        var sugerencia = calcularSugerenciaProximoMantenimiento();
+        $("orden-proximo-mantenimiento").value = sugerencia.fecha || "";
+        $("orden-proximo-mantenimiento-km").value = sugerencia.km || "";
+        var nota = $("proximo-mantenimiento-sugerencia-nota");
+        if (sugerencia.fecha || sugerencia.km) {
+          nota.textContent = "Sugerido automáticamente según los servicios de esta orden con frecuencia configurada. Puedes cambiarlo o dejarlo vacío.";
+          nota.classList.remove("oculto");
+        } else {
+          nota.classList.add("oculto");
+        }
+        sugerenciaMantenimientoCalculada = true;
+      }
       agregarBotonEstado(cont, "Registrar entrega y cerrar orden", function () {
         mostrarPantallaEntrega();
       });
@@ -7952,6 +8054,12 @@ the data-access layer at all.
         ordenActual.idTecnico = orden.id_tecnico || null;
         ordenActual.asesorNombre = orden.asesor ? orden.asesor.nombre : null;
         ordenActual.tecnicoNombre = orden.tecnico ? orden.tecnico.nombre : null;
+        ordenActual.vehiculoKilometraje = orden.vehiculos ? orden.vehiculos.kilometraje : null;
+        // Se calcula acá (antes de renderizarEstadoOrden) porque la sugerencia
+        // automática de próximo mantenimiento la necesita: qué servicios de
+        // mano de obra tiene esta orden, para cruzarlos con la frecuencia
+        // configurada en Servicios.
+        ordenActual.manoDeObraNombres = filas.filter(function (f) { return f.items.tipo === "mano_obra"; }).map(function (f) { return f.items.nombre; });
         renderizarEstadoOrden();
         renderizarResponsablesOrden();
         renderizarDatosClienteVehiculo(orden);
@@ -8362,6 +8470,7 @@ the data-access layer at all.
     $("tarjeta-exito").classList.add("oculto");
     $("tarjeta-items").classList.remove("oculto");
     $("orden-responsables-editar").classList.add("oculto");
+    sugerenciaMantenimientoCalculada = false;
     reiniciarSelectorStockPartes();
     return Promise.all([cargarPrecioManoObraActual(), cargarItemsStockPara($("pa-tipo").value), cargarCatalogoTrabajosExternos(), cargarCombosParaOrden(), cargarServiciosParaOrden()]).then(cargarItemsDeOrden);
   }, "item-error"));
