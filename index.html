@@ -291,7 +291,9 @@ the data-access layer at all.
         <h2>Abrir nueva orden</h2>
         <h3>Paso 1: busca el vehículo por placa</h3>
         <label for="buscar-placa">Placa</label>
-        <input id="buscar-placa" type="text" placeholder="Ej. ABC123" style="text-transform:uppercase">
+        <input id="buscar-placa" type="text" placeholder="Ej. ABC123" style="text-transform:uppercase" list="lista-placas-existentes" autocomplete="off">
+        <datalist id="lista-placas-existentes"></datalist>
+        <div class="nota-ayuda">Empieza a escribir y te mostramos las placas ya registradas para que elijas, sin tener que buscar de nuevo.</div>
         <button id="btn-buscar">Buscar vehículo</button>
         <div id="buscar-error" class="mensaje-error"></div>
       </div>
@@ -2370,6 +2372,23 @@ the data-access layer at all.
       $(id).classList.add("oculto");
     });
     $("tarjeta-buscar").classList.remove("oculto");
+    cargarListaPlacasExistentes().catch(function (err) { console.error(err); });
+  }
+
+  // Lista de placas ya registradas, para mostrarlas como sugerencia apenas
+  // el usuario empieza a escribir en "buscar-placa" (autocompletar del
+  // navegador vía <datalist>). Así evita registrar un vehículo duplicado o
+  // repetir una consulta de placa (RUNT) que ya se hizo antes.
+  function cargarListaPlacasExistentes() {
+    return restRequest("GET", "vehiculos", { query: "select=placa&order=placa.asc" }).then(function (filas) {
+      var lista = $("lista-placas-existentes");
+      lista.innerHTML = "";
+      (filas || []).forEach(function (v) {
+        var opt = document.createElement("option");
+        opt.value = v.placa;
+        lista.appendChild(opt);
+      });
+    });
   }
 
   // =====================================================================
