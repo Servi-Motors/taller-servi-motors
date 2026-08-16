@@ -1797,6 +1797,10 @@ the data-access layer at all.
     .pagina:not(.pagina-ancha) > h1,
     .pagina:not(.pagina-ancha) > .mensaje-error,
     #tarjeta-tablero-ordenes { grid-column: 1 / -1; }
+    /* Si la página solo tiene una tarjeta (ej. un formulario simple como
+       "Registrar gasto"), que no quede pegada a la izquierda con la otra
+       mitad de la pantalla vacía: se centra con un ancho cómodo de leer. */
+    .pagina:not(.pagina-ancha) > .tarjeta:only-child { grid-column: 1 / -1; max-width: 560px; margin: 0 auto; }
   }
 
   .grid-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 10px; }
