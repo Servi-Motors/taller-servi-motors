@@ -6968,15 +6968,50 @@ the data-access layer at all.
       }, "facturacion-error"));
       tdAcciones.appendChild(btnVer);
 
+      // El formulario de pago (forma de pago, crédito, pago dividido) ya no
+      // va apretado dentro de esta celda: se abre debajo, en una fila que
+      // ocupa todo el ancho de la tabla (todo el ancho de la pantalla en
+      // Facturación, que es una pantalla ancha), para no tener que hacer
+      // scroll para verlo completo.
+      var filaExpandida = null;
       if (f.estado_pago === "pendiente" && esAdminOAsesor) {
+        var btnGestionarPago = document.createElement("button");
+        btnGestionarPago.type = "button";
+        btnGestionarPago.className = "secundario";
+        btnGestionarPago.textContent = "Gestionar pago";
+        tdAcciones.appendChild(btnGestionarPago);
+
+        filaExpandida = document.createElement("tr");
+        var tdExpandida = document.createElement("td");
+        tdExpandida.colSpan = 8;
+        tdExpandida.style.background = "var(--gris-claro)";
+        tdExpandida.style.padding = "12px 14px";
+        var tituloExpandida = document.createElement("div");
+        tituloExpandida.style.fontWeight = "600";
+        tituloExpandida.style.marginBottom = "8px";
+        tituloExpandida.textContent = "Gestionar pago — Factura " + (f.numero_factura ? prefijoFactura + f.numero_factura : prefijoOT + f.numero_ot);
+        tdExpandida.appendChild(tituloExpandida);
+        filaExpandida.appendChild(tdExpandida);
+        filaExpandida.classList.add("oculto");
+
+        btnGestionarPago.addEventListener("click", function () {
+          var abierta = !filaExpandida.classList.contains("oculto");
+          filaExpandida.classList.toggle("oculto", abierta);
+          btnGestionarPago.textContent = abierta ? "Gestionar pago" : "Ocultar";
+        });
+
+        var contPagoSimple = document.createElement("div");
+        contPagoSimple.className = "agenda-controles";
+        tdExpandida.appendChild(contPagoSimple);
+
         var selFormaPago = document.createElement("select");
-        selFormaPago.style.marginRight = "6px";
+        selFormaPago.style.width = "auto";
         selFormaPago.innerHTML =
           '<option value="efectivo">Efectivo</option>' +
           '<option value="tarjeta">Tarjeta</option>' +
           '<option value="transferencia">Transferencia</option>' +
           '<option value="credito">Crédito</option>';
-        tdAcciones.appendChild(selFormaPago);
+        contPagoSimple.appendChild(selFormaPago);
 
         var fechaBaseVenc = f.fecha_cierre ? new Date(f.fecha_cierre) : new Date();
         var fechaMaxVenc = new Date(fechaBaseVenc);
@@ -6987,16 +7022,15 @@ the data-access layer at all.
         inputVencimiento.type = "date";
         inputVencimiento.max = maxVencISO;
         inputVencimiento.value = maxVencISO;
-        inputVencimiento.style.marginRight = "6px";
         inputVencimiento.style.width = "auto";
         inputVencimiento.classList.add("oculto");
-        tdAcciones.appendChild(inputVencimiento);
+        contPagoSimple.appendChild(inputVencimiento);
 
         var btnPagada = document.createElement("button");
         btnPagada.type = "button";
         btnPagada.className = "secundario";
         btnPagada.textContent = "Marcar como pagada";
-        tdAcciones.appendChild(btnPagada);
+        contPagoSimple.appendChild(btnPagada);
 
         selFormaPago.addEventListener("change", function () {
           var esCredito = selFormaPago.value === "credito";
@@ -7035,7 +7069,7 @@ the data-access layer at all.
         etqDividir.style.marginTop = "6px";
         etqDividir.innerHTML = '<input type="checkbox" style="width:auto;margin-right:4px;">Pago dividido (efectivo + tarjeta + transferencia)';
         var chkDividir = etqDividir.querySelector("input");
-        tdAcciones.appendChild(etqDividir);
+        tdExpandida.appendChild(etqDividir);
 
         var contDividir = document.createElement("div");
         contDividir.classList.add("oculto");
@@ -7058,7 +7092,7 @@ the data-access layer at all.
         btnConfirmarDividido.className = "secundario";
         btnConfirmarDividido.textContent = "Confirmar pago dividido";
         [inpEfectivo, inpTarjeta, inpTransferencia, pFalta, btnConfirmarDividido].forEach(function (el) { contDividir.appendChild(el); });
-        tdAcciones.appendChild(contDividir);
+        tdExpandida.appendChild(contDividir);
 
         function actualizarFalta() {
           var suma = (parseFloat(inpEfectivo.value) || 0) + (parseFloat(inpTarjeta.value) || 0) + (parseFloat(inpTransferencia.value) || 0);
@@ -7107,6 +7141,7 @@ the data-access layer at all.
       }
       tr.appendChild(tdAcciones);
       tbody.appendChild(tr);
+      if (filaExpandida) tbody.appendChild(filaExpandida);
     });
   }
 
