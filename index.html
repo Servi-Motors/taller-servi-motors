@@ -1114,25 +1114,39 @@ the data-access layer at all.
         <div class="tabla-toolbar">
           <button type="button" id="btn-nuevo-servicio">+ Nuevo servicio</button>
         </div>
-        <div id="lista-servicios"></div>
-      </div>
-
-      <div class="tarjeta tarjeta-formulario oculto" id="tarjeta-form-servicio">
-        <h2 id="servicio-form-titulo">Nuevo servicio</h2>
-        <label for="servicio-nombre">Nombre del servicio</label>
-        <input id="servicio-nombre" type="text" placeholder="Ej. Cambio de pastillas de freno">
-        <label for="servicio-descripcion">Descripción (opcional)</label>
-        <textarea id="servicio-descripcion" rows="2" placeholder="Ej. Incluye revisión de discos y limpieza de mordazas"></textarea>
-        <label for="servicio-tiempo-estimado">Tiempo estimado (horas, opcional)</label>
-        <input id="servicio-tiempo-estimado" type="number" min="0" step="0.25" placeholder="Ej. 1.5">
-        <label style="display:flex;align-items:center;gap:8px;">
-          <input type="checkbox" id="servicio-activo" style="width:auto;margin:0;" checked>
-          Servicio activo (disponible para usar en órdenes)
-        </label>
-        <button type="button" id="btn-guardar-servicio">Guardar servicio</button>
-        <button type="button" class="secundario" id="btn-cancelar-servicio">Cancelar</button>
+        <div class="tabla-scroll">
+          <table class="tabla-datos" id="tabla-servicios">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Descripción</th>
+                <th>Tiempo estimado</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="cuerpo-tabla-servicios"></tbody>
+          </table>
+        </div>
       </div>
     </section>
+
+    <div id="fondo-form-servicio" class="oculto"></div>
+    <div class="tarjeta tarjeta-formulario tarjeta-modal oculto" id="tarjeta-form-servicio">
+      <h2 id="servicio-form-titulo">Nuevo servicio</h2>
+      <label for="servicio-nombre">Nombre del servicio</label>
+      <input id="servicio-nombre" type="text" placeholder="Ej. Cambio de pastillas de freno">
+      <label for="servicio-descripcion">Descripción (opcional)</label>
+      <textarea id="servicio-descripcion" rows="2" placeholder="Ej. Incluye revisión de discos y limpieza de mordazas"></textarea>
+      <label for="servicio-tiempo-estimado">Tiempo estimado (horas, opcional)</label>
+      <input id="servicio-tiempo-estimado" type="number" min="0" step="0.25" placeholder="Ej. 1.5">
+      <label style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="servicio-activo" style="width:auto;margin:0;" checked>
+        Servicio activo (disponible para usar en órdenes)
+      </label>
+      <button type="button" id="btn-guardar-servicio">Guardar servicio</button>
+      <button type="button" class="secundario" id="btn-cancelar-servicio">Cancelar</button>
+    </div>
 
     <section id="pantalla-combos" class="pagina oculto">
       <h1>Combos de servicio</h1>
@@ -1723,6 +1737,21 @@ the data-access layer at all.
   .pagina:not(.pagina-ancha) { max-width: 560px; }
   .pagina-ancha { max-width: 1500px; }
   .tarjeta-formulario { max-width: 560px; }
+  /* Formulario tipo ventana emergente: queda fijo y centrado en la pantalla
+     (no se mueve al escribir ni con el resto de la página) y se puede
+     desplazar solo internamente si el contenido no cabe. */
+  #fondo-form-servicio.visible { display: block; position: fixed; inset: 0; background: rgba(17,24,39,.45); z-index: 40; }
+  .tarjeta-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 41;
+    width: 92%;
+    max-height: 88vh;
+    overflow-y: auto;
+    margin: 0;
+  }
   .tarjeta-orden-ancha { max-width: 100% !important; grid-column: 1 / -1; }
   .datos-orden-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-bottom: 6px; }
   .denominaciones-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; margin-bottom: 6px; }
@@ -2113,6 +2142,11 @@ the data-access layer at all.
     $("titulo-pagina-movil").textContent = TITULOS_PAGINA[nombre] || "Taller Servi Motors";
     cerrarMenuMovil();
     window.scrollTo({ top: 0 });
+    // El formulario de Servicios es un modal independiente del contenido de
+    // la página (para que quede fijo y centrado): hay que cerrarlo a mano
+    // al cambiar de pantalla, si no se queda flotando encima de todo.
+    $("tarjeta-form-servicio").classList.add("oculto");
+    $("fondo-form-servicio").classList.add("oculto");
 
     var promesa = null;
     if (nombre === "inicio") promesa = cargarInicio();
@@ -5367,21 +5401,31 @@ the data-access layer at all.
   }
 
   function renderizarListaServicios(servicios) {
-    var cont = $("lista-servicios");
-    cont.innerHTML = servicios.length ? "" : "<p class=\"nota-ayuda\">Todavía no tienes servicios cargados.</p>";
+    var cuerpo = $("cuerpo-tabla-servicios");
+    cuerpo.innerHTML = servicios.length ? "" : "<tr><td colspan=\"5\" class=\"tabla-vacia\">Todavía no tienes servicios cargados.</td></tr>";
     servicios.forEach(function (s) {
-      var fila = document.createElement("div");
-      fila.className = "fila-renglon";
-      fila.innerHTML =
-        "<span>" + s.nombre + (s.activo ? "" : " <span class=\"fila-detalle\">(inactivo)</span>") +
-        (s.descripcion ? "<br><span class=\"fila-detalle\">" + s.descripcion + "</span>" : "") +
-        (s.tiempo_estimado_horas ? "<br><span class=\"fila-detalle\">Tiempo estimado: " + horasAMinutos(s.tiempo_estimado_horas) + "</span>" : "") + "</span>";
-      var contBotones = document.createElement("span");
+      var tr = document.createElement("tr");
+      var tdNombre = document.createElement("td");
+      tdNombre.textContent = s.nombre;
+      var tdDescripcion = document.createElement("td");
+      tdDescripcion.textContent = s.descripcion || "—";
+      var tdTiempo = document.createElement("td");
+      tdTiempo.textContent = s.tiempo_estimado_horas ? horasAMinutos(s.tiempo_estimado_horas) : "—";
+      var tdEstado = document.createElement("td");
+      tdEstado.textContent = s.activo ? "Activo" : "Inactivo";
+      tdEstado.style.color = s.activo ? "var(--verde)" : "#b45309";
+      tdEstado.style.fontWeight = "600";
+      tr.appendChild(tdNombre);
+      tr.appendChild(tdDescripcion);
+      tr.appendChild(tdTiempo);
+      tr.appendChild(tdEstado);
+
+      var tdAcciones = document.createElement("td");
       var btnEditar = document.createElement("button");
       btnEditar.type = "button";
       btnEditar.textContent = "Editar";
       btnEditar.addEventListener("click", conManejoDeErrores(function () { return abrirFormularioServicio(s.id_servicio); }, "servicios-error"));
-      contBotones.appendChild(btnEditar);
+      tdAcciones.appendChild(btnEditar);
       var btnActivar = document.createElement("button");
       btnActivar.type = "button";
       btnActivar.className = "secundario";
@@ -5389,7 +5433,7 @@ the data-access layer at all.
       btnActivar.addEventListener("click", conManejoDeErrores(function () {
         return restRequest("PATCH", "servicios_catalogo", { query: "id_servicio=eq." + s.id_servicio, body: { activo: !s.activo } }).then(cargarServicios);
       }, "servicios-error"));
-      contBotones.appendChild(btnActivar);
+      tdAcciones.appendChild(btnActivar);
       var btnEliminar = document.createElement("button");
       btnEliminar.type = "button";
       btnEliminar.className = "secundario";
@@ -5399,9 +5443,9 @@ the data-access layer at all.
         if (!window.confirm("¿Eliminar el servicio \"" + s.nombre + "\"? No se puede deshacer.")) return;
         return restRequest("DELETE", "servicios_catalogo", { query: "id_servicio=eq." + s.id_servicio }).then(cargarServicios);
       }, "servicios-error"));
-      contBotones.appendChild(btnEliminar);
-      fila.appendChild(contBotones);
-      cont.appendChild(fila);
+      tdAcciones.appendChild(btnEliminar);
+      tr.appendChild(tdAcciones);
+      cuerpo.appendChild(tr);
     });
   }
 
@@ -5427,14 +5471,18 @@ the data-access layer at all.
 
     return promesa.then(function () {
       $("tarjeta-form-servicio").classList.remove("oculto");
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      $("fondo-form-servicio").classList.add("visible");
     });
   }
 
-  $("btn-nuevo-servicio").addEventListener("click", conManejoDeErrores(function () { return abrirFormularioServicio(null); }, "servicios-error"));
-  $("btn-cancelar-servicio").addEventListener("click", function () {
+  function cerrarFormularioServicio() {
     $("tarjeta-form-servicio").classList.add("oculto");
-  });
+    $("fondo-form-servicio").classList.remove("visible");
+  }
+
+  $("btn-nuevo-servicio").addEventListener("click", conManejoDeErrores(function () { return abrirFormularioServicio(null); }, "servicios-error"));
+  $("btn-cancelar-servicio").addEventListener("click", cerrarFormularioServicio);
+  $("fondo-form-servicio").addEventListener("click", cerrarFormularioServicio);
 
   $("btn-guardar-servicio").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("servicios-error");
@@ -5458,7 +5506,7 @@ the data-access layer at all.
       peticion = restRequest("POST", "servicios_catalogo", { body: body });
     }
     return peticion.then(function () {
-      $("tarjeta-form-servicio").classList.add("oculto");
+      cerrarFormularioServicio();
       return cargarServicios();
     });
   }, "servicios-error"));
