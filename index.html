@@ -3920,11 +3920,15 @@ the data-access layer at all.
       var btnVer = document.createElement("button");
       btnVer.type = "button";
       btnVer.className = "secundario";
-      btnVer.textContent = "Ver orden";
-      btnVer.addEventListener("click", function () {
-        mostrarPagina("app");
-        abrirOrdenExistente(o.id_ot, o.numero_ot).catch(function (err) { console.error(err); });
-      });
+      btnVer.textContent = "Ver PDF";
+      btnVer.addEventListener("click", conManejoDeErrores(function () {
+        ocultarError("historial-error");
+        var ordenActualAnterior = ordenActual;
+        ordenActual = { id_ot: o.id_ot, numero_ot: o.numero_ot, estado: o.estado };
+        return imprimirOrdenActual(o.estado === "cerrada" ? "factura" : "cotizacion", "historial-error").then(function () {
+          ordenActual = ordenActualAnterior;
+        });
+      }, "historial-error"));
       tdAcciones.appendChild(btnVer);
       tr.appendChild(tdAcciones);
       cuerpo.appendChild(tr);
