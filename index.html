@@ -2440,6 +2440,7 @@ the data-access layer at all.
       $(id).classList.add("oculto");
     });
     $("tarjeta-items").classList.remove("oculto");
+    $("orden-responsables-editar").classList.add("oculto");
     window.scrollTo({ top: 0, behavior: "smooth" });
     // Estos dos pasos son indispensables antes de poder agregar ítems: sin ellos
     // "Agregar mano de obra" falla (precio no cargado) y el selector de stock
@@ -7565,11 +7566,16 @@ the data-access layer at all.
   // asesor/administrador puede hacerlo, y solo mientras la orden no esté
   // cerrada (para no alterar de forma retroactiva una orden que ya se usó
   // para calcular nómina).
+  // OJO: esta función se llama tanto al abrir la orden como cada vez que el
+  // refresco automático (cada 5s) vuelve a cargar la orden — por eso NO debe
+  // tocar la visibilidad de #orden-responsables-editar aquí; si no, el
+  // formulario se cerraría solo mientras la persona todavía está eligiendo
+  // el técnico nuevo. Ese formulario solo se abre/cierra desde sus propios
+  // botones (Cambiar / Guardar / Cancelar) o al entrar a una orden distinta.
   function renderizarResponsablesOrden() {
     var esAdminOAsesor = rolActual === "administrador" || rolActual === "asesor";
     $("orden-responsables-info").textContent = "Asesor: " + (ordenActual.asesorNombre || "—") + " · Técnico: " + (ordenActual.tecnicoNombre || "—");
     $("btn-editar-responsables").classList.toggle("oculto", !esAdminOAsesor || ordenActual.estado === "cerrada");
-    $("orden-responsables-editar").classList.add("oculto");
   }
 
   function cargarSelectResponsablesEdicion() {
@@ -8291,6 +8297,7 @@ the data-access layer at all.
   $("btn-ir-items").addEventListener("click", conManejoDeErrores(function () {
     $("tarjeta-exito").classList.add("oculto");
     $("tarjeta-items").classList.remove("oculto");
+    $("orden-responsables-editar").classList.add("oculto");
     reiniciarSelectorStockPartes();
     return Promise.all([cargarPrecioManoObraActual(), cargarItemsStockPara($("pa-tipo").value), cargarCatalogoTrabajosExternos(), cargarCombosParaOrden(), cargarServiciosParaOrden()]).then(cargarItemsDeOrden);
   }, "item-error"));
