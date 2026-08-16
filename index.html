@@ -131,6 +131,7 @@ the data-access layer at all.
 
     <div class="nav-seccion">Stock</div>
     <a href="#" class="nav-link oculto" id="nav-inventario" data-pagina="inventario">📦 Inventario</a>
+    <a href="#" class="nav-link oculto" id="nav-servicios" data-pagina="servicios">🔧 Servicios</a>
     <a href="#" class="nav-link oculto" id="nav-combos" data-pagina="combos">🧩 Combos de servicio</a>
 
     <div class="nav-seccion">Contabilidad</div>
@@ -461,7 +462,7 @@ the data-access layer at all.
             <tfoot>
               <tr class="fila-agregar">
                 <td><input id="mo-codigo" type="text" placeholder="Cód."></td>
-                <td><input id="mo-nombre" type="text" placeholder="Ej. Cambio de pastillas"></td>
+                <td><input id="mo-nombre" type="text" placeholder="Ej. Cambio de pastillas" list="lista-servicios-mano-obra" autocomplete="off"><datalist id="lista-servicios-mano-obra"></datalist></td>
                 <td><input id="mo-horas" type="number" min="0.01" step="0.01" value="1"></td>
                 <td><input id="mo-precio" type="number" disabled placeholder="—"></td>
                 <td><input id="mo-descuento" type="number" min="0" max="100" step="0.01" value="0"></td>
@@ -1101,6 +1102,35 @@ the data-access layer at all.
         <button id="btn-importar-repuestos">Importar</button>
         <div id="importar-repuestos-error" class="mensaje-error"></div>
         <div id="importar-repuestos-resultado" class="nota-ayuda oculto"></div>
+      </div>
+    </section>
+
+    <section id="pantalla-servicios" class="pagina oculto">
+      <h1>Servicios</h1>
+      <div class="nota-ayuda">Catálogo de servicios de mano de obra que ofrece el taller: nombre, descripción y tiempo estimado. Sirve como referencia rápida al agregar mano de obra en una orden (el precio por hora lo sigue fijando Contabilidad, no cambia aquí).</div>
+      <div id="servicios-error" class="mensaje-error"></div>
+
+      <div class="tarjeta">
+        <div class="tabla-toolbar">
+          <button type="button" id="btn-nuevo-servicio">+ Nuevo servicio</button>
+        </div>
+        <div id="lista-servicios"></div>
+      </div>
+
+      <div class="tarjeta tarjeta-formulario oculto" id="tarjeta-form-servicio">
+        <h2 id="servicio-form-titulo">Nuevo servicio</h2>
+        <label for="servicio-nombre">Nombre del servicio</label>
+        <input id="servicio-nombre" type="text" placeholder="Ej. Cambio de pastillas de freno">
+        <label for="servicio-descripcion">Descripción (opcional)</label>
+        <textarea id="servicio-descripcion" rows="2" placeholder="Ej. Incluye revisión de discos y limpieza de mordazas"></textarea>
+        <label for="servicio-tiempo-estimado">Tiempo estimado (horas, opcional)</label>
+        <input id="servicio-tiempo-estimado" type="number" min="0" step="0.25" placeholder="Ej. 1.5">
+        <label style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="servicio-activo" style="width:auto;margin:0;" checked>
+          Servicio activo (disponible para usar en órdenes)
+        </label>
+        <button type="button" id="btn-guardar-servicio">Guardar servicio</button>
+        <button type="button" class="secundario" id="btn-cancelar-servicio">Cancelar</button>
       </div>
     </section>
 
@@ -2037,6 +2067,7 @@ the data-access layer at all.
         $("nav-cuentas").classList.toggle("oculto", !puedeVerCaja);
         var puedeVerInventario = rolActual === "administrador" || rolActual === "asesor" || rolActual === "contador";
         $("nav-inventario").classList.toggle("oculto", !puedeVerInventario);
+        $("nav-servicios").classList.toggle("oculto", !puedeVerInventario);
         $("nav-combos").classList.toggle("oculto", !puedeVerInventario);
         $("nav-agenda").classList.toggle("oculto", !puedeVerInventario);
         $("nav-clientes").classList.toggle("oculto", !puedeVerInventario);
@@ -2067,9 +2098,9 @@ the data-access layer at all.
   // =====================================================================
   // NAVEGACIÓN (menú lateral)
   // =====================================================================
-  var PAGINAS = ["inicio", "app", "agenda", "clientes", "vehiculos", "proveedores", "personal", "inventario", "combos", "contabilidad", "facturacion", "caja", "cuentas", "egreso", "configuracion", "nomina", "reportes", "comunicaciones"];
-  var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", agenda: "Agenda", clientes: "Clientes", vehiculos: "Vehículos", proveedores: "Proveedores", personal: "Personal", inventario: "Inventario", combos: "Combos de servicio", contabilidad: "Contabilidad", facturacion: "Facturación", caja: "Caja", cuentas: "Cuentas por cobrar/pagar", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes", comunicaciones: "Comunicaciones" };
-  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", agenda: "agenda-error", clientes: "clientes-error", vehiculos: "vehiculos-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", combos: "combos-error", contabilidad: "contab-horas-error", facturacion: "facturacion-error", caja: "caja-error", cuentas: "cuentas-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error", comunicaciones: "comunicaciones-error" };
+  var PAGINAS = ["inicio", "app", "agenda", "clientes", "vehiculos", "proveedores", "personal", "inventario", "servicios", "combos", "contabilidad", "facturacion", "caja", "cuentas", "egreso", "configuracion", "nomina", "reportes", "comunicaciones"];
+  var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", agenda: "Agenda", clientes: "Clientes", vehiculos: "Vehículos", proveedores: "Proveedores", personal: "Personal", inventario: "Inventario", servicios: "Servicios", combos: "Combos de servicio", contabilidad: "Contabilidad", facturacion: "Facturación", caja: "Caja", cuentas: "Cuentas por cobrar/pagar", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes", comunicaciones: "Comunicaciones" };
+  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", agenda: "agenda-error", clientes: "clientes-error", vehiculos: "vehiculos-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", servicios: "servicios-error", combos: "combos-error", contabilidad: "contab-horas-error", facturacion: "facturacion-error", caja: "caja-error", cuentas: "cuentas-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error", comunicaciones: "comunicaciones-error" };
 
   function mostrarPagina(nombre) {
     if (PAGINAS.indexOf(nombre) === -1) nombre = "inicio";
@@ -2092,6 +2123,7 @@ the data-access layer at all.
     else if (nombre === "proveedores") promesa = cargarProveedoresPagina();
     else if (nombre === "personal") promesa = cargarPersonal();
     else if (nombre === "inventario") promesa = cargarInventario();
+    else if (nombre === "servicios") promesa = cargarServicios();
     else if (nombre === "combos") promesa = cargarCombos();
     else if (nombre === "contabilidad") promesa = cargarContabilidad();
     else if (nombre === "facturacion") promesa = cargarFacturacion();
@@ -2256,7 +2288,7 @@ the data-access layer at all.
     // queda vacío. Antes solo se ejecutaban al crear una orden desde cero; al
     // abrir una orden ya existente desde el tablero, quedaban sin ejecutar.
     reiniciarSelectorStockPartes();
-    return Promise.all([cargarPrecioManoObraActual(), cargarItemsStockPara($("pa-tipo").value), cargarCatalogoTrabajosExternos(), cargarCombosParaOrden()]).then(cargarItemsDeOrden);
+    return Promise.all([cargarPrecioManoObraActual(), cargarItemsStockPara($("pa-tipo").value), cargarCatalogoTrabajosExternos(), cargarCombosParaOrden(), cargarServiciosParaOrden()]).then(cargarItemsDeOrden);
   }
 
   $("btn-inicio-nueva-orden").addEventListener("click", function () {
@@ -5320,6 +5352,118 @@ the data-access layer at all.
   }
 
   // =====================================================================
+  // SERVICIOS — catálogo de mano de obra (nombre, descripción, tiempo
+  // estimado). Es solo referencia para agotizar la carga de mano de obra en
+  // una orden; el precio por hora lo sigue calculando la base de datos.
+  // =====================================================================
+  var servicioEditandoId = null;
+
+  function cargarServicios() {
+    ocultarError("servicios-error");
+    return restRequest("GET", "servicios_catalogo", { query: "select=*&order=nombre.asc" })
+      .then(function (servicios) {
+        renderizarListaServicios(servicios || []);
+      });
+  }
+
+  function renderizarListaServicios(servicios) {
+    var cont = $("lista-servicios");
+    cont.innerHTML = servicios.length ? "" : "<p class=\"nota-ayuda\">Todavía no tienes servicios cargados.</p>";
+    servicios.forEach(function (s) {
+      var fila = document.createElement("div");
+      fila.className = "fila-renglon";
+      fila.innerHTML =
+        "<span>" + s.nombre + (s.activo ? "" : " <span class=\"fila-detalle\">(inactivo)</span>") +
+        (s.descripcion ? "<br><span class=\"fila-detalle\">" + s.descripcion + "</span>" : "") +
+        (s.tiempo_estimado_horas ? "<br><span class=\"fila-detalle\">Tiempo estimado: " + horasAMinutos(s.tiempo_estimado_horas) + "</span>" : "") + "</span>";
+      var contBotones = document.createElement("span");
+      var btnEditar = document.createElement("button");
+      btnEditar.type = "button";
+      btnEditar.textContent = "Editar";
+      btnEditar.addEventListener("click", conManejoDeErrores(function () { return abrirFormularioServicio(s.id_servicio); }, "servicios-error"));
+      contBotones.appendChild(btnEditar);
+      var btnActivar = document.createElement("button");
+      btnActivar.type = "button";
+      btnActivar.className = "secundario";
+      btnActivar.textContent = s.activo ? "Desactivar" : "Activar";
+      btnActivar.addEventListener("click", conManejoDeErrores(function () {
+        return restRequest("PATCH", "servicios_catalogo", { query: "id_servicio=eq." + s.id_servicio, body: { activo: !s.activo } }).then(cargarServicios);
+      }, "servicios-error"));
+      contBotones.appendChild(btnActivar);
+      var btnEliminar = document.createElement("button");
+      btnEliminar.type = "button";
+      btnEliminar.className = "secundario";
+      btnEliminar.style.color = "var(--rojo)";
+      btnEliminar.textContent = "Eliminar";
+      btnEliminar.addEventListener("click", conManejoDeErrores(function () {
+        if (!window.confirm("¿Eliminar el servicio \"" + s.nombre + "\"? No se puede deshacer.")) return;
+        return restRequest("DELETE", "servicios_catalogo", { query: "id_servicio=eq." + s.id_servicio }).then(cargarServicios);
+      }, "servicios-error"));
+      contBotones.appendChild(btnEliminar);
+      fila.appendChild(contBotones);
+      cont.appendChild(fila);
+    });
+  }
+
+  function abrirFormularioServicio(idServicio) {
+    ocultarError("servicios-error");
+    servicioEditandoId = idServicio || null;
+    $("servicio-form-titulo").textContent = servicioEditandoId ? "Editar servicio" : "Nuevo servicio";
+    $("servicio-nombre").value = "";
+    $("servicio-descripcion").value = "";
+    $("servicio-tiempo-estimado").value = "";
+    $("servicio-activo").checked = true;
+
+    var promesa = servicioEditandoId
+      ? restRequest("GET", "servicios_catalogo", { query: "select=*&id_servicio=eq." + servicioEditandoId }).then(function (r) {
+          var s = r && r[0];
+          if (!s) throw new Error("No se encontró el servicio.");
+          $("servicio-nombre").value = s.nombre;
+          $("servicio-descripcion").value = s.descripcion || "";
+          $("servicio-tiempo-estimado").value = s.tiempo_estimado_horas || "";
+          $("servicio-activo").checked = s.activo;
+        })
+      : Promise.resolve();
+
+    return promesa.then(function () {
+      $("tarjeta-form-servicio").classList.remove("oculto");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }
+
+  $("btn-nuevo-servicio").addEventListener("click", conManejoDeErrores(function () { return abrirFormularioServicio(null); }, "servicios-error"));
+  $("btn-cancelar-servicio").addEventListener("click", function () {
+    $("tarjeta-form-servicio").classList.add("oculto");
+  });
+
+  $("btn-guardar-servicio").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("servicios-error");
+    var nombre = $("servicio-nombre").value.trim();
+    if (!nombre) {
+      mostrarError("servicios-error", "Escribe el nombre del servicio.");
+      return;
+    }
+    var tiempoTexto = $("servicio-tiempo-estimado").value;
+    var body = {
+      nombre: nombre,
+      descripcion: $("servicio-descripcion").value.trim() || null,
+      tiempo_estimado_horas: tiempoTexto ? parseFloat(tiempoTexto) : null,
+      activo: $("servicio-activo").checked
+    };
+    var peticion;
+    if (servicioEditandoId) {
+      peticion = restRequest("PATCH", "servicios_catalogo", { query: "id_servicio=eq." + servicioEditandoId, body: body });
+    } else {
+      body.creado_por = usuarioActualId;
+      peticion = restRequest("POST", "servicios_catalogo", { body: body });
+    }
+    return peticion.then(function () {
+      $("tarjeta-form-servicio").classList.add("oculto");
+      return cargarServicios();
+    });
+  }, "servicios-error"));
+
+  // =====================================================================
   // COMBOS DE SERVICIO
   // =====================================================================
   var ETIQUETAS_TIPO_COMBO = { mano_obra: "Mano de obra", repuesto: "Repuesto", insumo: "Insumo", trabajo_externo: "Trabajo externo" };
@@ -5550,6 +5694,32 @@ the data-access layer at all.
       return cargarCombos();
     });
   }, "combos-error"));
+
+  // --- Sugerencias del catálogo de Servicios al agregar mano de obra ---
+  // Solo autocompleta nombre + horas estimadas; el precio NUNCA sale de acá,
+  // lo sigue calculando la base de datos como siempre.
+  var serviciosCatalogoCache = [];
+
+  function cargarServiciosParaOrden() {
+    return restRequest("GET", "servicios_catalogo", {
+      query: "select=nombre,tiempo_estimado_horas&activo=eq.true&order=nombre.asc"
+    }).then(function (servicios) {
+      serviciosCatalogoCache = servicios || [];
+      var lista = $("lista-servicios-mano-obra");
+      lista.innerHTML = "";
+      serviciosCatalogoCache.forEach(function (s) {
+        var opt = document.createElement("option");
+        opt.value = s.nombre;
+        lista.appendChild(opt);
+      });
+    });
+  }
+
+  $("mo-nombre").addEventListener("input", function () {
+    var texto = $("mo-nombre").value.trim();
+    var match = serviciosCatalogoCache.find(function (s) { return s.nombre === texto; });
+    if (match && match.tiempo_estimado_horas) $("mo-horas").value = match.tiempo_estimado_horas;
+  });
 
   // --- Aplicar un combo dentro de una orden ---
   function cargarCombosParaOrden() {
@@ -7637,7 +7807,7 @@ the data-access layer at all.
     $("tarjeta-exito").classList.add("oculto");
     $("tarjeta-items").classList.remove("oculto");
     reiniciarSelectorStockPartes();
-    return Promise.all([cargarPrecioManoObraActual(), cargarItemsStockPara($("pa-tipo").value), cargarCatalogoTrabajosExternos(), cargarCombosParaOrden()]).then(cargarItemsDeOrden);
+    return Promise.all([cargarPrecioManoObraActual(), cargarItemsStockPara($("pa-tipo").value), cargarCatalogoTrabajosExternos(), cargarCombosParaOrden(), cargarServiciosParaOrden()]).then(cargarItemsDeOrden);
   }, "item-error"));
 
   $("pa-tipo").addEventListener("change", conManejoDeErrores(function () {
