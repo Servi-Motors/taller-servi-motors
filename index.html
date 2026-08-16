@@ -383,6 +383,19 @@ the data-access layer at all.
         <h1>Ítems de la orden</h1>
         <h2 id="items-subtitulo"></h2>
         <div id="estado-orden-info" class="nota-ayuda"></div>
+        <div id="orden-responsables-info" class="nota-ayuda"></div>
+        <div class="agenda-controles">
+          <button type="button" class="secundario oculto" id="btn-editar-responsables">Cambiar asesor/técnico</button>
+        </div>
+        <div id="orden-responsables-editar" class="oculto">
+          <label for="orden-select-asesor">Asesor</label>
+          <select id="orden-select-asesor"></select>
+          <label for="orden-select-tecnico">Técnico responsable</label>
+          <select id="orden-select-tecnico"></select>
+          <button type="button" id="btn-guardar-responsables">Guardar</button>
+          <button type="button" class="secundario" id="btn-cancelar-responsables">Cancelar</button>
+          <div id="responsables-error" class="mensaje-error"></div>
+        </div>
         <div id="orden-devolucion-aviso" class="oculto"></div>
         <div id="grupo-proximo-mantenimiento" class="oculto">
           <label for="orden-proximo-mantenimiento">Próximo mantenimiento recomendado (opcional)</label>
@@ -6130,8 +6143,8 @@ the data-access layer at all.
   // =====================================================================
   function cargarAsesoresYTecnicos() {
     return Promise.all([
-      restRequest("GET", "usuarios", { query: "select=id_usuario,nombre&rol=eq.asesor&estado=eq.activo" }),
-      restRequest("GET", "usuarios", { query: "select=id_usuario,nombre&rol=eq.tecnico&estado=eq.activo" })
+      restRequest("GET", "usuarios", { query: "select=id_usuario,nombre&rol=eq.asesor&estado=eq.activo&order=nombre.asc" }),
+      restRequest("GET", "usuarios", { query: "select=id_usuario,nombre&rol=eq.tecnico&estado=eq.activo&order=nombre.asc" })
     ]).then(function (resultados) {
       var asesores = resultados[0] || [];
       var tecnicos = resultados[1] || [];
@@ -7548,6 +7561,73 @@ the data-access layer at all.
     cont.appendChild(btn);
   }
 
+  // Corrección de asesor/técnico asignado por error al abrir la orden. Solo
+  // asesor/administrador puede hacerlo, y solo mientras la orden no esté
+  // cerrada (para no alterar de forma retroactiva una orden que ya se usó
+  // para calcular nómina).
+  function renderizarResponsablesOrden() {
+    var esAdminOAsesor = rolActual === "administrador" || rolActual === "asesor";
+    $("orden-responsables-info").textContent = "Asesor: " + (ordenActual.asesorNombre || "—") + " · Técnico: " + (ordenActual.tecnicoNombre || "—");
+    $("btn-editar-responsables").classList.toggle("oculto", !esAdminOAsesor || ordenActual.estado === "cerrada");
+    $("orden-responsables-editar").classList.add("oculto");
+  }
+
+  function cargarSelectResponsablesEdicion() {
+    return Promise.all([
+      restRequest("GET", "usuarios", { query: "select=id_usuario,nombre&rol=eq.asesor&estado=eq.activo&order=nombre.asc" }),
+      restRequest("GET", "usuarios", { query: "select=id_usuario,nombre&rol=eq.tecnico&estado=eq.activo&order=nombre.asc" })
+    ]).then(function (r) {
+      var asesores = r[0] || [];
+      var tecnicos = r[1] || [];
+      var selA = $("orden-select-asesor");
+      var selT = $("orden-select-tecnico");
+      selA.innerHTML = "";
+      selT.innerHTML = "";
+      asesores.forEach(function (u) {
+        var opt = document.createElement("option");
+        opt.value = u.id_usuario; opt.textContent = u.nombre;
+        selA.appendChild(opt);
+      });
+      tecnicos.forEach(function (u) {
+        var opt = document.createElement("option");
+        opt.value = u.id_usuario; opt.textContent = u.nombre;
+        selT.appendChild(opt);
+      });
+      if (ordenActual.idAsesor) selA.value = ordenActual.idAsesor;
+      if (ordenActual.idTecnico) selT.value = ordenActual.idTecnico;
+    });
+  }
+
+  $("btn-editar-responsables").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("responsables-error");
+    $("orden-responsables-editar").classList.remove("oculto");
+    return cargarSelectResponsablesEdicion();
+  }, "responsables-error"));
+
+  $("btn-cancelar-responsables").addEventListener("click", function () {
+    $("orden-responsables-editar").classList.add("oculto");
+  });
+
+  $("btn-guardar-responsables").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("responsables-error");
+    var idAsesor = $("orden-select-asesor").value;
+    var idTecnico = $("orden-select-tecnico").value;
+    if (!idAsesor || !idTecnico) {
+      mostrarError("responsables-error", "Elige un asesor y un técnico.");
+      return;
+    }
+    return restRequest("PATCH", "ordenes_trabajo", {
+      query: "id_ot=eq." + ordenActual.id_ot,
+      body: { id_asesor: idAsesor, id_tecnico: idTecnico }
+    }).then(function () {
+      return restRequest("POST", "historial_ot", {
+        body: { id_ot: ordenActual.id_ot, accion: "Se corrigió el asesor/técnico asignado a la orden", id_usuario: usuarioActualId }
+      });
+    }).then(function () {
+      return cargarItemsDeOrden();
+    });
+  }, "responsables-error"));
+
   function renderizarEstadoOrden() {
     $("estado-orden-info").textContent = "Estado actual: " + (ETIQUETAS_ESTADO_ORDEN[ordenActual.estado] || ordenActual.estado);
     $("estado-orden-notificar").innerHTML = "";
@@ -7774,7 +7854,7 @@ the data-access layer at all.
 
   function cargarItemsDeOrden() {
     var queryItems = "select=id_detalle,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,fecha_inicio_real,fecha_fin_real,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
-    var queryOrden = "select=estado,tipo_orden,token_consulta,fecha_apertura,fecha_cierre,diagnostico,presupuesto_tentativo,hallazgos_diagnostico,veces_devuelta_calidad,motivo_devolucion_calidad,fecha_devolucion_calidad,clientes(nombre,telefono,documento,direccion),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje)&id_ot=eq." + ordenActual.id_ot;
+    var queryOrden = "select=estado,tipo_orden,token_consulta,fecha_apertura,fecha_cierre,diagnostico,presupuesto_tentativo,hallazgos_diagnostico,veces_devuelta_calidad,motivo_devolucion_calidad,fecha_devolucion_calidad,id_asesor,id_tecnico,asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre),clientes(nombre,telefono,documento,direccion),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje)&id_ot=eq." + ordenActual.id_ot;
     return Promise.all([
       restRequest("GET", "ot_detalle", { query: queryItems }),
       restRequest("GET", "ordenes_trabajo", { query: queryOrden }),
@@ -7798,7 +7878,12 @@ the data-access layer at all.
         ordenActual.vecesDevueltaCalidad = orden.veces_devuelta_calidad || 0;
         ordenActual.motivoDevolucionCalidad = orden.motivo_devolucion_calidad || null;
         ordenActual.fechaDevolucionCalidad = orden.fecha_devolucion_calidad || null;
+        ordenActual.idAsesor = orden.id_asesor || null;
+        ordenActual.idTecnico = orden.id_tecnico || null;
+        ordenActual.asesorNombre = orden.asesor ? orden.asesor.nombre : null;
+        ordenActual.tecnicoNombre = orden.tecnico ? orden.tecnico.nombre : null;
         renderizarEstadoOrden();
+        renderizarResponsablesOrden();
         renderizarDatosClienteVehiculo(orden);
         // No pisar lo que el usuario esté escribiendo ahora mismo en estos
         // campos (importante porque esta función también se llama sola de
