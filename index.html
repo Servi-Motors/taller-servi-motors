@@ -55,6 +55,12 @@ the data-access layer at all.
     <div id="firma-remota-contenido" class="oculto">
       <h2>Autorización de trabajo — OT-<span id="fr-numero-ot"></span></h2>
       <p id="fr-vehiculo" class="info-vehiculo"></p>
+
+      <div id="fr-fotos-cont" class="oculto">
+        <label>Fotos del vehículo</label>
+        <div id="fr-fotos-galeria" class="galeria-evidencias"></div>
+      </div>
+
       <table>
         <thead><tr><th>Descripción</th><th>Cant.</th><th>Precio</th></tr></thead>
         <tbody id="fr-items-cuerpo"></tbody>
@@ -7312,10 +7318,15 @@ the data-access layer at all.
   }
 
   // Las fotos quedan en un bucket privado, así que para mostrarlas hay que
-  // pedirlas con el token de sesión (no sirve un <img src> directo).
+  // pedirlas con el token de sesión (no sirve un <img src> directo). En la
+  // página pública de firma remota no hay sesión (accessToken es null): ahí
+  // el permiso lo da una política RLS que valida el token_firma vigente de
+  // la orden, así que basta con la apikey.
   function obtenerUrlImagenPrivada(ruta) {
+    var headers = { "apikey": SUPABASE_KEY };
+    if (accessToken) headers["Authorization"] = "Bearer " + accessToken;
     return fetch(SUPABASE_URL + "/storage/v1/object/evidencias/" + ruta, {
-      headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + accessToken }
+      headers: headers
     }).then(function (res) {
       if (!res.ok) throw new Error("No se pudo cargar la foto.");
       return res.blob();
@@ -8172,6 +8183,20 @@ the data-access layer at all.
         $("firma-remota-contenido").classList.remove("oculto");
         $("fr-numero-ot").textContent = resumen.numero_ot || "";
         $("fr-vehiculo").textContent = resumen.vehiculo || "";
+        var fotos = resumen.fotos || [];
+        $("fr-fotos-cont").classList.toggle("oculto", fotos.length === 0);
+        var galeriaFotos = $("fr-fotos-galeria");
+        galeriaFotos.innerHTML = "";
+        fotos.forEach(function (ruta) {
+          var mini = document.createElement("div");
+          mini.className = "miniatura-evidencia";
+          obtenerUrlImagenPrivada(ruta).then(function (url) {
+            var img = document.createElement("img");
+            img.src = url;
+            mini.appendChild(img);
+          }).catch(function () {});
+          galeriaFotos.appendChild(mini);
+        });
         var cuerpo = $("fr-items-cuerpo");
         cuerpo.innerHTML = "";
         (resumen.items || []).forEach(function (it) {
