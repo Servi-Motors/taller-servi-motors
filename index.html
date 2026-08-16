@@ -672,7 +672,8 @@ the data-access layer at all.
         </div>
       </div>
 
-      <div class="tarjeta oculto" id="tarjeta-form-cliente">
+      <div id="fondo-form-cliente" class="fondo-modal oculto"></div>
+      <div class="tarjeta tarjeta-formulario tarjeta-modal oculto" id="tarjeta-form-cliente">
         <h2 id="clientes-form-titulo">Agregar cliente</h2>
         <label for="cliente-nombre">Nombre</label>
         <input id="cliente-nombre" type="text">
@@ -749,7 +750,8 @@ the data-access layer at all.
         </div>
       </div>
 
-      <div class="tarjeta oculto" id="tarjeta-form-vehiculo">
+      <div id="fondo-form-vehiculo" class="fondo-modal oculto"></div>
+      <div class="tarjeta tarjeta-formulario tarjeta-modal oculto" id="tarjeta-form-vehiculo">
         <h2 id="vehiculos-form-titulo">Agregar vehículo</h2>
         <label for="vehiculo-cliente">Cliente dueño</label>
         <select id="vehiculo-cliente"></select>
@@ -817,7 +819,8 @@ the data-access layer at all.
         </div>
       </div>
 
-      <div class="tarjeta oculto" id="tarjeta-form-proveedor">
+      <div id="fondo-form-proveedor" class="fondo-modal oculto"></div>
+      <div class="tarjeta tarjeta-formulario tarjeta-modal oculto" id="tarjeta-form-proveedor">
         <h2 id="proveedores-form-titulo">Agregar proveedor</h2>
         <label for="proveedor-nombre">Nombre</label>
         <input id="proveedor-nombre" type="text">
@@ -1131,7 +1134,7 @@ the data-access layer at all.
       </div>
     </section>
 
-    <div id="fondo-form-servicio" class="oculto"></div>
+    <div id="fondo-form-servicio" class="fondo-modal oculto"></div>
     <div class="tarjeta tarjeta-formulario tarjeta-modal oculto" id="tarjeta-form-servicio">
       <h2 id="servicio-form-titulo">Nuevo servicio</h2>
       <label for="servicio-nombre">Nombre del servicio</label>
@@ -1148,7 +1151,7 @@ the data-access layer at all.
       <button type="button" class="secundario" id="btn-cancelar-servicio">Cancelar</button>
     </div>
 
-    <section id="pantalla-combos" class="pagina oculto">
+    <section id="pantalla-combos" class="pagina pagina-ancha oculto">
       <h1>Combos de servicio</h1>
       <div class="nota-ayuda">Arma paquetes de mano de obra, repuestos/insumos y trabajos externos que uses seguido (ej. "Cambio de aceite y filtro") para agregarlos de una sola vez a una orden nueva.</div>
       <div id="combos-error" class="mensaje-error"></div>
@@ -1157,49 +1160,63 @@ the data-access layer at all.
         <div class="tabla-toolbar">
           <button type="button" id="btn-nuevo-combo">+ Nuevo combo</button>
         </div>
-        <div id="lista-combos"></div>
-      </div>
-
-      <div class="tarjeta tarjeta-formulario oculto" id="tarjeta-form-combo">
-        <h2 id="combo-form-titulo">Nuevo combo</h2>
-        <label for="combo-nombre">Nombre del combo</label>
-        <input id="combo-nombre" type="text" placeholder="Ej. Cambio de aceite y filtro">
-        <label for="combo-descripcion">Descripción (opcional)</label>
-        <input id="combo-descripcion" type="text" placeholder="Ej. Incluye mano de obra, filtro y 4 litros de aceite">
-        <label style="display:flex;align-items:center;gap:8px;">
-          <input type="checkbox" id="combo-activo" style="width:auto;margin:0;" checked>
-          Combo activo (disponible para usar en órdenes)
-        </label>
-
-        <h3>Líneas del combo</h3>
-        <div id="lista-lineas-combo"></div>
         <div class="tabla-scroll">
-          <table class="tabla-datos">
-            <thead><tr><th>Tipo</th><th>De tu stock</th><th>Nombre</th><th>Costo ref.</th><th>Cantidad</th><th></th></tr></thead>
-            <tfoot>
-              <tr class="fila-agregar">
-                <td>
-                  <select id="cl-tipo">
-                    <option value="mano_obra">Mano de obra</option>
-                    <option value="repuesto">Repuesto</option>
-                    <option value="insumo">Insumo</option>
-                    <option value="trabajo_externo">Trabajo externo</option>
-                  </select>
-                </td>
-                <td><select id="cl-stock"><option value="">Nuevo / escribir nombre</option></select></td>
-                <td><input id="cl-nombre" type="text" placeholder="Nombre"></td>
-                <td><input id="cl-costo" type="number" min="0" step="0.01" placeholder="Costo"></td>
-                <td><input id="cl-cantidad" type="number" min="0.01" step="0.01" value="1"></td>
-                <td><button type="button" id="btn-agregar-linea-combo">+ Agregar</button></td>
+          <table class="tabla-datos" id="tabla-combos">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Descripción</th>
+                <th>Líneas</th>
+                <th>Estado</th>
+                <th>Acciones</th>
               </tr>
-            </tfoot>
+            </thead>
+            <tbody id="cuerpo-tabla-combos"></tbody>
           </table>
         </div>
-
-        <button type="button" id="btn-guardar-combo">Guardar combo</button>
-        <button type="button" class="secundario" id="btn-cancelar-combo">Cancelar</button>
       </div>
     </section>
+
+    <div id="fondo-form-combo" class="fondo-modal oculto"></div>
+    <div class="tarjeta tarjeta-formulario tarjeta-modal oculto" id="tarjeta-form-combo">
+      <h2 id="combo-form-titulo">Nuevo combo</h2>
+      <label for="combo-nombre">Nombre del combo</label>
+      <input id="combo-nombre" type="text" placeholder="Ej. Cambio de aceite y filtro">
+      <label for="combo-descripcion">Descripción (opcional)</label>
+      <input id="combo-descripcion" type="text" placeholder="Ej. Incluye mano de obra, filtro y 4 litros de aceite">
+      <label style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="combo-activo" style="width:auto;margin:0;" checked>
+        Combo activo (disponible para usar en órdenes)
+      </label>
+
+      <h3>Líneas del combo</h3>
+      <div id="lista-lineas-combo"></div>
+      <div class="tabla-scroll">
+        <table class="tabla-datos">
+          <thead><tr><th>Tipo</th><th>De tu stock</th><th>Nombre</th><th>Costo ref.</th><th>Cantidad</th><th></th></tr></thead>
+          <tfoot>
+            <tr class="fila-agregar">
+              <td>
+                <select id="cl-tipo">
+                  <option value="mano_obra">Mano de obra</option>
+                  <option value="repuesto">Repuesto</option>
+                  <option value="insumo">Insumo</option>
+                  <option value="trabajo_externo">Trabajo externo</option>
+                </select>
+              </td>
+              <td><select id="cl-stock"><option value="">Nuevo / escribir nombre</option></select></td>
+              <td><input id="cl-nombre" type="text" placeholder="Nombre"></td>
+              <td><input id="cl-costo" type="number" min="0" step="0.01" placeholder="Costo"></td>
+              <td><input id="cl-cantidad" type="number" min="0.01" step="0.01" value="1"></td>
+              <td><button type="button" id="btn-agregar-linea-combo">+ Agregar</button></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <button type="button" id="btn-guardar-combo">Guardar combo</button>
+      <button type="button" class="secundario" id="btn-cancelar-combo">Cancelar</button>
+    </div>
 
     <section id="pantalla-facturacion" class="pagina pagina-ancha oculto">
       <h1>Facturación</h1>
@@ -1740,7 +1757,7 @@ the data-access layer at all.
   /* Formulario tipo ventana emergente: queda fijo y centrado en la pantalla
      (no se mueve al escribir ni con el resto de la página) y se puede
      desplazar solo internamente si el contenido no cabe. */
-  #fondo-form-servicio.visible { display: block; position: fixed; inset: 0; background: rgba(17,24,39,.45); z-index: 40; }
+  .fondo-modal { position: fixed; inset: 0; background: rgba(17,24,39,.45); z-index: 40; }
   .tarjeta-modal {
     position: fixed;
     top: 50%;
@@ -2142,11 +2159,14 @@ the data-access layer at all.
     $("titulo-pagina-movil").textContent = TITULOS_PAGINA[nombre] || "Taller Servi Motors";
     cerrarMenuMovil();
     window.scrollTo({ top: 0 });
-    // El formulario de Servicios es un modal independiente del contenido de
-    // la página (para que quede fijo y centrado): hay que cerrarlo a mano
-    // al cambiar de pantalla, si no se queda flotando encima de todo.
+    // Los formularios de Servicios y Combos son modales independientes del
+    // contenido de la página (para que queden fijos y centrados): hay que
+    // cerrarlos a mano al cambiar de pantalla, si no se quedan flotando
+    // encima de todo.
     $("tarjeta-form-servicio").classList.add("oculto");
     $("fondo-form-servicio").classList.add("oculto");
+    $("tarjeta-form-combo").classList.add("oculto");
+    $("fondo-form-combo").classList.add("oculto");
 
     var promesa = null;
     if (nombre === "inicio") promesa = cargarInicio();
@@ -3475,11 +3495,13 @@ the data-access layer at all.
     });
   }
 
-  function mostrarFormularioCliente() { $("tarjeta-form-cliente").classList.remove("oculto"); }
+  function mostrarFormularioCliente() {
+    $("tarjeta-form-cliente").classList.remove("oculto");
+    $("fondo-form-cliente").classList.remove("oculto");
+  }
   $("btn-mostrar-form-cliente").addEventListener("click", function () {
     reiniciarFormularioCliente();
     mostrarFormularioCliente();
-    window.scrollTo({ top: 0, behavior: "smooth" });
   });
 
   function cargarClienteEnFormulario(c) {
@@ -3494,7 +3516,6 @@ the data-access layer at all.
     $("clientes-form-titulo").textContent = "Editar cliente";
     $("btn-guardar-cliente").textContent = "Guardar cambios";
     mostrarFormularioCliente();
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function reiniciarFormularioCliente() {
@@ -3504,8 +3525,10 @@ the data-access layer at all.
     $("clientes-form-titulo").textContent = "Agregar cliente";
     $("btn-guardar-cliente").textContent = "Agregar cliente";
     $("tarjeta-form-cliente").classList.add("oculto");
+    $("fondo-form-cliente").classList.add("oculto");
   }
   $("btn-cancelar-edicion-cliente").addEventListener("click", reiniciarFormularioCliente);
+  $("fondo-form-cliente").addEventListener("click", reiniciarFormularioCliente);
 
   $("btn-guardar-cliente").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("clientes-error");
@@ -3696,11 +3719,13 @@ the data-access layer at all.
     });
   }
 
-  function mostrarFormularioVehiculo() { $("tarjeta-form-vehiculo").classList.remove("oculto"); }
+  function mostrarFormularioVehiculo() {
+    $("tarjeta-form-vehiculo").classList.remove("oculto");
+    $("fondo-form-vehiculo").classList.remove("oculto");
+  }
   $("btn-mostrar-form-vehiculo").addEventListener("click", function () {
     reiniciarFormularioVehiculo();
     mostrarFormularioVehiculo();
-    window.scrollTo({ top: 0, behavior: "smooth" });
   });
 
   function cargarVehiculoEnFormulario(v) {
@@ -3719,7 +3744,6 @@ the data-access layer at all.
     $("vehiculos-form-titulo").textContent = "Editar vehículo";
     $("btn-guardar-vehiculo").textContent = "Guardar cambios";
     mostrarFormularioVehiculo();
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function reiniciarFormularioVehiculo() {
@@ -3729,8 +3753,10 @@ the data-access layer at all.
     $("vehiculos-form-titulo").textContent = "Agregar vehículo";
     $("btn-guardar-vehiculo").textContent = "Agregar vehículo";
     $("tarjeta-form-vehiculo").classList.add("oculto");
+    $("fondo-form-vehiculo").classList.add("oculto");
   }
   $("btn-cancelar-edicion-vehiculo").addEventListener("click", reiniciarFormularioVehiculo);
+  $("fondo-form-vehiculo").addEventListener("click", reiniciarFormularioVehiculo);
 
   $("btn-guardar-vehiculo").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("vehiculos-error");
@@ -3788,11 +3814,13 @@ the data-access layer at all.
     });
   }
 
-  function mostrarFormularioProveedor() { $("tarjeta-form-proveedor").classList.remove("oculto"); }
+  function mostrarFormularioProveedor() {
+    $("tarjeta-form-proveedor").classList.remove("oculto");
+    $("fondo-form-proveedor").classList.remove("oculto");
+  }
   $("btn-mostrar-form-proveedor").addEventListener("click", function () {
     reiniciarFormularioProveedor();
     mostrarFormularioProveedor();
-    window.scrollTo({ top: 0, behavior: "smooth" });
   });
 
   function cargarProveedorEnFormulario(p) {
@@ -3803,7 +3831,6 @@ the data-access layer at all.
     $("proveedores-form-titulo").textContent = "Editar proveedor";
     $("btn-agregar-proveedor").textContent = "Guardar cambios";
     mostrarFormularioProveedor();
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function reiniciarFormularioProveedor() {
@@ -3814,8 +3841,10 @@ the data-access layer at all.
     $("proveedores-form-titulo").textContent = "Agregar proveedor";
     $("btn-agregar-proveedor").textContent = "Agregar proveedor";
     $("tarjeta-form-proveedor").classList.add("oculto");
+    $("fondo-form-proveedor").classList.add("oculto");
   }
   $("btn-cancelar-edicion-proveedor").addEventListener("click", reiniciarFormularioProveedor);
+  $("fondo-form-proveedor").addEventListener("click", reiniciarFormularioProveedor);
 
   $("btn-agregar-proveedor").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("proveedor-error");
@@ -5471,13 +5500,13 @@ the data-access layer at all.
 
     return promesa.then(function () {
       $("tarjeta-form-servicio").classList.remove("oculto");
-      $("fondo-form-servicio").classList.add("visible");
+      $("fondo-form-servicio").classList.remove("oculto");
     });
   }
 
   function cerrarFormularioServicio() {
     $("tarjeta-form-servicio").classList.add("oculto");
-    $("fondo-form-servicio").classList.remove("visible");
+    $("fondo-form-servicio").classList.add("oculto");
   }
 
   $("btn-nuevo-servicio").addEventListener("click", conManejoDeErrores(function () { return abrirFormularioServicio(null); }, "servicios-error"));
@@ -5528,22 +5557,32 @@ the data-access layer at all.
   }
 
   function renderizarListaCombos(combos) {
-    var cont = $("lista-combos");
-    cont.innerHTML = combos.length ? "" : "<p class=\"nota-ayuda\">Todavía no tienes combos armados.</p>";
+    var cuerpo = $("cuerpo-tabla-combos");
+    cuerpo.innerHTML = combos.length ? "" : "<tr><td colspan=\"5\" class=\"tabla-vacia\">Todavía no tienes combos armados.</td></tr>";
     combos.forEach(function (c) {
-      var fila = document.createElement("div");
-      fila.className = "fila-renglon";
       var cantLineas = (c.combo_items || []).length;
-      fila.innerHTML =
-        "<span>" + c.nombre + (c.activo ? "" : " <span class=\"fila-detalle\">(inactivo)</span>") +
-        (c.descripcion ? "<br><span class=\"fila-detalle\">" + c.descripcion + "</span>" : "") +
-        "<br><span class=\"fila-detalle\">" + cantLineas + " línea(s)</span></span>";
-      var contBotones = document.createElement("span");
+      var tr = document.createElement("tr");
+      var tdNombre = document.createElement("td");
+      tdNombre.textContent = c.nombre;
+      var tdDescripcion = document.createElement("td");
+      tdDescripcion.textContent = c.descripcion || "—";
+      var tdLineas = document.createElement("td");
+      tdLineas.textContent = cantLineas + " línea(s)";
+      var tdEstado = document.createElement("td");
+      tdEstado.textContent = c.activo ? "Activo" : "Inactivo";
+      tdEstado.style.color = c.activo ? "var(--verde)" : "#b45309";
+      tdEstado.style.fontWeight = "600";
+      tr.appendChild(tdNombre);
+      tr.appendChild(tdDescripcion);
+      tr.appendChild(tdLineas);
+      tr.appendChild(tdEstado);
+
+      var tdAcciones = document.createElement("td");
       var btnEditar = document.createElement("button");
       btnEditar.type = "button";
       btnEditar.textContent = "Editar";
       btnEditar.addEventListener("click", conManejoDeErrores(function () { return abrirFormularioCombo(c.id_combo); }, "combos-error"));
-      contBotones.appendChild(btnEditar);
+      tdAcciones.appendChild(btnEditar);
       var btnActivar = document.createElement("button");
       btnActivar.type = "button";
       btnActivar.className = "secundario";
@@ -5551,7 +5590,7 @@ the data-access layer at all.
       btnActivar.addEventListener("click", conManejoDeErrores(function () {
         return restRequest("PATCH", "combos_servicio", { query: "id_combo=eq." + c.id_combo, body: { activo: !c.activo } }).then(cargarCombos);
       }, "combos-error"));
-      contBotones.appendChild(btnActivar);
+      tdAcciones.appendChild(btnActivar);
       var btnEliminar = document.createElement("button");
       btnEliminar.type = "button";
       btnEliminar.className = "secundario";
@@ -5561,9 +5600,9 @@ the data-access layer at all.
         if (!window.confirm("¿Eliminar el combo \"" + c.nombre + "\"? No se puede deshacer.")) return;
         return restRequest("DELETE", "combos_servicio", { query: "id_combo=eq." + c.id_combo }).then(cargarCombos);
       }, "combos-error"));
-      contBotones.appendChild(btnEliminar);
-      fila.appendChild(contBotones);
-      cont.appendChild(fila);
+      tdAcciones.appendChild(btnEliminar);
+      tr.appendChild(tdAcciones);
+      cuerpo.appendChild(tr);
     });
   }
 
@@ -5596,14 +5635,18 @@ the data-access layer at all.
     return promesa.then(function () {
       renderizarLineasCombo();
       $("tarjeta-form-combo").classList.remove("oculto");
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      $("fondo-form-combo").classList.remove("oculto");
     });
   }
 
-  $("btn-nuevo-combo").addEventListener("click", conManejoDeErrores(function () { return abrirFormularioCombo(null); }, "combos-error"));
-  $("btn-cancelar-combo").addEventListener("click", function () {
+  function cerrarFormularioCombo() {
     $("tarjeta-form-combo").classList.add("oculto");
-  });
+    $("fondo-form-combo").classList.add("oculto");
+  }
+
+  $("btn-nuevo-combo").addEventListener("click", conManejoDeErrores(function () { return abrirFormularioCombo(null); }, "combos-error"));
+  $("btn-cancelar-combo").addEventListener("click", cerrarFormularioCombo);
+  $("fondo-form-combo").addEventListener("click", cerrarFormularioCombo);
 
   function reiniciarMiniFormularioLineaCombo() {
     $("cl-nombre").value = "";
@@ -5738,7 +5781,7 @@ the data-access layer at all.
         return promesa;
       });
     }).then(function () {
-      $("tarjeta-form-combo").classList.add("oculto");
+      cerrarFormularioCombo();
       return cargarCombos();
     });
   }, "combos-error"));
