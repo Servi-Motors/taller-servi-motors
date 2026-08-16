@@ -483,10 +483,10 @@ the data-access layer at all.
         </div>
 
         <h3>Mano de obra</h3>
-        <div class="nota-ayuda">El precio por hora lo fija el administrador en Contabilidad. Aquí solo se define el nombre y las horas.</div>
+        <div class="nota-ayuda">El precio por hora lo fija el administrador en Contabilidad. Aquí solo se define el nombre y las horas. La columna "Avance del técnico" registra la hora real de inicio y fin de cada servicio (solo mientras la orden está en proceso).</div>
         <div class="tabla-scroll">
           <table class="tabla-datos tabla-items-orden" id="tabla-mano-obra">
-            <thead><tr><th>Código</th><th>Descripción</th><th>Horas</th><th>Precio/hora</th><th>% Dscto</th><th>Total</th><th>Estado</th></tr></thead>
+            <thead><tr><th>Código</th><th>Descripción</th><th>Horas</th><th>Precio/hora</th><th>% Dscto</th><th>Total</th><th>Estado</th><th>Avance del técnico</th></tr></thead>
             <tbody id="cuerpo-mano-obra"></tbody>
             <tfoot>
               <tr class="fila-agregar">
@@ -495,7 +495,7 @@ the data-access layer at all.
                 <td><input id="mo-horas" type="number" min="0.01" step="0.01" value="1"></td>
                 <td><input id="mo-precio" type="number" disabled placeholder="—"></td>
                 <td><input id="mo-descuento" type="number" min="0" max="100" step="0.01" value="0"></td>
-                <td colspan="2"><button type="button" id="btn-agregar-mano-obra">+ Agregar</button></td>
+                <td colspan="3"><button type="button" id="btn-agregar-mano-obra">+ Agregar</button></td>
               </tr>
             </tfoot>
           </table>
@@ -1641,6 +1641,12 @@ the data-access layer at all.
         <h2>Rentabilidad por orden de trabajo</h2>
         <div class="nota-ayuda">Las 20 órdenes cerradas más recientes.</div>
         <div id="tabla-rentabilidad-ot"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Productividad real por técnico (mes actual)</h2>
+        <div class="nota-ayuda">Según la hora de inicio y fin que cada técnico va registrando por servicio (columna "Avance del técnico" en la orden). Eficiencia = horas cotizadas ÷ horas reales invertidas; por encima de 100% significa que el técnico terminó más rápido de lo cotizado.</div>
+        <div id="tabla-productividad-real"></div>
       </div>
 
       <div class="tarjeta">
@@ -5254,7 +5260,10 @@ the data-access layer at all.
       restRequest("GET", "liquidaciones", { query: "select=periodo_inicio,periodo_fin,total&order=periodo_inicio.desc&limit=50" }),
       restRequest("GET", "movimientos_inventario", { query: "select=cantidad,items(nombre,stock_actual)&tipo=eq.salida&creado_en=gte." + inicioMes + "&creado_en=lt." + inicioMesSiguiente }),
       restRequest("GET", "vista_facturacion", { query: "select=total,forma_pago&estado_pago=eq.pagada&fecha_pago=gte." + inicioMes + "&fecha_pago=lt." + inicioMesSiguiente }),
-      restRequest("GET", "pagos_factura", { query: "select=forma_pago,monto&fecha_pago=gte." + inicioMes + "&fecha_pago=lt." + inicioMesSiguiente })
+      restRequest("GET", "pagos_factura", { query: "select=forma_pago,monto&fecha_pago=gte." + inicioMes + "&fecha_pago=lt." + inicioMesSiguiente }),
+      restRequest("GET", "ot_detalle", {
+        query: "select=cantidad,fecha_inicio_real,fecha_fin_real,ordenes_trabajo(id_tecnico,tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre))&fecha_fin_real=gte." + inicioMes + "&fecha_fin_real=lt." + inicioMesSiguiente
+      })
     ]).then(function (r) {
       var resultadoMensual = r[0] || [];
       var flujoCaja = r[1] || [];
@@ -5265,6 +5274,7 @@ the data-access layer at all.
       var movimientos = r[6] || [];
       var facturasPagadasMes = r[7] || [];
       var pagosDivididosMes = r[8] || [];
+      var avanceServiciosMes = r[9] || [];
 
       // --- KPIs del mes actual ---
       var filaMesActual = resultadoMensual.filter(function (f) { return f.periodo === inicioMes; })[0];
@@ -5378,6 +5388,33 @@ the data-access layer at all.
           "<span class=\"fila-detalle\">Asesor: " + (o.asesor_nombre || "—") + " · Técnico: " + (o.tecnico_nombre || "—") + "</span>" + lineaTiempoReal + "</span>" +
           "<span>Ingreso " + formatoMoneda(o.ingreso) + "<br>Margen " + formatoMoneda(o.margen) + (o.margen_pct === null || o.margen_pct === undefined ? "" : " (" + (o.margen_pct * 100).toFixed(0) + "%)") + "</span>";
         tRent.appendChild(fila);
+      });
+
+      // --- Productividad real por técnico (según avance registrado por servicio) ---
+      var productividadPorTecnico = {};
+      avanceServiciosMes.forEach(function (f) {
+        var ot = f.ordenes_trabajo || {};
+        var idTec = ot.id_tecnico || "sin_tecnico";
+        var nombreTec = (ot.tecnico && ot.tecnico.nombre) || "Sin técnico asignado";
+        if (!productividadPorTecnico[idTec]) productividadPorTecnico[idTec] = { nombre: nombreTec, servicios: 0, horasReales: 0, horasCotizadas: 0 };
+        var horasReales = (new Date(f.fecha_fin_real) - new Date(f.fecha_inicio_real)) / 3600000;
+        productividadPorTecnico[idTec].servicios += 1;
+        productividadPorTecnico[idTec].horasReales += Math.max(0, horasReales);
+        productividadPorTecnico[idTec].horasCotizadas += Number(f.cantidad) || 0;
+      });
+      var listaProductividad = Object.keys(productividadPorTecnico).map(function (k) { return productividadPorTecnico[k]; })
+        .sort(function (a, b) { return b.servicios - a.servicios; });
+      var tProd = $("tabla-productividad-real");
+      tProd.innerHTML = listaProductividad.length ? "" : "<p class=\"nota-ayuda\">Todavía no hay servicios con avance registrado este mes.</p>";
+      listaProductividad.forEach(function (p) {
+        var fila = document.createElement("div");
+        fila.className = "fila-renglon";
+        var eficiencia = p.horasReales > 0 ? (p.horasCotizadas / p.horasReales) * 100 : null;
+        fila.innerHTML =
+          "<span><b>" + p.nombre + "</b><br><span class=\"fila-detalle\">" + p.servicios + " servicio(s) terminado(s)</span></span>" +
+          "<span>Horas reales " + p.horasReales.toFixed(1) + "h · Cotizadas " + p.horasCotizadas.toFixed(1) + "h" +
+          (eficiencia === null ? "" : "<br><b style=\"color:" + (eficiencia >= 100 ? "var(--verde)" : "#b45309") + ";\">Eficiencia " + eficiencia.toFixed(0) + "%</b>") + "</span>";
+        tProd.appendChild(fila);
       });
 
       // --- Nómina consolidada por período ---
@@ -7641,9 +7678,38 @@ the data-access layer at all.
   function renderizarTablaManoObra(filas) {
     var html = filas.map(function (f) {
       return "<tr><td>" + (f.codigo || "—") + "</td><td>" + f.items.nombre + "</td><td>" + f.cantidad + "</td><td>" + celdaMonedaTecnico(f.precio_aplicado_cliente) + "</td>" +
-        "<td>" + celdaDescuentoLinea(f) + "</td><td class=\"celda-numero\">" + celdaMonedaTecnico(totalLineaOrden(f)) + "</td><td>" + celdaEstadoLinea(f) + botonEliminarLinea(f) + "</td></tr>";
+        "<td>" + celdaDescuentoLinea(f) + "</td><td class=\"celda-numero\">" + celdaMonedaTecnico(totalLineaOrden(f)) + "</td><td>" + celdaEstadoLinea(f) + botonEliminarLinea(f) + "</td>" +
+        "<td>" + celdaAvanceLinea(f) + "</td></tr>";
     }).join("");
-    $("cuerpo-mano-obra").innerHTML = html || "<tr><td colspan=\"7\" class=\"tabla-vacia\">Sin ítems de mano de obra todavía.</td></tr>";
+    $("cuerpo-mano-obra").innerHTML = html || "<tr><td colspan=\"8\" class=\"tabla-vacia\">Sin ítems de mano de obra todavía.</td></tr>";
+  }
+
+  // Avance real del técnico por servicio de mano de obra: botones Iniciar /
+  // Terminar que registran fecha y hora reales (vía RPC registrar_progreso_servicio,
+  // porque el técnico no tiene permiso de UPDATE directo sobre ot_detalle).
+  // Solo se puede operar mientras la orden está en_proceso.
+  function formatoDuracionMinutos(totalMin) {
+    var horas = Math.floor(totalMin / 60);
+    var min = totalMin % 60;
+    return (horas > 0 ? horas + "h " : "") + min + "min";
+  }
+
+  function celdaAvanceLinea(f) {
+    var puedeOperar = ordenActual.estado === "en_proceso";
+    if (f.fecha_inicio_real && f.fecha_fin_real) {
+      var duracionMin = Math.max(0, Math.round((new Date(f.fecha_fin_real) - new Date(f.fecha_inicio_real)) / 60000));
+      var esAdminOAsesor = rolActual === "administrador" || rolActual === "asesor";
+      return '<span style="color:var(--verde);font-weight:600;">✅ ' + formatoDuracionMinutos(duracionMin) + '</span>' +
+        (esAdminOAsesor ? ' <button type="button" style="width:auto;padding:2px 6px;font-size:10px;" title="Corregir (borra el avance)" onclick="window.reiniciarAvanceServicio(\'' + f.id_detalle + '\')">↺</button>' : '');
+    }
+    if (f.fecha_inicio_real && !f.fecha_fin_real) {
+      var txt = 'En curso desde ' + formatoFechaHoraCorta(new Date(f.fecha_inicio_real)).slice(-5);
+      if (!puedeOperar) return '<span style="color:#b45309;font-weight:600;">' + txt + '</span>';
+      return '<span style="color:#b45309;font-weight:600;">' + txt + '</span><br>' +
+        '<button type="button" class="secundario" style="width:auto;padding:4px 8px;font-size:11px;margin-top:4px;" onclick="window.terminarAvanceServicio(\'' + f.id_detalle + '\')">Terminar</button>';
+    }
+    if (!puedeOperar) return "—";
+    return '<button type="button" class="secundario" style="width:auto;padding:4px 8px;font-size:11px;" onclick="window.iniciarAvanceServicio(\'' + f.id_detalle + '\')">Iniciar</button>';
   }
 
   var ETIQUETAS_TIPO_ITEM = { repuesto: "Repuesto", insumo: "Insumo" };
@@ -7702,7 +7768,7 @@ the data-access layer at all.
   }
 
   function cargarItemsDeOrden() {
-    var queryItems = "select=id_detalle,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
+    var queryItems = "select=id_detalle,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,fecha_inicio_real,fecha_fin_real,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
     var queryOrden = "select=estado,tipo_orden,token_consulta,fecha_apertura,fecha_cierre,diagnostico,presupuesto_tentativo,hallazgos_diagnostico,veces_devuelta_calidad,motivo_devolucion_calidad,fecha_devolucion_calidad,clientes(nombre,telefono,documento,direccion),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje)&id_ot=eq." + ordenActual.id_ot;
     return Promise.all([
       restRequest("GET", "ot_detalle", { query: queryItems }),
@@ -7985,6 +8051,26 @@ the data-access layer at all.
     }).catch(function (err) {
       mostrarError("item-error", "No se pudo actualizar el ítem: " + err.message);
     });
+  };
+
+  // Avance real por servicio (mano de obra): el técnico marca cuándo empieza
+  // y cuándo termina cada línea. Pasa por una función de la base de datos
+  // (no un PATCH directo) porque el técnico solo tiene permiso de insertar
+  // ítems, no de editarlos — así se registra el avance sin abrirle la puerta
+  // a cambiar precios ni cantidades.
+  function registrarProgresoServicio(idDetalle, accion) {
+    ocultarError("item-error");
+    return restRequest("POST", "rpc/registrar_progreso_servicio", { body: { p_id_detalle: idDetalle, p_accion: accion } })
+      .then(function () { return cargarItemsDeOrden(); })
+      .catch(function (err) {
+        mostrarError("item-error", "No se pudo registrar el avance: " + err.message);
+      });
+  }
+  window.iniciarAvanceServicio = function (idDetalle) { registrarProgresoServicio(idDetalle, "iniciar"); };
+  window.terminarAvanceServicio = function (idDetalle) { registrarProgresoServicio(idDetalle, "terminar"); };
+  window.reiniciarAvanceServicio = function (idDetalle) {
+    if (!window.confirm("¿Borrar el avance registrado en este servicio (hora de inicio y fin)? Esta acción no se puede deshacer.")) return;
+    registrarProgresoServicio(idDetalle, "reiniciar");
   };
 
   $("btn-guardar-diagnostico").addEventListener("click", conManejoDeErrores(function () {
