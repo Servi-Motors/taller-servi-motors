@@ -125,6 +125,7 @@ the data-access layer at all.
 
     <div class="nav-seccion">Stock</div>
     <a href="#" class="nav-link oculto" id="nav-inventario" data-pagina="inventario">📦 Inventario</a>
+    <a href="#" class="nav-link oculto" id="nav-combos" data-pagina="combos">🧩 Combos de servicio</a>
 
     <div class="nav-seccion">Contabilidad</div>
     <a href="#" class="nav-link" data-pagina="egreso">💸 Registrar gasto</a>
@@ -436,6 +437,14 @@ the data-access layer at all.
         <label for="orden-diagnostico">Razones de ingreso</label>
         <textarea id="orden-diagnostico" rows="2" placeholder="Ej. Reemplazo de pastillas de freno"></textarea>
         <button type="button" class="secundario" id="btn-guardar-diagnostico">Guardar diagnóstico</button>
+
+        <div id="bloque-aplicar-combo">
+          <h3>Aplicar combo</h3>
+          <div class="nota-ayuda">Carga de una sola vez la mano de obra, repuestos/insumos y trabajos externos de un combo ya armado.</div>
+          <select id="combo-seleccionar"><option value="">Elige un combo...</option></select>
+          <button type="button" class="secundario" id="btn-aplicar-combo">Cargar combo en esta orden</button>
+          <div id="combo-aplicar-error" class="mensaje-error"></div>
+        </div>
 
         <h3>Mano de obra</h3>
         <div class="nota-ayuda">El precio por hora lo fija el administrador en Contabilidad. Aquí solo se define el nombre y las horas.</div>
@@ -1086,6 +1095,59 @@ the data-access layer at all.
         <button id="btn-importar-repuestos">Importar</button>
         <div id="importar-repuestos-error" class="mensaje-error"></div>
         <div id="importar-repuestos-resultado" class="nota-ayuda oculto"></div>
+      </div>
+    </section>
+
+    <section id="pantalla-combos" class="pagina oculto">
+      <h1>Combos de servicio</h1>
+      <div class="nota-ayuda">Arma paquetes de mano de obra, repuestos/insumos y trabajos externos que uses seguido (ej. "Cambio de aceite y filtro") para agregarlos de una sola vez a una orden nueva.</div>
+      <div id="combos-error" class="mensaje-error"></div>
+
+      <div class="tarjeta">
+        <div class="tabla-toolbar">
+          <button type="button" id="btn-nuevo-combo">+ Nuevo combo</button>
+        </div>
+        <div id="lista-combos"></div>
+      </div>
+
+      <div class="tarjeta tarjeta-formulario oculto" id="tarjeta-form-combo">
+        <h2 id="combo-form-titulo">Nuevo combo</h2>
+        <label for="combo-nombre">Nombre del combo</label>
+        <input id="combo-nombre" type="text" placeholder="Ej. Cambio de aceite y filtro">
+        <label for="combo-descripcion">Descripción (opcional)</label>
+        <input id="combo-descripcion" type="text" placeholder="Ej. Incluye mano de obra, filtro y 4 litros de aceite">
+        <label style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="combo-activo" style="width:auto;margin:0;" checked>
+          Combo activo (disponible para usar en órdenes)
+        </label>
+
+        <h3>Líneas del combo</h3>
+        <div id="lista-lineas-combo"></div>
+        <div class="tabla-scroll">
+          <table class="tabla-datos">
+            <thead><tr><th>Tipo</th><th>De tu stock</th><th>Nombre</th><th>Costo ref.</th><th>Cantidad</th><th></th></tr></thead>
+            <tfoot>
+              <tr class="fila-agregar">
+                <td>
+                  <select id="cl-tipo">
+                    <option value="mano_obra">Mano de obra</option>
+                    <option value="repuesto">Repuesto</option>
+                    <option value="insumo">Insumo</option>
+                    <option value="trabajo_externo">Trabajo externo</option>
+                  </select>
+                </td>
+                <td><select id="cl-stock"><option value="">Nuevo / escribir nombre</option></select></td>
+                <td><input id="cl-nombre" type="text" placeholder="Nombre"></td>
+                <td><input id="cl-costo" type="number" min="0" step="0.01" placeholder="Costo"></td>
+                <td><input id="cl-cantidad" type="number" min="0.01" step="0.01" value="1"></td>
+                <td><button type="button" id="btn-agregar-linea-combo">+ Agregar</button></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <button type="button" id="btn-guardar-combo">Guardar combo</button>
+        <button type="button" class="secundario" id="btn-cancelar-combo">Cancelar</button>
       </div>
     </section>
 
@@ -1969,6 +2031,7 @@ the data-access layer at all.
         $("nav-cuentas").classList.toggle("oculto", !puedeVerCaja);
         var puedeVerInventario = rolActual === "administrador" || rolActual === "asesor" || rolActual === "contador";
         $("nav-inventario").classList.toggle("oculto", !puedeVerInventario);
+        $("nav-combos").classList.toggle("oculto", !puedeVerInventario);
         $("nav-agenda").classList.toggle("oculto", !puedeVerInventario);
         $("nav-clientes").classList.toggle("oculto", !puedeVerInventario);
         $("nav-vehiculos").classList.toggle("oculto", !puedeVerInventario);
@@ -1998,9 +2061,9 @@ the data-access layer at all.
   // =====================================================================
   // NAVEGACIÓN (menú lateral)
   // =====================================================================
-  var PAGINAS = ["inicio", "app", "agenda", "clientes", "vehiculos", "proveedores", "personal", "inventario", "contabilidad", "facturacion", "caja", "cuentas", "egreso", "configuracion", "nomina", "reportes", "comunicaciones"];
-  var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", agenda: "Agenda", clientes: "Clientes", vehiculos: "Vehículos", proveedores: "Proveedores", personal: "Personal", inventario: "Inventario", contabilidad: "Contabilidad", facturacion: "Facturación", caja: "Caja", cuentas: "Cuentas por cobrar/pagar", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes", comunicaciones: "Comunicaciones" };
-  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", agenda: "agenda-error", clientes: "clientes-error", vehiculos: "vehiculos-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", contabilidad: "contab-horas-error", facturacion: "facturacion-error", caja: "caja-error", cuentas: "cuentas-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error", comunicaciones: "comunicaciones-error" };
+  var PAGINAS = ["inicio", "app", "agenda", "clientes", "vehiculos", "proveedores", "personal", "inventario", "combos", "contabilidad", "facturacion", "caja", "cuentas", "egreso", "configuracion", "nomina", "reportes", "comunicaciones"];
+  var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", agenda: "Agenda", clientes: "Clientes", vehiculos: "Vehículos", proveedores: "Proveedores", personal: "Personal", inventario: "Inventario", combos: "Combos de servicio", contabilidad: "Contabilidad", facturacion: "Facturación", caja: "Caja", cuentas: "Cuentas por cobrar/pagar", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes", comunicaciones: "Comunicaciones" };
+  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", agenda: "agenda-error", clientes: "clientes-error", vehiculos: "vehiculos-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", combos: "combos-error", contabilidad: "contab-horas-error", facturacion: "facturacion-error", caja: "caja-error", cuentas: "cuentas-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error", comunicaciones: "comunicaciones-error" };
 
   function mostrarPagina(nombre) {
     if (PAGINAS.indexOf(nombre) === -1) nombre = "inicio";
@@ -2023,6 +2086,7 @@ the data-access layer at all.
     else if (nombre === "proveedores") promesa = cargarProveedoresPagina();
     else if (nombre === "personal") promesa = cargarPersonal();
     else if (nombre === "inventario") promesa = cargarInventario();
+    else if (nombre === "combos") promesa = cargarCombos();
     else if (nombre === "contabilidad") promesa = cargarContabilidad();
     else if (nombre === "facturacion") promesa = cargarFacturacion();
     else if (nombre === "caja") promesa = cargarCaja();
@@ -2186,7 +2250,7 @@ the data-access layer at all.
     // queda vacío. Antes solo se ejecutaban al crear una orden desde cero; al
     // abrir una orden ya existente desde el tablero, quedaban sin ejecutar.
     reiniciarSelectorStockPartes();
-    return Promise.all([cargarPrecioManoObraActual(), cargarItemsStockPara($("pa-tipo").value), cargarCatalogoTrabajosExternos()]).then(cargarItemsDeOrden);
+    return Promise.all([cargarPrecioManoObraActual(), cargarItemsStockPara($("pa-tipo").value), cargarCatalogoTrabajosExternos(), cargarCombosParaOrden()]).then(cargarItemsDeOrden);
   }
 
   $("btn-inicio-nueva-orden").addEventListener("click", function () {
@@ -5250,6 +5314,301 @@ the data-access layer at all.
   }
 
   // =====================================================================
+  // COMBOS DE SERVICIO
+  // =====================================================================
+  var ETIQUETAS_TIPO_COMBO = { mano_obra: "Mano de obra", repuesto: "Repuesto", insumo: "Insumo", trabajo_externo: "Trabajo externo" };
+  var comboEditandoId = null;
+  var comboLineasBorrador = [];
+  var comboStockDisponible = [];
+
+  function cargarCombos() {
+    ocultarError("combos-error");
+    return restRequest("GET", "combos_servicio", { query: "select=*,combo_items(id_combo_item)&order=nombre.asc" })
+      .then(function (combos) {
+        renderizarListaCombos(combos || []);
+      });
+  }
+
+  function renderizarListaCombos(combos) {
+    var cont = $("lista-combos");
+    cont.innerHTML = combos.length ? "" : "<p class=\"nota-ayuda\">Todavía no tienes combos armados.</p>";
+    combos.forEach(function (c) {
+      var fila = document.createElement("div");
+      fila.className = "fila-renglon";
+      var cantLineas = (c.combo_items || []).length;
+      fila.innerHTML =
+        "<span>" + c.nombre + (c.activo ? "" : " <span class=\"fila-detalle\">(inactivo)</span>") +
+        (c.descripcion ? "<br><span class=\"fila-detalle\">" + c.descripcion + "</span>" : "") +
+        "<br><span class=\"fila-detalle\">" + cantLineas + " línea(s)</span></span>";
+      var contBotones = document.createElement("span");
+      var btnEditar = document.createElement("button");
+      btnEditar.type = "button";
+      btnEditar.textContent = "Editar";
+      btnEditar.addEventListener("click", conManejoDeErrores(function () { return abrirFormularioCombo(c.id_combo); }, "combos-error"));
+      contBotones.appendChild(btnEditar);
+      var btnActivar = document.createElement("button");
+      btnActivar.type = "button";
+      btnActivar.className = "secundario";
+      btnActivar.textContent = c.activo ? "Desactivar" : "Activar";
+      btnActivar.addEventListener("click", conManejoDeErrores(function () {
+        return restRequest("PATCH", "combos_servicio", { query: "id_combo=eq." + c.id_combo, body: { activo: !c.activo } }).then(cargarCombos);
+      }, "combos-error"));
+      contBotones.appendChild(btnActivar);
+      var btnEliminar = document.createElement("button");
+      btnEliminar.type = "button";
+      btnEliminar.className = "secundario";
+      btnEliminar.style.color = "var(--rojo)";
+      btnEliminar.textContent = "Eliminar";
+      btnEliminar.addEventListener("click", conManejoDeErrores(function () {
+        if (!window.confirm("¿Eliminar el combo \"" + c.nombre + "\"? No se puede deshacer.")) return;
+        return restRequest("DELETE", "combos_servicio", { query: "id_combo=eq." + c.id_combo }).then(cargarCombos);
+      }, "combos-error"));
+      contBotones.appendChild(btnEliminar);
+      fila.appendChild(contBotones);
+      cont.appendChild(fila);
+    });
+  }
+
+  function abrirFormularioCombo(idCombo) {
+    ocultarError("combos-error");
+    comboEditandoId = idCombo || null;
+    comboLineasBorrador = [];
+    $("combo-form-titulo").textContent = comboEditandoId ? "Editar combo" : "Nuevo combo";
+    $("combo-nombre").value = "";
+    $("combo-descripcion").value = "";
+    $("combo-activo").checked = true;
+    reiniciarMiniFormularioLineaCombo();
+
+    var promesa = comboEditandoId
+      ? Promise.all([
+          restRequest("GET", "combos_servicio", { query: "select=*&id_combo=eq." + comboEditandoId }),
+          restRequest("GET", "combo_items", { query: "select=*&id_combo=eq." + comboEditandoId + "&order=orden.asc" })
+        ]).then(function (r) {
+          var combo = r[0] && r[0][0];
+          if (!combo) throw new Error("No se encontró el combo.");
+          $("combo-nombre").value = combo.nombre;
+          $("combo-descripcion").value = combo.descripcion || "";
+          $("combo-activo").checked = combo.activo;
+          comboLineasBorrador = (r[1] || []).map(function (l) {
+            return { tipo: l.tipo, id_item: l.id_item, nombre: l.nombre, costo: Number(l.costo), cantidad: Number(l.cantidad) };
+          });
+        })
+      : Promise.resolve();
+
+    return promesa.then(function () {
+      renderizarLineasCombo();
+      $("tarjeta-form-combo").classList.remove("oculto");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }
+
+  $("btn-nuevo-combo").addEventListener("click", conManejoDeErrores(function () { return abrirFormularioCombo(null); }, "combos-error"));
+  $("btn-cancelar-combo").addEventListener("click", function () {
+    $("tarjeta-form-combo").classList.add("oculto");
+  });
+
+  function reiniciarMiniFormularioLineaCombo() {
+    $("cl-nombre").value = "";
+    $("cl-costo").value = "";
+    $("cl-cantidad").value = "1";
+    $("cl-stock").value = "";
+    $("cl-nombre").disabled = false;
+    cargarStockParaLineaCombo($("cl-tipo").value);
+  }
+
+  function cargarStockParaLineaCombo(tipo) {
+    var selStock = $("cl-stock");
+    var selCosto = $("cl-costo");
+    if (tipo === "mano_obra") {
+      selStock.innerHTML = '<option value="">(se escribe el nombre)</option>';
+      selStock.disabled = true;
+      selCosto.disabled = true;
+      selCosto.value = "";
+      selCosto.placeholder = "Lo calcula el sistema";
+      comboStockDisponible = [];
+      return Promise.resolve();
+    }
+    selStock.disabled = false;
+    selCosto.disabled = false;
+    selCosto.placeholder = "Costo";
+    var tipoConsulta = tipo === "trabajo_externo" ? "trabajo_externo" : tipo;
+    return restRequest("GET", "items", { query: "select=id_item,nombre,tipo,costo,stock_gestionado&tipo=eq." + tipoConsulta + "&order=nombre.asc" })
+      .then(function (items) {
+        comboStockDisponible = items || [];
+        selStock.innerHTML = '<option value="">Nuevo / escribir nombre</option>';
+        comboStockDisponible.forEach(function (it) {
+          var opt = document.createElement("option");
+          opt.value = it.id_item;
+          opt.textContent = it.nombre;
+          selStock.appendChild(opt);
+        });
+      });
+  }
+
+  $("cl-tipo").addEventListener("change", conManejoDeErrores(function () {
+    reiniciarMiniFormularioLineaCombo();
+  }, "combos-error"));
+
+  $("cl-stock").addEventListener("change", function () {
+    var idSel = $("cl-stock").value;
+    if (!idSel) {
+      $("cl-nombre").value = "";
+      $("cl-nombre").disabled = false;
+      $("cl-costo").value = "";
+      $("cl-costo").disabled = false;
+      return;
+    }
+    var item = comboStockDisponible.filter(function (it) { return it.id_item === idSel; })[0];
+    if (!item) return;
+    $("cl-nombre").value = item.nombre;
+    $("cl-nombre").disabled = true;
+    $("cl-costo").value = item.costo;
+    $("cl-costo").disabled = true;
+  });
+
+  function renderizarLineasCombo() {
+    var cont = $("lista-lineas-combo");
+    cont.innerHTML = comboLineasBorrador.length ? "" : "<p class=\"nota-ayuda\">Todavía no agregas líneas a este combo.</p>";
+    comboLineasBorrador.forEach(function (linea, indice) {
+      var fila = document.createElement("div");
+      fila.className = "fila-renglon";
+      fila.innerHTML =
+        "<span>" + ETIQUETAS_TIPO_COMBO[linea.tipo] + " · " + linea.nombre +
+        "<br><span class=\"fila-detalle\">Cantidad: " + linea.cantidad + (linea.tipo === "mano_obra" ? " horas" : "") +
+        (linea.tipo === "mano_obra" ? "" : " · Costo ref.: " + formatoMoneda(linea.costo)) + "</span></span>";
+      var btnQuitar = document.createElement("button");
+      btnQuitar.type = "button";
+      btnQuitar.className = "secundario";
+      btnQuitar.style.color = "var(--rojo)";
+      btnQuitar.textContent = "Quitar";
+      btnQuitar.addEventListener("click", function () {
+        comboLineasBorrador.splice(indice, 1);
+        renderizarLineasCombo();
+      });
+      fila.appendChild(btnQuitar);
+      cont.appendChild(fila);
+    });
+  }
+
+  $("btn-agregar-linea-combo").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("combos-error");
+    var tipo = $("cl-tipo").value;
+    var idStock = $("cl-stock").value || null;
+    var nombre = $("cl-nombre").value.trim();
+    var costo = tipo === "mano_obra" ? 0 : parseFloat($("cl-costo").value);
+    var cantidad = parseFloat($("cl-cantidad").value);
+
+    if (!nombre) { mostrarError("combos-error", "Escribe el nombre de la línea."); return; }
+    if (!(cantidad > 0)) { mostrarError("combos-error", "La cantidad debe ser mayor a 0."); return; }
+    if (tipo !== "mano_obra" && !(costo >= 0)) { mostrarError("combos-error", "Escribe un costo válido."); return; }
+
+    comboLineasBorrador.push({ tipo: tipo, id_item: idStock, nombre: nombre, costo: costo || 0, cantidad: cantidad });
+    renderizarLineasCombo();
+    reiniciarMiniFormularioLineaCombo();
+  }, "combos-error"));
+
+  $("btn-guardar-combo").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("combos-error");
+    var nombre = $("combo-nombre").value.trim();
+    var descripcion = $("combo-descripcion").value.trim();
+    var activo = $("combo-activo").checked;
+
+    if (!nombre) { mostrarError("combos-error", "Escribe el nombre del combo."); return; }
+    if (!comboLineasBorrador.length) { mostrarError("combos-error", "Agrega al menos una línea al combo."); return; }
+
+    var body = { nombre: nombre, descripcion: descripcion || null, activo: activo };
+    var guardarCombo = comboEditandoId
+      ? restRequest("PATCH", "combos_servicio", { query: "id_combo=eq." + comboEditandoId, body: body }).then(function () { return comboEditandoId; })
+      : restRequest("POST", "combos_servicio", { body: { nombre: nombre, descripcion: descripcion || null, activo: activo, creado_por: usuarioActualId } }).then(function (filas) { return filas[0].id_combo; });
+
+    return guardarCombo.then(function (idCombo) {
+      var limpiarLineas = comboEditandoId
+        ? restRequest("DELETE", "combo_items", { query: "id_combo=eq." + idCombo })
+        : Promise.resolve();
+      return limpiarLineas.then(function () {
+        var promesa = Promise.resolve();
+        comboLineasBorrador.forEach(function (linea, indice) {
+          promesa = promesa.then(function () {
+            return restRequest("POST", "combo_items", {
+              body: {
+                id_combo: idCombo, tipo: linea.tipo, id_item: linea.id_item || null,
+                nombre: linea.nombre, costo: linea.costo, cantidad: linea.cantidad, orden: indice
+              }
+            });
+          });
+        });
+        return promesa;
+      });
+    }).then(function () {
+      $("tarjeta-form-combo").classList.add("oculto");
+      return cargarCombos();
+    });
+  }, "combos-error"));
+
+  // --- Aplicar un combo dentro de una orden ---
+  function cargarCombosParaOrden() {
+    return restRequest("GET", "combos_servicio", { query: "select=id_combo,nombre&activo=eq.true&order=nombre.asc" })
+      .then(function (combos) {
+        var sel = $("combo-seleccionar");
+        var valorPrevio = sel.value;
+        sel.innerHTML = '<option value="">Elige un combo...</option>';
+        (combos || []).forEach(function (c) {
+          var opt = document.createElement("option");
+          opt.value = c.id_combo;
+          opt.textContent = c.nombre;
+          sel.appendChild(opt);
+        });
+        sel.value = valorPrevio;
+      });
+  }
+
+  function aplicarLineaDeCombo(linea, esTecnico) {
+    var itemRef = linea.items || null;
+    if (linea.tipo === "mano_obra") {
+      return agregarLineaOrden({
+        tipo: "mano_obra",
+        nombre: itemRef ? itemRef.nombre : linea.nombre,
+        costo: costoHoraTecnicoActual !== null ? costoHoraTecnicoActual : 0,
+        cantidad: Number(linea.cantidad)
+      });
+    }
+    var costo = esTecnico ? 0 : (itemRef ? Number(itemRef.costo) : Number(linea.costo));
+    var descontarDeStock = !!(itemRef && itemRef.stock_gestionado);
+    return agregarLineaOrden({
+      tipo: linea.tipo,
+      nombre: itemRef ? itemRef.nombre : linea.nombre,
+      costo: costo,
+      cantidad: Number(linea.cantidad),
+      idExistente: linea.id_item || null,
+      descontarDeStock: descontarDeStock
+    });
+  }
+
+  $("btn-aplicar-combo").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("combo-aplicar-error");
+    var idCombo = $("combo-seleccionar").value;
+    if (!idCombo) { mostrarError("combo-aplicar-error", "Elige un combo primero."); return; }
+    return restRequest("GET", "combo_items", {
+      query: "select=*,items(nombre,tipo,costo,stock_gestionado)&id_combo=eq." + idCombo + "&order=orden.asc"
+    }).then(function (lineas) {
+      lineas = lineas || [];
+      if (!lineas.length) { mostrarError("combo-aplicar-error", "Este combo no tiene líneas."); return; }
+      if (!window.confirm("¿Agregar las " + lineas.length + " línea(s) de este combo a la orden actual?")) return;
+      var esTecnico = rolActual === "tecnico";
+      var promesa = Promise.resolve();
+      lineas.forEach(function (linea) {
+        promesa = promesa.then(function () { return aplicarLineaDeCombo(linea, esTecnico); });
+      });
+      return promesa.then(function () {
+        $("combo-seleccionar").value = "";
+        return cargarItemsDeOrden();
+      });
+    }).catch(function (err) {
+      mostrarError("combo-aplicar-error", "No se pudo aplicar el combo completo: " + err.message);
+    });
+  }, "combo-aplicar-error"));
+
+  // =====================================================================
   // ÓRDENES — buscar / crear cliente-vehículo / asignar
   // =====================================================================
   function cargarAsesoresYTecnicos() {
@@ -7257,7 +7616,7 @@ the data-access layer at all.
     $("tarjeta-exito").classList.add("oculto");
     $("tarjeta-items").classList.remove("oculto");
     reiniciarSelectorStockPartes();
-    return Promise.all([cargarPrecioManoObraActual(), cargarItemsStockPara($("pa-tipo").value), cargarCatalogoTrabajosExternos()]).then(cargarItemsDeOrden);
+    return Promise.all([cargarPrecioManoObraActual(), cargarItemsStockPara($("pa-tipo").value), cargarCatalogoTrabajosExternos(), cargarCombosParaOrden()]).then(cargarItemsDeOrden);
   }, "item-error"));
 
   $("pa-tipo").addEventListener("change", conManejoDeErrores(function () {
