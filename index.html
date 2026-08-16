@@ -105,6 +105,32 @@ the data-access layer at all.
   </section>
 </div>
 
+<div id="pantalla-historial-publico" class="oculto">
+  <section class="tarjeta">
+    <h1 class="marca-flex marca-login"><img class="logo-taller logo-taller-grande" alt="Logo"> <span id="hp-nombre-taller">Taller Servi Motors</span></h1>
+
+    <div id="hp-cargando"><p>Buscando el historial…</p></div>
+
+    <div id="hp-invalido" class="oculto">
+      <h2>Enlace no válido</h2>
+      <p>No encontramos este vehículo. Comunícate con el taller para verificar el enlace.</p>
+    </div>
+
+    <div id="hp-contenido" class="oculto">
+      <h2 id="hp-vehiculo"></h2>
+      <p id="hp-kilometraje" class="nota-ayuda"></p>
+      <div class="tabla-scroll">
+        <table class="tabla-datos" id="hp-tabla">
+          <thead>
+            <tr><th>Orden</th><th>Fecha entrada</th><th>Fecha salida</th><th>Estado</th><th>Técnico</th><th>Kilometraje</th></tr>
+          </thead>
+          <tbody id="hp-tabla-cuerpo"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</div>
+
 <div id="shell" class="oculto">
 
   <header id="barra-movil">
@@ -126,6 +152,7 @@ the data-access layer at all.
     <a href="#" class="nav-link oculto" id="nav-agenda" data-pagina="agenda">📅 Agenda</a>
     <a href="#" class="nav-link oculto" id="nav-clientes" data-pagina="clientes">🙍 Clientes</a>
     <a href="#" class="nav-link oculto" id="nav-vehiculos" data-pagina="vehiculos">🚗 Vehículos</a>
+    <a href="#" class="nav-link oculto" id="nav-historial" data-pagina="historial">🕘 Historial</a>
     <a href="#" class="nav-link oculto" id="nav-proveedores" data-pagina="proveedores">🏭 Proveedores</a>
     <a href="#" class="nav-link oculto" id="nav-personal" data-pagina="personal">🧑‍🔧 Personal</a>
 
@@ -329,6 +356,8 @@ the data-access layer at all.
         <select id="select-asesor"></select>
         <label for="select-tecnico">Técnico responsable</label>
         <select id="select-tecnico"></select>
+        <label for="orden-km-ingreso">Kilometraje al ingresar (opcional)</label>
+        <input id="orden-km-ingreso" type="number" min="0">
         <label for="select-tipo-orden">Tipo de orden</label>
         <select id="select-tipo-orden">
           <option value="nueva">Nueva (se cobra normal)</option>
@@ -777,6 +806,50 @@ the data-access layer at all.
         <input id="vehiculo-tecnomecanica" type="date">
         <button id="btn-guardar-vehiculo">Agregar vehículo</button>
         <button id="btn-cancelar-edicion-vehiculo" class="secundario">Cancelar</button>
+      </div>
+    </section>
+
+    <section id="pantalla-historial" class="pagina pagina-ancha oculto">
+      <h1>Historial del vehículo</h1>
+      <div class="nota-ayuda">Busca un vehículo por placa para ver todas sus órdenes (abiertas y cerradas) y comparte el enlace con el cliente.</div>
+      <div id="historial-error" class="mensaje-error"></div>
+
+      <div class="tarjeta">
+        <div class="tabla-toolbar">
+          <label>Placa <input id="historial-buscar-placa" type="text" style="text-transform:uppercase" placeholder="Ej: ABC123"></label>
+          <button type="button" id="btn-buscar-historial">Buscar</button>
+        </div>
+      </div>
+
+      <div id="historial-resultado" class="oculto">
+        <div class="tarjeta">
+          <h2 id="historial-vehiculo-titulo"></h2>
+          <div id="historial-vehiculo-info" class="info-vehiculo"></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+            <button type="button" class="secundario" id="btn-historial-whatsapp">Enviar enlace por WhatsApp</button>
+            <button type="button" class="secundario" id="btn-historial-qr">Mostrar código QR</button>
+          </div>
+          <div id="historial-qr-cont" class="oculto" style="text-align:center;margin:10px 0;"></div>
+        </div>
+
+        <div class="tarjeta">
+          <div class="tabla-scroll">
+            <table class="tabla-datos" id="tabla-historial-ordenes">
+              <thead>
+                <tr>
+                  <th>Orden</th>
+                  <th>Fecha entrada</th>
+                  <th>Fecha salida</th>
+                  <th>Estado</th>
+                  <th>Técnico</th>
+                  <th>Kilometraje</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="cuerpo-tabla-historial"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -1934,7 +2007,8 @@ the data-access layer at all.
     autorizacion_adicional: "Hola {cliente}, encontramos algo adicional en tu vehículo {placa} que también necesita tu autorización ({monto}). Por favor confírmanos o pasa por el taller a autorizarlo.",
     soat_vencimiento: "Hola {cliente}, te recordamos que el SOAT de tu vehículo {placa} vence el {fecha}. Te recomendamos renovarlo a tiempo para evitar multas.",
     tecnomecanica_vencimiento: "Hola {cliente}, te recordamos que la Tecnomecánica de tu vehículo {placa} vence el {fecha}. Podemos ayudarte a agendar la revisión.",
-    consulta_estado: "Hola {cliente}, puedes consultar en cualquier momento cómo va la reparación de tu vehículo {placa} en este enlace: {enlace}"
+    consulta_estado: "Hola {cliente}, puedes consultar en cualquier momento cómo va la reparación de tu vehículo {placa} en este enlace: {enlace}",
+    historial_vehiculo: "Hola {cliente}, aquí puedes ver el historial de visitas de tu vehículo {placa} en Taller Servi Motors: {enlace}"
   };
   var plantillasMensajes = {};
 
@@ -2122,6 +2196,7 @@ the data-access layer at all.
         $("nav-agenda").classList.toggle("oculto", !puedeVerInventario);
         $("nav-clientes").classList.toggle("oculto", !puedeVerInventario);
         $("nav-vehiculos").classList.toggle("oculto", !puedeVerInventario);
+        $("nav-historial").classList.toggle("oculto", !puedeVerInventario);
         $("nav-proveedores").classList.toggle("oculto", !puedeVerInventario);
         $("nav-comunicaciones").classList.toggle("oculto", !puedeVerInventario);
         $("nav-personal").classList.toggle("oculto", rolActual !== "administrador");
@@ -2148,9 +2223,9 @@ the data-access layer at all.
   // =====================================================================
   // NAVEGACIÓN (menú lateral)
   // =====================================================================
-  var PAGINAS = ["inicio", "app", "agenda", "clientes", "vehiculos", "proveedores", "personal", "inventario", "servicios", "combos", "contabilidad", "facturacion", "caja", "cuentas", "egreso", "configuracion", "nomina", "reportes", "comunicaciones"];
-  var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", agenda: "Agenda", clientes: "Clientes", vehiculos: "Vehículos", proveedores: "Proveedores", personal: "Personal", inventario: "Inventario", servicios: "Servicios", combos: "Combos de servicio", contabilidad: "Contabilidad", facturacion: "Facturación", caja: "Caja", cuentas: "Cuentas por cobrar/pagar", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes", comunicaciones: "Comunicaciones" };
-  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", agenda: "agenda-error", clientes: "clientes-error", vehiculos: "vehiculos-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", servicios: "servicios-error", combos: "combos-error", contabilidad: "contab-horas-error", facturacion: "facturacion-error", caja: "caja-error", cuentas: "cuentas-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error", comunicaciones: "comunicaciones-error" };
+  var PAGINAS = ["inicio", "app", "agenda", "clientes", "vehiculos", "historial", "proveedores", "personal", "inventario", "servicios", "combos", "contabilidad", "facturacion", "caja", "cuentas", "egreso", "configuracion", "nomina", "reportes", "comunicaciones"];
+  var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", agenda: "Agenda", clientes: "Clientes", vehiculos: "Vehículos", historial: "Historial del vehículo", proveedores: "Proveedores", personal: "Personal", inventario: "Inventario", servicios: "Servicios", combos: "Combos de servicio", contabilidad: "Contabilidad", facturacion: "Facturación", caja: "Caja", cuentas: "Cuentas por cobrar/pagar", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes", comunicaciones: "Comunicaciones" };
+  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", agenda: "agenda-error", clientes: "clientes-error", vehiculos: "vehiculos-error", historial: "historial-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", servicios: "servicios-error", combos: "combos-error", contabilidad: "contab-horas-error", facturacion: "facturacion-error", caja: "caja-error", cuentas: "cuentas-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error", comunicaciones: "comunicaciones-error" };
 
   function mostrarPagina(nombre) {
     if (PAGINAS.indexOf(nombre) === -1) nombre = "inicio";
@@ -2178,6 +2253,7 @@ the data-access layer at all.
     else if (nombre === "agenda") promesa = cargarAgenda();
     else if (nombre === "clientes") promesa = cargarClientes();
     else if (nombre === "vehiculos") promesa = cargarVehiculos();
+    else if (nombre === "historial") reiniciarPantallaHistorial();
     else if (nombre === "proveedores") promesa = cargarProveedoresPagina();
     else if (nombre === "personal") promesa = cargarPersonal();
     else if (nombre === "inventario") promesa = cargarInventario();
@@ -3796,6 +3872,130 @@ the data-access layer at all.
       return cargarVehiculos();
     });
   }, "vehiculos-error"));
+
+  // =====================================================================
+  // HISTORIAL DEL VEHÍCULO — búsqueda por placa (órdenes abiertas y
+  // cerradas) + enlace público permanente para compartir con el cliente.
+  // No muestra precios: solo fechas, estado, técnico y kilometraje.
+  // =====================================================================
+  var historialVehiculoActual = null; // { id_vehiculo, placa, clienteNombre, clienteTelefono, tokenHistorial }
+
+  function reiniciarPantallaHistorial() {
+    ocultarError("historial-error");
+    $("historial-buscar-placa").value = "";
+    $("historial-resultado").classList.add("oculto");
+    $("historial-qr-cont").classList.add("oculto");
+    $("historial-qr-cont").innerHTML = "";
+    historialVehiculoActual = null;
+  }
+
+  function etiquetaEstadoHistorial(clave) {
+    var e = ESTADOS_TABLERO.filter(function (x) { return x.clave === clave; })[0];
+    if (e) return e.etiqueta;
+    return clave === "cancelada" ? "Cancelada" : (clave || "—");
+  }
+
+  function enlaceHistorialPublico() {
+    if (!historialVehiculoActual || !historialVehiculoActual.tokenHistorial) return null;
+    return "https://servi-motors.github.io/taller-servi-motors/?historial=" + historialVehiculoActual.tokenHistorial;
+  }
+
+  function renderizarTablaHistorial(ordenes) {
+    var cuerpo = $("cuerpo-tabla-historial");
+    cuerpo.innerHTML = "";
+    if (!ordenes.length) {
+      cuerpo.innerHTML = "<tr><td colspan=\"7\">Este vehículo todavía no tiene órdenes registradas.</td></tr>";
+      return;
+    }
+    ordenes.forEach(function (o) {
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + prefijoOT + o.numero_ot + (o.tipo_orden === "garantia" ? " <span class=\"etiqueta-garantia\">GARANTÍA</span>" : "") + "</td>" +
+        "<td>" + (o.fecha_apertura ? formatoFechaCorta(new Date(o.fecha_apertura)) : "—") + "</td>" +
+        "<td>" + (o.fecha_cierre ? formatoFechaCorta(new Date(o.fecha_cierre)) : "—") + "</td>" +
+        "<td>" + etiquetaEstadoHistorial(o.estado) + "</td>" +
+        "<td>" + (o.tecnico ? o.tecnico.nombre : "—") + "</td>" +
+        "<td>" + ((o.kilometraje_ingreso || o.kilometraje_ingreso === 0) ? o.kilometraje_ingreso + " km" : "—") + "</td>";
+      var tdAcciones = document.createElement("td");
+      var btnVer = document.createElement("button");
+      btnVer.type = "button";
+      btnVer.className = "secundario";
+      btnVer.textContent = "Ver orden";
+      btnVer.addEventListener("click", function () {
+        mostrarPagina("app");
+        abrirOrdenExistente(o.id_ot, o.numero_ot).catch(function (err) { console.error(err); });
+      });
+      tdAcciones.appendChild(btnVer);
+      tr.appendChild(tdAcciones);
+      cuerpo.appendChild(tr);
+    });
+  }
+
+  $("btn-buscar-historial").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("historial-error");
+    $("historial-resultado").classList.add("oculto");
+    $("historial-qr-cont").classList.add("oculto");
+    $("historial-qr-cont").innerHTML = "";
+    var placa = $("historial-buscar-placa").value.trim().toUpperCase();
+    if (!placa) {
+      mostrarError("historial-error", "Escribe una placa para buscar.");
+      return;
+    }
+    return restRequest("GET", "vehiculos", {
+      query: "select=id_vehiculo,placa,marca,modelo,anio,kilometraje,token_historial,clientes(nombre,telefono)&placa=eq." + encodeURIComponent(placa)
+    }).then(function (data) {
+      var v = data && data.length ? data[0] : null;
+      if (!v) {
+        mostrarError("historial-error", "No encontramos ningún vehículo con esa placa.");
+        return;
+      }
+      var cliente = v.clientes || {};
+      historialVehiculoActual = { id_vehiculo: v.id_vehiculo, placa: v.placa, clienteNombre: cliente.nombre, clienteTelefono: cliente.telefono, tokenHistorial: v.token_historial };
+      $("historial-vehiculo-titulo").textContent = v.marca + " " + v.modelo + " (" + v.anio + ") — Placa " + v.placa;
+      $("historial-vehiculo-info").innerHTML =
+        "Dueño: " + (cliente.nombre || "—") + "<br>" +
+        "Kilometraje registrado: " + ((v.kilometraje || v.kilometraje === 0) ? v.kilometraje + " km" : "—");
+      $("historial-resultado").classList.remove("oculto");
+      return restRequest("GET", "ordenes_trabajo", {
+        query: "select=id_ot,numero_ot,estado,tipo_orden,fecha_apertura,fecha_cierre,kilometraje_ingreso,tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre)&id_vehiculo=eq." + v.id_vehiculo + "&estado=neq.cancelada&order=fecha_apertura.desc"
+      }).then(renderizarTablaHistorial);
+    }).catch(function (err) {
+      mostrarError("historial-error", "Error buscando el vehículo: " + err.message);
+    });
+  }, "historial-error"));
+
+  $("btn-historial-whatsapp").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("historial-error");
+    if (!historialVehiculoActual) return;
+    var numero = telefonoWhatsApp(historialVehiculoActual.clienteTelefono);
+    if (!numero) {
+      mostrarError("historial-error", "El cliente no tiene teléfono registrado.");
+      return;
+    }
+    var url = enlaceHistorialPublico();
+    var mensaje = aplicarPlantilla("historial_vehiculo", {
+      cliente: historialVehiculoActual.clienteNombre || "",
+      placa: historialVehiculoActual.placa || "",
+      enlace: url
+    });
+    window.open("https://wa.me/" + numero + "?text=" + encodeURIComponent(mensaje), "_blank");
+  }, "historial-error"));
+
+  $("btn-historial-qr").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("historial-error");
+    if (!historialVehiculoActual) return;
+    var url = enlaceHistorialPublico();
+    var cont = $("historial-qr-cont");
+    var visible = !cont.classList.contains("oculto");
+    if (visible) {
+      cont.classList.add("oculto");
+      cont.innerHTML = "";
+      return;
+    }
+    cont.innerHTML = "<img alt=\"Código QR del historial\" width=\"180\" height=\"180\" src=\"https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" + encodeURIComponent(url) + "\">" +
+      "<div class=\"nota-ayuda\">" + url + "</div>";
+    cont.classList.remove("oculto");
+  }, "historial-error"));
 
   var proveedorEditando = null;
 
@@ -5924,7 +6124,7 @@ the data-access layer at all.
       var encontrado = data && data.length ? data[0] : null;
       $("tarjeta-buscar").classList.add("oculto");
       if (encontrado) {
-        vehiculoSeleccionado = { id_vehiculo: encontrado.id_vehiculo, id_cliente: encontrado.id_cliente };
+        vehiculoSeleccionado = { id_vehiculo: encontrado.id_vehiculo, id_cliente: encontrado.id_cliente, kilometraje: encontrado.kilometraje };
         var cliente = encontrado.clientes || {};
         $("info-vehiculo-encontrado").innerHTML =
           "<b>" + encontrado.marca + " " + encontrado.modelo + " (" + encontrado.anio + ") — Placa " + encontrado.placa + "</b>" +
@@ -5966,6 +6166,7 @@ the data-access layer at all.
   function prepararPasoAsignar() {
     $("select-tipo-orden").value = "nueva";
     $("grupo-orden-garantia-original").classList.add("oculto");
+    $("orden-km-ingreso").value = (vehiculoSeleccionado && vehiculoSeleccionado.kilometraje) ? vehiculoSeleccionado.kilometraje : "";
     cargarOrdenesGarantiaDisponibles().catch(function (err) { console.error(err); });
   }
 
@@ -6076,7 +6277,7 @@ the data-access layer at all.
       });
     }).then(function (vehiculos) {
       var vehiculoCreado = vehiculos[0];
-      vehiculoSeleccionado = { id_vehiculo: vehiculoCreado.id_vehiculo, id_cliente: idClienteFinal };
+      vehiculoSeleccionado = { id_vehiculo: vehiculoCreado.id_vehiculo, id_cliente: idClienteFinal, kilometraje: km };
       $("tarjeta-nuevo").classList.add("oculto");
       $("tarjeta-asignar").classList.remove("oculto");
       prepararPasoAsignar();
@@ -6112,6 +6313,7 @@ the data-access layer at all.
         idOtGarantiaOriginal = ordenOriginal.id_ot;
       }
     }
+    var kmIngreso = $("orden-km-ingreso").value ? parseInt($("orden-km-ingreso").value, 10) : null;
 
     var ordenCreada;
     return restRequest("POST", "ordenes_trabajo", {
@@ -6122,17 +6324,25 @@ the data-access layer at all.
         id_tecnico: id_tecnico,
         estado: "recepcion",
         tipo_orden: tipoOrden,
-        id_ot_garantia_original: idOtGarantiaOriginal
+        id_ot_garantia_original: idOtGarantiaOriginal,
+        kilometraje_ingreso: kmIngreso
       }
     }).then(function (ordenes) {
       ordenCreada = ordenes[0];
-      return restRequest("POST", "historial_ot", {
+      var pedidos = [restRequest("POST", "historial_ot", {
         body: {
           id_ot: ordenCreada.id_ot,
           accion: "Orden creada (estado: recepción)",
           id_usuario: usuarioActualId
         }
-      });
+      })];
+      if (kmIngreso && (!vehiculoSeleccionado.kilometraje || kmIngreso > vehiculoSeleccionado.kilometraje)) {
+        pedidos.push(restRequest("PATCH", "vehiculos", {
+          query: "id_vehiculo=eq." + vehiculoSeleccionado.id_vehiculo,
+          body: { kilometraje: kmIngreso }
+        }));
+      }
+      return Promise.all(pedidos);
     }).then(function () {
       ordenActual = { id_ot: ordenCreada.id_ot, numero_ot: ordenCreada.numero_ot };
       $("tarjeta-asignar").classList.add("oculto");
@@ -8581,6 +8791,55 @@ the data-access layer at all.
       });
   }
 
+  // =====================================================================
+  // HISTORIAL PÚBLICO DEL VEHÍCULO (página pública, sin login, ?historial=token)
+  // Enlace fijo (no vence) para que el cliente vea todas las visitas de su
+  // vehículo al taller. No muestra precios ni datos de otras personas.
+  // =====================================================================
+  function renderizarTablaHistorialPublico(ordenes) {
+    var cuerpo = $("hp-tabla-cuerpo");
+    cuerpo.innerHTML = "";
+    if (!ordenes || !ordenes.length) {
+      cuerpo.innerHTML = "<tr><td colspan=\"6\">Todavía no hay visitas registradas.</td></tr>";
+      return;
+    }
+    ordenes.forEach(function (o) {
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>OT-" + o.numero_ot + (o.tipo_orden === "garantia" ? " <span class=\"etiqueta-garantia\">GARANTÍA</span>" : "") + "</td>" +
+        "<td>" + (o.fecha_apertura ? formatoFechaCorta(new Date(o.fecha_apertura)) : "—") + "</td>" +
+        "<td>" + (o.fecha_cierre ? formatoFechaCorta(new Date(o.fecha_cierre)) : "—") + "</td>" +
+        "<td>" + etiquetaEstadoHistorial(o.estado) + "</td>" +
+        "<td>" + (o.tecnico || "—") + "</td>" +
+        "<td>" + ((o.kilometraje_ingreso || o.kilometraje_ingreso === 0) ? o.kilometraje_ingreso + " km" : "—") + "</td>";
+      cuerpo.appendChild(tr);
+    });
+  }
+
+  function iniciarHistorialPublico(token) {
+    $("contenedor-login").classList.add("oculto");
+    $("pantalla-historial-publico").classList.remove("oculto");
+
+    return restRequest("POST", "rpc/obtener_historial_publico_vehiculo", { body: { p_token: token } })
+      .then(function (resumen) {
+        if (!resumen) throw new Error("Enlace inválido");
+        $("hp-cargando").classList.add("oculto");
+        $("hp-contenido").classList.remove("oculto");
+        $("hp-nombre-taller").textContent = resumen.nombre_taller || "Taller Servi Motors";
+        $("hp-vehiculo").textContent = [resumen.marca, resumen.modelo].filter(Boolean).join(" ") +
+          (resumen.anio ? " (" + resumen.anio + ")" : "") + " — Placa " + resumen.placa;
+        $("hp-kilometraje").textContent = (resumen.kilometraje || resumen.kilometraje === 0)
+          ? "Kilometraje registrado: " + resumen.kilometraje + " km" : "";
+        renderizarTablaHistorialPublico(resumen.ordenes);
+      })
+      .catch(function (err) {
+        $("hp-cargando").classList.add("oculto");
+        $("hp-invalido").classList.remove("oculto");
+        var p = document.querySelector("#hp-invalido p:last-child");
+        if (p && err && err.message) p.textContent = err.message;
+      });
+  }
+
   var parametrosUrl = new URLSearchParams(location.search);
   var tokenEnUrl = parametrosUrl.get("firmar");
   if (tokenEnUrl) {
@@ -8590,6 +8849,10 @@ the data-access layer at all.
   var tokenConsultaEnUrl = parametrosUrl.get("consulta");
   if (tokenConsultaEnUrl) {
     iniciarConsultaPublica(tokenConsultaEnUrl);
+  }
+  var tokenHistorialEnUrl = parametrosUrl.get("historial");
+  if (tokenHistorialEnUrl) {
+    iniciarHistorialPublico(tokenHistorialEnUrl);
   }
 
 })();
