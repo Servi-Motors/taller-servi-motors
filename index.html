@@ -1845,9 +1845,15 @@ the data-access layer at all.
   .nav-logout { width: auto; margin: 16px 10px 0; padding: 8px 12px; font-size: 13px; background: transparent; color: var(--rojo); border: 1px solid var(--rojo); }
 
   #contenido-principal { flex: 1; padding: 16px 20px; min-width: 0; }
-  .pagina:not(.pagina-ancha) { max-width: 560px; }
-  .pagina-ancha { max-width: 1500px; }
-  .tarjeta-formulario { max-width: 560px; }
+  /* Todas las pantallas quedan centradas dentro del área de trabajo: si la
+     pantalla del usuario es más ancha que el contenido, el espacio sobrante
+     se reparte en partes iguales a los dos lados en vez de amontonarse solo
+     a la derecha. */
+  .pagina:not(.pagina-ancha) { max-width: 560px; margin-left: auto; margin-right: auto; }
+  .pagina-ancha { max-width: 1500px; margin-left: auto; margin-right: auto; }
+  /* Las tarjetas de formulario (un solo formulario, no una lista/tabla)
+     siempre quedan centradas, sin importar en qué tipo de pantalla estén. */
+  .tarjeta-formulario { max-width: 560px; margin-left: auto; margin-right: auto; }
   /* Formulario tipo ventana emergente: queda fijo y centrado en la pantalla
      (no se mueve al escribir ni con el resto de la página) y se puede
      desplazar solo internamente si el contenido no cabe. */
