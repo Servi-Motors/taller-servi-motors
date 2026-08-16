@@ -3543,6 +3543,14 @@ the data-access layer at all.
         btn.textContent = "Editar";
         btn.addEventListener("click", function () { cfg.onEditar(fila); });
         tdAcciones.appendChild(btn);
+        if (cfg.onExtra) {
+          var btnExtra = document.createElement("button");
+          btnExtra.type = "button";
+          btnExtra.className = "secundario";
+          btnExtra.textContent = cfg.textoExtra || "Ver";
+          btnExtra.addEventListener("click", function () { cfg.onExtra(fila); });
+          tdAcciones.appendChild(btnExtra);
+        }
         tr.appendChild(tdAcciones);
         tbody.appendChild(tr);
       });
@@ -3823,7 +3831,9 @@ the data-access layer at all.
       return (v.placa || "").toLowerCase().indexOf(texto) !== -1 ||
         ((v.clientes && v.clientes.nombre) || "").toLowerCase().indexOf(texto) !== -1;
     },
-    onEditar: function (v) { cargarVehiculoEnFormulario(v); }
+    onEditar: function (v) { cargarVehiculoEnFormulario(v); },
+    onExtra: function (v) { irAHistorialDesdeVehiculo(v); },
+    textoExtra: "Historial"
   });
 
   function cargarVehiculos() {
@@ -3985,15 +3995,17 @@ the data-access layer at all.
     });
   }
 
-  $("btn-buscar-historial").addEventListener("click", conManejoDeErrores(function () {
+  // Reutilizada tanto por el botón "Buscar" de la pantalla Historial como
+  // por el botón "Historial" que aparece en cada fila de la tabla de
+  // Vehículos (para abrir el historial de ese vehículo con un solo clic).
+  function buscarHistorialPorPlaca(placa) {
     ocultarError("historial-error");
     $("historial-resultado").classList.add("oculto");
     $("historial-qr-cont").classList.add("oculto");
     $("historial-qr-cont").innerHTML = "";
-    var placa = $("historial-buscar-placa").value.trim().toUpperCase();
     if (!placa) {
       mostrarError("historial-error", "Escribe una placa para buscar.");
-      return;
+      return Promise.resolve();
     }
     return restRequest("GET", "vehiculos", {
       query: "select=id_vehiculo,placa,marca,modelo,anio,kilometraje,token_historial,clientes(nombre,telefono)&placa=eq." + encodeURIComponent(placa)
@@ -4016,7 +4028,22 @@ the data-access layer at all.
     }).catch(function (err) {
       mostrarError("historial-error", "Error buscando el vehículo: " + err.message);
     });
+  }
+
+  $("btn-buscar-historial").addEventListener("click", conManejoDeErrores(function () {
+    return buscarHistorialPorPlaca($("historial-buscar-placa").value.trim().toUpperCase());
   }, "historial-error"));
+
+  // Botón "Historial" en la tabla de Vehículos: abre directamente el
+  // historial de ese vehículo, sin tener que ir a la pantalla Historial y
+  // volver a escribir la placa.
+  function irAHistorialDesdeVehiculo(v) {
+    mostrarPagina("historial");
+    $("historial-buscar-placa").value = v.placa;
+    buscarHistorialPorPlaca(v.placa).catch(function (err) {
+      mostrarError("historial-error", "Error buscando el vehículo: " + err.message);
+    });
+  }
 
   $("btn-historial-whatsapp").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("historial-error");
