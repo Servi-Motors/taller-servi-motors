@@ -1658,7 +1658,7 @@ the data-access layer at all.
 
       <div class="tarjeta">
         <h2>Productividad real por técnico (mes actual)</h2>
-        <div class="nota-ayuda">Según la hora de inicio y fin que cada técnico va registrando por servicio (columna "Avance del técnico" en la orden). Eficiencia = horas cotizadas ÷ horas reales invertidas; por encima de 100% significa que el técnico terminó más rápido de lo cotizado.</div>
+        <div class="nota-ayuda">Según la hora de inicio y fin que cada técnico va registrando por servicio (columna "Avance del técnico" en la orden). Eficiencia = horas cotizadas ÷ horas reales invertidas; por encima de 100% significa que el técnico terminó más rápido de lo cotizado. Si un servicio duró menos de 2 minutos o más de 12 horas seguidas, aparece un aviso ⚠️ porque probablemente no refleja trabajo real (clic de prueba o se olvidaron de dar clic en "Terminar").</div>
         <div id="tabla-productividad-real"></div>
       </div>
 
@@ -5410,16 +5410,26 @@ the data-access layer at all.
       });
 
       // --- Productividad real por técnico (según avance registrado por servicio) ---
+      // Dos casos que distorsionan el cálculo y conviene avisar en vez de dejarlos
+      // pasar como si fueran productividad real:
+      //  - Muy corto (< 2 min): probablemente fue un clic de prueba/error, no un
+      //    servicio de verdad iniciado y terminado.
+      //  - Muy largo (> 12 h): probablemente el técnico olvidó dar clic en
+      //    "Terminar" y el reloj siguió corriendo de más (toda la noche, etc.).
+      var LIMITE_MINUTOS_CORTO = 2;
+      var LIMITE_HORAS_LARGO = 12;
       var productividadPorTecnico = {};
       avanceServiciosMes.forEach(function (f) {
         var ot = f.ordenes_trabajo || {};
         var idTec = ot.id_tecnico || "sin_tecnico";
         var nombreTec = (ot.tecnico && ot.tecnico.nombre) || "Sin técnico asignado";
-        if (!productividadPorTecnico[idTec]) productividadPorTecnico[idTec] = { nombre: nombreTec, servicios: 0, horasReales: 0, horasCotizadas: 0 };
+        if (!productividadPorTecnico[idTec]) productividadPorTecnico[idTec] = { nombre: nombreTec, servicios: 0, horasReales: 0, horasCotizadas: 0, serviciosCortos: 0, serviciosLargos: 0 };
         var horasReales = (new Date(f.fecha_fin_real) - new Date(f.fecha_inicio_real)) / 3600000;
         productividadPorTecnico[idTec].servicios += 1;
         productividadPorTecnico[idTec].horasReales += Math.max(0, horasReales);
         productividadPorTecnico[idTec].horasCotizadas += Number(f.cantidad) || 0;
+        if (horasReales * 60 < LIMITE_MINUTOS_CORTO) productividadPorTecnico[idTec].serviciosCortos += 1;
+        if (horasReales > LIMITE_HORAS_LARGO) productividadPorTecnico[idTec].serviciosLargos += 1;
       });
       var listaProductividad = Object.keys(productividadPorTecnico).map(function (k) { return productividadPorTecnico[k]; })
         .sort(function (a, b) { return b.servicios - a.servicios; });
@@ -5429,10 +5439,14 @@ the data-access layer at all.
         var fila = document.createElement("div");
         fila.className = "fila-renglon";
         var eficiencia = p.horasReales > 0 ? (p.horasCotizadas / p.horasReales) * 100 : null;
+        var avisos = [];
+        if (p.serviciosCortos > 0) avisos.push(p.serviciosCortos + " servicio(s) duraron menos de " + LIMITE_MINUTOS_CORTO + " min — probablemente un clic de prueba, no trabajo real");
+        if (p.serviciosLargos > 0) avisos.push(p.serviciosLargos + " servicio(s) duraron más de " + LIMITE_HORAS_LARGO + "h seguidas — probablemente olvidaron dar clic en \"Terminar\"");
         fila.innerHTML =
           "<span><b>" + p.nombre + "</b><br><span class=\"fila-detalle\">" + p.servicios + " servicio(s) terminado(s)</span></span>" +
           "<span>Horas reales " + p.horasReales.toFixed(1) + "h · Cotizadas " + p.horasCotizadas.toFixed(1) + "h" +
-          (eficiencia === null ? "" : "<br><b style=\"color:" + (eficiencia >= 100 ? "var(--verde)" : "#b45309") + ";\">Eficiencia " + eficiencia.toFixed(0) + "%</b>") + "</span>";
+          (eficiencia === null ? "" : "<br><b style=\"color:" + (eficiencia >= 100 ? "var(--verde)" : "#b45309") + ";\">Eficiencia " + eficiencia.toFixed(0) + "%</b>") +
+          (avisos.length ? "<br><span style=\"color:#b45309;font-size:12px;\">⚠️ " + avisos.join(" · ") + "</span>" : "") + "</span>";
         tProd.appendChild(fila);
       });
 
