@@ -131,6 +131,39 @@ the data-access layer at all.
   </section>
 </div>
 
+<div id="pantalla-agendar-publico" class="oculto">
+  <section class="tarjeta">
+    <h1 class="marca-flex marca-login"><img class="logo-taller logo-taller-grande" alt="Logo"> <span id="ag-nombre-taller">Taller Servi Motors</span></h1>
+    <h2>Agenda tu cita</h2>
+
+    <div id="ag-formulario">
+      <label for="ag-nombre">Tu nombre</label>
+      <input id="ag-nombre" type="text" placeholder="Nombre completo" autocomplete="off">
+      <label for="ag-telefono">Teléfono</label>
+      <input id="ag-telefono" type="tel" placeholder="Ej. 3001234567" autocomplete="off">
+      <label for="ag-placa">Placa del vehículo</label>
+      <input id="ag-placa" type="text" placeholder="Ej. ABC123" style="text-transform:uppercase" autocomplete="off">
+      <label for="ag-vehiculo">Marca y modelo (opcional)</label>
+      <input id="ag-vehiculo" type="text" placeholder="Ej. Mazda 3" autocomplete="off">
+      <label for="ag-motivo">Motivo de la visita</label>
+      <input id="ag-motivo" type="text" placeholder="Ej. Cambio de aceite, revisión de frenos">
+      <label for="ag-fecha">Fecha</label>
+      <input id="ag-fecha" type="date">
+      <label for="ag-hora">Hora</label>
+      <select id="ag-hora"><option value="">— Elige primero una fecha —</option></select>
+      <div id="ag-sin-horarios" class="nota-ayuda oculto">No hay horarios disponibles ese día. Elige otra fecha.</div>
+      <label for="ag-notas">Algo más que debamos saber (opcional)</label>
+      <textarea id="ag-notas" rows="2"></textarea>
+      <button id="btn-enviar-agendamiento">Solicitar cita</button>
+      <div id="ag-error" class="mensaje-error"></div>
+    </div>
+
+    <div id="ag-exito" class="oculto">
+      <p>✅ Recibimos tu solicitud. El taller la confirmará pronto por teléfono o WhatsApp.</p>
+    </div>
+  </section>
+</div>
+
 <div id="shell" class="oculto">
 
   <header id="barra-movil">
@@ -582,10 +615,27 @@ the data-access layer at all.
         <label for="firma-documento">Documento de identidad</label>
         <input id="firma-documento" type="text" placeholder="Cédula (opcional)" autocomplete="off">
 
-        <label for="firma-canvas">Firma (dibuja con el dedo o el mouse)</label>
-        <canvas id="firma-canvas" style="width:100%;height:150px;border:1px solid var(--borde);border-radius:8px;touch-action:none;background:#fff;display:block;"></canvas>
-        <button id="btn-limpiar-firma" class="secundario">Limpiar firma</button>
-        <button id="btn-confirmar-firma">Confirmar autorización</button>
+        <div id="firma-modo-dibujo">
+          <label for="firma-canvas">Firma (dibuja con el dedo o el mouse)</label>
+          <canvas id="firma-canvas" style="width:100%;height:150px;border:1px solid var(--borde);border-radius:8px;touch-action:none;background:#fff;display:block;"></canvas>
+          <button id="btn-limpiar-firma" class="secundario">Limpiar firma</button>
+          <button id="btn-confirmar-firma">Confirmar autorización</button>
+        </div>
+
+        <button type="button" id="btn-ir-verbal" class="secundario" style="margin-top:8px;">El cliente no puede firmar ahora (autorización verbal)</button>
+
+        <div id="firma-modo-verbal" class="oculto">
+          <div class="nota-ayuda">Úsalo solo cuando el cliente confirmó de palabra (por ejemplo, por llamada) y no tiene cómo firmar en este momento. Queda registrado con tu nombre como responsable.</div>
+          <label for="firma-verbal-nota">¿Cómo confirmó? (opcional)</label>
+          <textarea id="firma-verbal-nota" rows="2" placeholder="Ej. Confirmó por llamada telefónica, no tiene datos móviles"></textarea>
+          <label style="display:flex;align-items:center;gap:8px;font-weight:400;">
+            <input type="checkbox" id="firma-verbal-confirmo" style="width:auto;">
+            Confirmo que el cliente autorizó este trabajo verbalmente, aunque no pudo firmar.
+          </label>
+          <button id="btn-confirmar-verbal">Registrar autorización verbal</button>
+          <button type="button" id="btn-volver-dibujo" class="secundario">Volver a firma normal</button>
+        </div>
+
         <div id="firma-error" class="mensaje-error"></div>
       </div>
 
@@ -1129,6 +1179,10 @@ the data-access layer at all.
           <option value="transferencia">Transferencia</option>
           <option value="credito" id="opcion-egreso-credito">Crédito (a proveedor)</option>
         </select>
+        <div id="grupo-egreso-cuenta">
+          <label for="egreso-cuenta">¿De cuál de tus cuentas salió la plata?</label>
+          <select id="egreso-cuenta"><option value="">— Sin especificar —</option></select>
+        </div>
         <div id="grupo-egreso-vencimiento" class="oculto">
           <label for="egreso-vencimiento">Fecha límite de pago (opcional)</label>
           <input id="egreso-vencimiento" type="date">
@@ -1432,6 +1486,31 @@ the data-access layer at all.
       <div id="cuentas-error" class="mensaje-error"></div>
 
       <div class="tarjeta">
+        <h2>Cuentas bancarias — saldo calculado</h2>
+        <div class="nota-ayuda">Este saldo lo calcula la app sumando los pagos que marcaste en cada cuenta. Compáralo con el saldo real de tu Nequi, Bancolombia, Daviplata o Bold para conciliar. Si no coincide, revisa que todos los pagos y transferencias tengan la cuenta correcta.</div>
+        <div id="lista-saldo-cuentas"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Transferir entre mis cuentas</h2>
+        <div class="nota-ayuda">Usa esto cuando muevas plata entre tus propias cuentas (por ejemplo, de Nequi a Bancolombia). No cuenta como ingreso ni como gasto del taller.</div>
+        <label for="transf-origen">De la cuenta</label>
+        <select id="transf-origen"></select>
+        <label for="transf-destino">A la cuenta</label>
+        <select id="transf-destino"></select>
+        <label for="transf-monto">Monto</label>
+        <input id="transf-monto" type="number" min="0" step="0.01">
+        <label for="transf-fecha">Fecha</label>
+        <input id="transf-fecha" type="date">
+        <label for="transf-nota">Nota (opcional)</label>
+        <input id="transf-nota" type="text">
+        <button id="btn-registrar-transferencia">Registrar transferencia</button>
+        <div id="transferencia-error" class="mensaje-error"></div>
+        <h3 style="margin-top:16px;">Últimas transferencias</h3>
+        <div id="lista-transferencias"></div>
+      </div>
+
+      <div class="tarjeta">
         <h2>Cuentas por cobrar (clientes)</h2>
         <div class="tabla-scroll">
           <table class="tabla-datos" id="tabla-cxc">
@@ -1449,6 +1528,8 @@ the data-access layer at all.
             <option value="tarjeta">Tarjeta</option>
             <option value="transferencia">Transferencia</option>
           </select>
+          <label for="cxc-abono-cuenta">¿A cuál de tus cuentas entró la plata?</label>
+          <select id="cxc-abono-cuenta"><option value="">— Sin especificar —</option></select>
           <label for="cxc-abono-fecha">Fecha</label>
           <input id="cxc-abono-fecha" type="date">
           <button id="btn-cxc-registrar-abono">Registrar abono</button>
@@ -1474,6 +1555,8 @@ the data-access layer at all.
             <option value="tarjeta">Tarjeta</option>
             <option value="transferencia">Transferencia</option>
           </select>
+          <label for="cxp-abono-cuenta">¿De cuál de tus cuentas salió la plata?</label>
+          <select id="cxp-abono-cuenta"><option value="">— Sin especificar —</option></select>
           <label for="cxp-abono-fecha">Fecha</label>
           <input id="cxp-abono-fecha" type="date">
           <button id="btn-cxp-registrar-abono">Registrar pago</button>
@@ -1557,6 +1640,23 @@ the data-access layer at all.
         </div>
         <button id="btn-guardar-jornada">Guardar jornada laboral</button>
         <div id="jornada-error" class="mensaje-error"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Agendamiento en línea</h2>
+        <div class="nota-ayuda">Comparte este enlace (o el código QR) para que cualquier cliente pida su cita él mismo, eligiendo fecha y hora dentro de tu horario. Cada solicitud llega a Agenda como "Solicitud pendiente" hasta que la confirmes.</div>
+        <label for="config-enlace-agendar">Enlace para agendar</label>
+        <input id="config-enlace-agendar" type="text" readonly>
+        <div class="agenda-controles">
+          <button type="button" class="secundario" id="btn-copiar-enlace-agendar">Copiar enlace</button>
+          <button type="button" class="secundario" id="btn-mostrar-qr-agendar">Mostrar código QR</button>
+        </div>
+        <div id="config-qr-agendar-cont" class="oculto" style="text-align:center;margin:8px 0;"></div>
+        <label for="taller-cupos-agenda">Vehículos que puede atender a la misma hora</label>
+        <input id="taller-cupos-agenda" type="number" min="1" step="1" placeholder="Ej. 1">
+        <div class="nota-ayuda">Si tienes más de un puesto de trabajo, sube este número para permitir varias citas en la misma franja horaria.</div>
+        <button id="btn-guardar-cupos-agenda">Guardar</button>
+        <div id="cupos-agenda-error" class="mensaje-error"></div>
       </div>
 
       <div class="tarjeta">
@@ -1769,6 +1869,7 @@ the data-access layer at all.
   #pantalla-firma-remota th, #pantalla-firma-remota td { padding: 4px 2px; border-bottom: 1px solid var(--borde); text-align: left; }
   #pantalla-firma-remota th:last-child, #pantalla-firma-remota td:last-child { text-align: right; }
   #pantalla-consulta-publica { max-width: 480px; margin: 0 auto; padding: 12px; }
+  #pantalla-agendar-publico { max-width: 480px; margin: 0 auto; padding: 12px; }
   .tarjeta {
     background: var(--tarjeta-bg);
     border-radius: 12px;
@@ -1984,6 +2085,7 @@ the data-access layer at all.
   .agenda-turno-confirmada { border-left-color: var(--verde); }
   .agenda-turno-cancelada { border-left-color: var(--rojo); opacity: .7; }
   .agenda-turno-completada { border-left-color: var(--gris); opacity: .7; }
+  .agenda-turno-solicitada { border-left-color: #d97706; background: #fffbeb; }
   .agenda-turno-resumen { padding: 7px 8px; cursor: pointer; line-height: 1.5; }
   .agenda-turno-resumen b { display: inline; font-size: 12px; }
   .agenda-turno-acciones { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 8px 8px; }
@@ -2321,6 +2423,8 @@ the data-access layer at all.
       $("grupo-egreso-orden").classList.remove("oculto");
       $("opcion-egreso-credito").disabled = false;
       $("egreso-forma-pago").value = "efectivo";
+      $("egreso-cuenta").value = "";
+      $("grupo-egreso-cuenta").classList.remove("oculto");
       $("egreso-vencimiento").value = "";
       $("grupo-egreso-vencimiento").classList.add("oculto");
       promesa = cargarOrdenesParaEgreso();
@@ -3092,10 +3196,27 @@ the data-access layer at all.
     return col;
   }
 
+  function nombreMostrarCita(c) {
+    if (c.clientes) return c.clientes.nombre;
+    if (c.contacto_nombre) return c.contacto_nombre + " (solicitud web)";
+    return "Sin cliente";
+  }
+
+  function vehiculoMostrarCita(c) {
+    if (c.vehiculos) return c.vehiculos.placa;
+    if (c.contacto_placa) return c.contacto_placa + (c.vehiculo_descripcion ? " — " + c.vehiculo_descripcion : "");
+    return c.vehiculo_descripcion || "";
+  }
+
+  function placaParaBuscarCita(c) {
+    return (c.vehiculos && c.vehiculos.placa) || c.contacto_placa || null;
+  }
+
   function crearTurnoAgenda(c) {
     var veh = c.vehiculos;
     var hora = new Date(c.fecha_hora).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
-    var etiquetaEstado = { agendada: "Agendada", confirmada: "Confirmada", cancelada: "Cancelada", completada: "Completada" }[c.estado] || c.estado;
+    var etiquetaEstado = { solicitada: "Solicitud pendiente", agendada: "Agendada", confirmada: "Confirmada", cancelada: "Cancelada", completada: "Completada" }[c.estado] || c.estado;
+    var vehTexto = vehiculoMostrarCita(c);
 
     var turno = document.createElement("div");
     turno.className = "agenda-turno agenda-turno-" + c.estado;
@@ -3103,13 +3224,32 @@ the data-access layer at all.
     var resumen = document.createElement("div");
     resumen.className = "agenda-turno-resumen";
     resumen.innerHTML =
-      "<b>" + hora + "</b> " + (c.clientes ? c.clientes.nombre : "Sin cliente") + (veh ? " · " + veh.placa : "") + "<br>" +
-      "<span class=\"fila-detalle\">" + (c.motivo || "—") + " · " + etiquetaEstado + "</span>";
+      "<b>" + hora + "</b> " + nombreMostrarCita(c) + (vehTexto ? " · " + vehTexto : "") + "<br>" +
+      "<span class=\"fila-detalle\">" + (c.motivo || "—") + " · " + etiquetaEstado +
+      (c.contacto_telefono ? " · Tel: " + c.contacto_telefono : "") + "</span>";
     resumen.addEventListener("click", function () { acciones.classList.toggle("oculto"); });
     turno.appendChild(resumen);
 
     var acciones = document.createElement("div");
     acciones.className = "agenda-turno-acciones oculto";
+    if (c.estado === "solicitada") {
+      var btnConfirmarSolicitud = document.createElement("button");
+      btnConfirmarSolicitud.type = "button";
+      btnConfirmarSolicitud.textContent = "Confirmar solicitud";
+      btnConfirmarSolicitud.addEventListener("click", conManejoDeErrores(function () {
+        return restRequest("PATCH", "citas", { query: "id_cita=eq." + c.id_cita, body: { estado: "agendada" } }).then(cargarAgenda);
+      }, "agenda-error"));
+      var btnRechazarSolicitud = document.createElement("button");
+      btnRechazarSolicitud.type = "button";
+      btnRechazarSolicitud.className = "secundario";
+      btnRechazarSolicitud.textContent = "Rechazar";
+      btnRechazarSolicitud.addEventListener("click", conManejoDeErrores(function () {
+        if (!window.confirm("¿Rechazar esta solicitud de cita?")) return;
+        return restRequest("PATCH", "citas", { query: "id_cita=eq." + c.id_cita, body: { estado: "cancelada" } }).then(cargarAgenda);
+      }, "agenda-error"));
+      acciones.appendChild(btnConfirmarSolicitud);
+      acciones.appendChild(btnRechazarSolicitud);
+    }
     if (c.estado === "agendada") {
       var btnConfirmar = document.createElement("button");
       btnConfirmar.type = "button";
@@ -3129,8 +3269,9 @@ the data-access layer at all.
         return restRequest("PATCH", "citas", { query: "id_cita=eq." + c.id_cita, body: { estado: "completada" } }).then(function () {
           reiniciarFlujoOrden();
           mostrarPagina("app");
-          if (veh && veh.placa) {
-            $("buscar-placa").value = veh.placa;
+          var placaBuscar = placaParaBuscarCita(c);
+          if (placaBuscar) {
+            $("buscar-placa").value = placaBuscar;
             $("btn-buscar").click();
           }
         });
@@ -3202,10 +3343,11 @@ the data-access layer at all.
       var veh = c.vehiculos;
       var fila = document.createElement("div");
       fila.className = "fila-renglon";
-      var etiquetaEstado = { agendada: "Agendada", confirmada: "Confirmada", cancelada: "Cancelada", completada: "Completada" }[c.estado] || c.estado;
+      var etiquetaEstado = { solicitada: "Solicitud pendiente", agendada: "Agendada", confirmada: "Confirmada", cancelada: "Cancelada", completada: "Completada" }[c.estado] || c.estado;
+      var vehTexto = vehiculoMostrarCita(c);
       fila.innerHTML =
         "<span><b>" + formatoFechaHoraCita(c.fecha_hora) + "</b> <span class=\"fila-detalle\">(" + etiquetaEstado + ")</span><br>" +
-        (c.clientes ? c.clientes.nombre : "Sin cliente") + (veh ? " · " + veh.placa : "") + "<br>" +
+        nombreMostrarCita(c) + (vehTexto ? " · " + vehTexto : "") + "<br>" +
         "<span class=\"fila-detalle\">" + (c.motivo || "—") + (c.asesor ? " · Asesor: " + c.asesor.nombre : "") + "</span></span>";
 
       if (mostrarAcciones) {
@@ -3226,8 +3368,9 @@ the data-access layer at all.
           return restRequest("PATCH", "citas", { query: "id_cita=eq." + c.id_cita, body: { estado: "completada" } }).then(function () {
             reiniciarFlujoOrden();
             mostrarPagina("app");
-            if (veh && veh.placa) {
-              $("buscar-placa").value = veh.placa;
+            var placaBuscar = placaParaBuscarCita(c);
+            if (placaBuscar) {
+              $("buscar-placa").value = placaBuscar;
               $("btn-buscar").click();
             }
           });
@@ -4376,7 +4519,11 @@ the data-access layer at all.
   // =====================================================================
   function cargarOrdenesParaEgreso() {
     var query = "select=id_ot,numero_ot,estado,vehiculos(placa),clientes(nombre)&estado=neq.cancelada&order=fecha_apertura.desc&limit=40";
-    return restRequest("GET", "ordenes_trabajo", { query: query }).then(function (ordenes) {
+    return Promise.all([
+      restRequest("GET", "ordenes_trabajo", { query: query }),
+      restRequest("GET", "cuentas_taller", { query: "select=id_cuenta,nombre&activa=eq.true&order=orden.asc" })
+    ]).then(function (r) {
+      var ordenes = r[0];
       var sel = $("egreso-orden");
       sel.innerHTML = "";
       if (!ordenes || !ordenes.length) {
@@ -4384,16 +4531,18 @@ the data-access layer at all.
         opt.value = "";
         opt.textContent = "No hay órdenes disponibles";
         sel.appendChild(opt);
-        return;
+      } else {
+        ordenes.forEach(function (o) {
+          var opt = document.createElement("option");
+          opt.value = o.id_ot;
+          var vehiculo = o.vehiculos ? o.vehiculos.placa : "";
+          var cliente = o.clientes ? o.clientes.nombre : "";
+          opt.textContent = prefijoOT + o.numero_ot + " · " + vehiculo + " · " + cliente + " (" + o.estado + ")";
+          sel.appendChild(opt);
+        });
       }
-      ordenes.forEach(function (o) {
-        var opt = document.createElement("option");
-        opt.value = o.id_ot;
-        var vehiculo = o.vehiculos ? o.vehiculos.placa : "";
-        var cliente = o.clientes ? o.clientes.nombre : "";
-        opt.textContent = prefijoOT + o.numero_ot + " · " + vehiculo + " · " + cliente + " (" + o.estado + ")";
-        sel.appendChild(opt);
-      });
+      todasCuentasTaller = r[1] || [];
+      llenarSelectCuentas($("egreso-cuenta"), true);
     });
   }
 
@@ -4404,11 +4553,13 @@ the data-access layer at all.
     if (!esCompra && $("egreso-forma-pago").value === "credito") {
       $("egreso-forma-pago").value = "efectivo";
       $("grupo-egreso-vencimiento").classList.add("oculto");
+      $("grupo-egreso-cuenta").classList.remove("oculto");
     }
   });
 
   $("egreso-forma-pago").addEventListener("change", function () {
     $("grupo-egreso-vencimiento").classList.toggle("oculto", this.value !== "credito");
+    $("grupo-egreso-cuenta").classList.toggle("oculto", this.value === "credito");
   });
 
   $("btn-agregar-egreso").addEventListener("click", conManejoDeErrores(function () {
@@ -4422,6 +4573,7 @@ the data-access layer at all.
     var idOt = $("egreso-orden").value || null;
     var formaPago = $("egreso-forma-pago").value;
     var vencimiento = $("egreso-vencimiento").value || null;
+    var idCuenta = $("egreso-cuenta").value || null;
     if (!concepto || !(monto >= 0)) {
       mostrarError("egreso-error", "Escribe el concepto y un monto válido.");
       return;
@@ -4448,12 +4600,14 @@ the data-access layer at all.
         estado_pago: formaPago === "credito" ? "credito" : "pagado",
         fecha_vencimiento: formaPago === "credito" ? vencimiento : null,
         id_ot: categoria === "compra" ? idOt : null,
+        id_cuenta: formaPago === "credito" ? null : idCuenta,
         id_usuario_registro: usuarioActualId
       }
     }).then(function () {
       $("egreso-proveedor").value = "";
       $("egreso-concepto").value = "";
       $("egreso-monto").value = "";
+      $("egreso-cuenta").value = "";
       $("egreso-vencimiento").value = "";
       $("grupo-egreso-vencimiento").classList.add("oculto");
       var exito = $("egreso-exito");
@@ -4729,7 +4883,7 @@ the data-access layer at all.
       restRequest("GET", "empleados", { query: "select=*,usuarios(nombre,rol,correo)&order=creado_en.desc" }),
       restRequest("GET", "usuarios", { query: "select=id_usuario,nombre,rol&estado=eq.activo&order=nombre.asc" }),
       restRequest("GET", "prestamos", { query: "select=*,empleados(nombre,usuarios(nombre))&order=fecha.desc" }),
-      restRequest("GET", "parametros_taller", { query: "select=nombre_taller,nit,direccion,telefono,regimen_tributario,responsable_iva,horarios_semana,prefijo_ot,prefijo_factura,monto_fondo_caja_menor,enlace_resenas,dias_sin_visita_mantenimiento&id=eq.1" }),
+      restRequest("GET", "parametros_taller", { query: "select=nombre_taller,nit,direccion,telefono,regimen_tributario,responsable_iva,horarios_semana,prefijo_ot,prefijo_factura,monto_fondo_caja_menor,enlace_resenas,dias_sin_visita_mantenimiento,cupos_agenda_por_turno&id=eq.1" }),
       restRequest("GET", "plantillas_mensajes", { query: "select=*&order=etiqueta.asc" })
     ]).then(function (r) {
       var empleados = r[0] || [];
@@ -4750,6 +4904,8 @@ the data-access layer at all.
       $("taller-fondo-caja-menor").value = (datosTaller.monto_fondo_caja_menor || datosTaller.monto_fondo_caja_menor === 0) ? datosTaller.monto_fondo_caja_menor : "";
       $("taller-enlace-resenas").value = datosTaller.enlace_resenas || "";
       $("taller-dias-sin-visita").value = datosTaller.dias_sin_visita_mantenimiento || 150;
+      $("taller-cupos-agenda").value = datosTaller.cupos_agenda_por_turno || 1;
+      $("config-enlace-agendar").value = "https://servi-motors.github.io/taller-servi-motors/?agendar=1";
       renderizarTablaJornada(datosTaller.horarios_semana || {});
 
       var listaEmp = $("lista-empleados");
@@ -4957,6 +5113,45 @@ the data-access layer at all.
       body: { horarios_semana: horariosSemana }
     }).then(cargarConfiguracion);
   }, "jornada-error"));
+
+  $("btn-copiar-enlace-agendar").addEventListener("click", conManejoDeErrores(function () {
+    var input = $("config-enlace-agendar");
+    input.select();
+    return navigator.clipboard.writeText(input.value).then(function () {
+      mostrarAlertaFlotante("Enlace copiado.");
+    }).catch(function () {
+      mostrarError("cupos-agenda-error", "No se pudo copiar. Selecciona y copia el texto manualmente.");
+    });
+  }, "cupos-agenda-error"));
+
+  $("btn-mostrar-qr-agendar").addEventListener("click", conManejoDeErrores(function () {
+    var cont = $("config-qr-agendar-cont");
+    var url = $("config-enlace-agendar").value;
+    var visible = !cont.classList.contains("oculto");
+    if (visible) {
+      cont.classList.add("oculto");
+      cont.innerHTML = "";
+      return;
+    }
+    cont.innerHTML = "<img alt=\"Código QR para agendar\" width=\"180\" height=\"180\" src=\"https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" + encodeURIComponent(url) + "\">" +
+      "<div class=\"nota-ayuda\">Cualquier cliente puede escanear este código para pedir su cita.</div>";
+    cont.classList.remove("oculto");
+  }, "cupos-agenda-error"));
+
+  $("btn-guardar-cupos-agenda").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("cupos-agenda-error");
+    var cupos = parseInt($("taller-cupos-agenda").value, 10);
+    if (!(cupos > 0)) {
+      mostrarError("cupos-agenda-error", "Escribe un número válido, mínimo 1.");
+      return;
+    }
+    return restRequest("PATCH", "parametros_taller", {
+      query: "id=eq.1",
+      body: { cupos_agenda_por_turno: cupos }
+    }).then(function () {
+      mostrarAlertaFlotante("Guardado.");
+    });
+  }, "cupos-agenda-error"));
 
   $("btn-agregar-empleado").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("empleado-error");
@@ -6851,6 +7046,14 @@ the data-access layer at all.
       return "<div class=\"firma-linea\"><img src=\"" + datos.dataUrl + "\" style=\"height:46px;display:block;margin-bottom:2px;\" alt=\"Firma\">" +
         "<div style=\"font-size:10.5px;color:#4b5563;\">" + etiqueta + (datos.nombre ? ": " + datos.nombre : "") + (fechaTexto ? " — " + fechaTexto : "") + "</div></div>";
     }
+    if (datos && datos.verbal) {
+      var fechaVerbal = datos.fecha ? formatoFechaHoraCorta(new Date(datos.fecha)) : "";
+      return "<div class=\"firma-linea\" style=\"border:1px solid #d97706;border-radius:6px;padding:6px 8px;\">" +
+        "<div style=\"font-weight:600;color:#b45309;\">AUTORIZACIÓN VERBAL (sin firma)</div>" +
+        "<div style=\"font-size:10.5px;color:#4b5563;\">" + etiqueta + (datos.nombre ? ": " + datos.nombre : "") + (fechaVerbal ? " — " + fechaVerbal : "") +
+        (datos.registradoPor ? " · Registrado por: " + datos.registradoPor : "") + "</div>" +
+        (datos.nota ? "<div style=\"font-size:10.5px;color:#4b5563;\">Nota: " + datos.nota + "</div>" : "") + "</div>";
+    }
     return conFechaEnBlanco
       ? "<div class=\"firma-linea\">" + etiqueta + ": ____________________________________ &nbsp;&nbsp;&nbsp; Fecha: __________</div>"
       : "<div class=\"firma-linea\">" + etiqueta + ": ____________________________________</div>";
@@ -6882,7 +7085,7 @@ the data-access layer at all.
     ocultarError(idError);
     var queryOrden = "select=numero_ot,estado,tipo_orden,fecha_apertura,fecha_cierre,diagnostico,numero_factura,estado_pago,token_consulta,clientes(nombre,telefono,direccion,documento),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje),asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre)&id_ot=eq." + ordenActual.id_ot;
     var queryItems = "select=cantidad,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
-    var queryAutorizacionInicial = "select=fecha_hora,nombre_firmante,firma_imagen&id_ot=eq." + ordenActual.id_ot + "&tipo=eq.inicial&order=fecha_hora.desc&limit=1";
+    var queryAutorizacionInicial = "select=fecha_hora,nombre_firmante,firma_imagen,autorizacion_verbal,notas_verbal,usuario_registro:usuarios!autorizaciones_ot_id_usuario_registro_fkey(nombre)&id_ot=eq." + ordenActual.id_ot + "&tipo=eq.inicial&order=fecha_hora.desc&limit=1";
     var queryEntrega = "select=nombre_recibe,firma_tecnico_imagen,firma_cliente_imagen,creado_en&id_ot=eq." + ordenActual.id_ot + "&limit=1";
 
     return Promise.all([
@@ -6926,7 +7129,14 @@ the data-access layer at all.
         entrega ? obtenerDataUrlFirma(entrega.firma_cliente_imagen) : Promise.resolve(null)
       ]).then(function (urlsFirma) {
         var datosFirma = {
-          autorizacion: autorizacionInicial ? { nombre: autorizacionInicial.nombre_firmante, fecha: autorizacionInicial.fecha_hora, dataUrl: urlsFirma[0] } : null,
+          autorizacion: autorizacionInicial ? {
+            nombre: autorizacionInicial.nombre_firmante,
+            fecha: autorizacionInicial.fecha_hora,
+            dataUrl: urlsFirma[0],
+            verbal: !!autorizacionInicial.autorizacion_verbal,
+            nota: autorizacionInicial.notas_verbal || "",
+            registradoPor: autorizacionInicial.usuario_registro ? autorizacionInicial.usuario_registro.nombre : ""
+          } : null,
           entregaTecnico: entrega ? { nombre: orden.tecnico ? orden.tecnico.nombre : null, dataUrl: urlsFirma[1] } : null,
           entregaCliente: entrega ? { nombre: entrega.nombre_recibe, fecha: entrega.creado_en, dataUrl: urlsFirma[2] } : null
         };
@@ -6955,7 +7165,8 @@ the data-access layer at all.
     ocultarError("facturacion-error");
     return Promise.all([
       restRequest("GET", "vista_facturacion", { query: "select=*&order=numero_factura.desc" }),
-      restRequest("GET", "pagos_factura", { query: "select=id_ot,forma_pago,monto&order=fecha_pago.asc" })
+      restRequest("GET", "pagos_factura", { query: "select=id_ot,forma_pago,monto&order=fecha_pago.asc" }),
+      restRequest("GET", "cuentas_taller", { query: "select=id_cuenta,nombre&activa=eq.true&order=orden.asc" })
     ]).then(function (r) {
       datosFacturacion = r[0] || [];
       pagosDivididosPorOt = {};
@@ -6963,6 +7174,7 @@ the data-access layer at all.
         if (!pagosDivididosPorOt[p.id_ot]) pagosDivididosPorOt[p.id_ot] = [];
         pagosDivididosPorOt[p.id_ot].push(p);
       });
+      todasCuentasTaller = r[2] || [];
       renderizarTablaFacturacion();
     });
   }
@@ -7054,6 +7266,12 @@ the data-access layer at all.
           '<option value="credito">Crédito</option>';
         contPagoSimple.appendChild(selFormaPago);
 
+        var selCuentaPago = document.createElement("select");
+        selCuentaPago.style.width = "auto";
+        selCuentaPago.innerHTML = "<option value=\"\">— ¿A cuál cuenta entró? —</option>" +
+          todasCuentasTaller.map(function (c) { return "<option value=\"" + c.id_cuenta + "\">" + c.nombre + "</option>"; }).join("");
+        contPagoSimple.appendChild(selCuentaPago);
+
         var fechaBaseVenc = f.fecha_cierre ? new Date(f.fecha_cierre) : new Date();
         var fechaMaxVenc = new Date(fechaBaseVenc);
         fechaMaxVenc.setDate(fechaMaxVenc.getDate() + 15);
@@ -7076,6 +7294,7 @@ the data-access layer at all.
         selFormaPago.addEventListener("change", function () {
           var esCredito = selFormaPago.value === "credito";
           inputVencimiento.classList.toggle("oculto", !esCredito);
+          selCuentaPago.classList.toggle("oculto", esCredito);
           btnPagada.textContent = esCredito ? "Vender a crédito" : "Marcar como pagada";
         });
 
@@ -7099,7 +7318,7 @@ the data-access layer at all.
           }
           return restRequest("PATCH", "ordenes_trabajo", {
             query: "id_ot=eq." + f.id_ot,
-            body: { estado_pago: "pagada", fecha_pago: new Date().toISOString(), forma_pago: selFormaPago.value }
+            body: { estado_pago: "pagada", fecha_pago: new Date().toISOString(), forma_pago: selFormaPago.value, id_cuenta: selCuentaPago.value || null }
           }).then(function () { return cargarFacturacion(); });
         }, "facturacion-error"));
 
@@ -7122,9 +7341,19 @@ the data-access layer at all.
           i.style.width = "100px"; i.style.marginRight = "4px"; i.style.marginBottom = "4px";
           return i;
         }
+        function crearSelectCuentaDividido() {
+          var s = document.createElement("select");
+          s.style.width = "auto"; s.style.marginRight = "8px"; s.style.marginBottom = "4px";
+          s.innerHTML = "<option value=\"\">— cuenta —</option>" +
+            todasCuentasTaller.map(function (c) { return "<option value=\"" + c.id_cuenta + "\">" + c.nombre + "</option>"; }).join("");
+          return s;
+        }
         var inpEfectivo = crearInputMonto("Efectivo");
+        var selCuentaEfectivo = crearSelectCuentaDividido();
         var inpTarjeta = crearInputMonto("Tarjeta");
+        var selCuentaTarjeta = crearSelectCuentaDividido();
         var inpTransferencia = crearInputMonto("Transferencia");
+        var selCuentaTransferencia = crearSelectCuentaDividido();
         var pFalta = document.createElement("div");
         pFalta.style.fontSize = "12px";
         pFalta.style.marginBottom = "4px";
@@ -7132,7 +7361,7 @@ the data-access layer at all.
         btnConfirmarDividido.type = "button";
         btnConfirmarDividido.className = "secundario";
         btnConfirmarDividido.textContent = "Confirmar pago dividido";
-        [inpEfectivo, inpTarjeta, inpTransferencia, pFalta, btnConfirmarDividido].forEach(function (el) { contDividir.appendChild(el); });
+        [inpEfectivo, selCuentaEfectivo, inpTarjeta, selCuentaTarjeta, inpTransferencia, selCuentaTransferencia, pFalta, btnConfirmarDividido].forEach(function (el) { contDividir.appendChild(el); });
         tdExpandida.appendChild(contDividir);
 
         function actualizarFalta() {
@@ -7157,9 +7386,9 @@ the data-access layer at all.
 
         btnConfirmarDividido.addEventListener("click", conManejoDeErrores(function () {
           var partes = [
-            { forma_pago: "efectivo", monto: parseFloat(inpEfectivo.value) || 0 },
-            { forma_pago: "tarjeta", monto: parseFloat(inpTarjeta.value) || 0 },
-            { forma_pago: "transferencia", monto: parseFloat(inpTransferencia.value) || 0 }
+            { forma_pago: "efectivo", monto: parseFloat(inpEfectivo.value) || 0, id_cuenta: selCuentaEfectivo.value || null },
+            { forma_pago: "tarjeta", monto: parseFloat(inpTarjeta.value) || 0, id_cuenta: selCuentaTarjeta.value || null },
+            { forma_pago: "transferencia", monto: parseFloat(inpTransferencia.value) || 0, id_cuenta: selCuentaTransferencia.value || null }
           ].filter(function (p) { return p.monto > 0; });
           if (partes.length < 2) {
             mostrarError("facturacion-error", "Escribe montos en al menos dos formas de pago para dividir. Si es solo una, usa el selector normal de arriba.");
@@ -7175,7 +7404,7 @@ the data-access layer at all.
             body: { estado_pago: "pagada", fecha_pago: new Date().toISOString(), forma_pago: "mixto" }
           }).then(function () {
             return restRequest("POST", "pagos_factura", {
-              body: partes.map(function (p) { return { id_ot: f.id_ot, forma_pago: p.forma_pago, monto: p.monto, id_usuario_registro: usuarioActualId }; })
+              body: partes.map(function (p) { return { id_ot: f.id_ot, forma_pago: p.forma_pago, monto: p.monto, id_usuario_registro: usuarioActualId, id_cuenta: p.id_cuenta }; })
             });
           }).then(function () { return cargarFacturacion(); });
         }, "facturacion-error"));
@@ -7495,6 +7724,37 @@ the data-access layer at all.
   // =====================================================================
   var cxcSeleccionada = null; // { id_ot, saldo }
   var cxpSeleccionada = null; // { id_egreso, saldo }
+  var todasCuentasTaller = [];
+
+  function llenarSelectCuentas(select, incluirVacio) {
+    select.innerHTML = (incluirVacio ? "<option value=\"\">— Sin especificar —</option>" : "") +
+      todasCuentasTaller.map(function (c) { return "<option value=\"" + c.id_cuenta + "\">" + c.nombre + "</option>"; }).join("");
+  }
+
+  function renderizarSaldoCuentas(filas) {
+    var cont = $("lista-saldo-cuentas");
+    cont.innerHTML = filas.length ? "" : "<p class=\"nota-ayuda\">Agrega tus cuentas para empezar a conciliar.</p>";
+    filas.forEach(function (f) {
+      var fila = document.createElement("div");
+      fila.className = "fila-renglon";
+      fila.innerHTML = "<span><b>" + f.nombre + "</b></span><span style=\"font-weight:700;\">" + formatoMoneda(f.saldo_calculado) + "</span>";
+      cont.appendChild(fila);
+    });
+  }
+
+  function renderizarListaTransferencias(filas) {
+    var cont = $("lista-transferencias");
+    cont.innerHTML = filas.length ? "" : "<p class=\"nota-ayuda\">Todavía no has registrado transferencias.</p>";
+    filas.forEach(function (t) {
+      var fila = document.createElement("div");
+      fila.className = "fila-renglon";
+      fila.innerHTML = "<span>" + formatoFechaCorta(new Date(t.fecha + "T00:00:00")) + " · " +
+        (t.origen ? t.origen.nombre : "—") + " → " + (t.destino ? t.destino.nombre : "—") +
+        (t.nota ? "<br><span class=\"fila-detalle\">" + t.nota + "</span>" : "") + "</span>" +
+        "<span style=\"font-weight:700;\">" + formatoMoneda(t.monto) + "</span>";
+      cont.appendChild(fila);
+    });
+  }
 
   function cargarCuentas() {
     ocultarError("cuentas-error");
@@ -7505,13 +7765,26 @@ the data-access layer at all.
     $("cxc-abono-panel").classList.add("oculto");
     $("cxp-abono-panel").classList.add("oculto");
 
-    var pedidos = [restRequest("GET", "vista_cuentas_por_cobrar", { query: "select=*&order=fecha_cierre.asc" })];
+    var pedidos = [
+      restRequest("GET", "vista_cuentas_por_cobrar", { query: "select=*&order=fecha_cierre.asc" }),
+      restRequest("GET", "cuentas_taller", { query: "select=id_cuenta,nombre&activa=eq.true&order=orden.asc" }),
+      restRequest("GET", "vista_saldo_cuentas", { query: "select=*" }),
+      restRequest("GET", "transferencias_entre_cuentas", { query: "select=fecha,monto,nota,origen:cuentas_taller!transferencias_entre_cuentas_id_cuenta_origen_fkey(nombre),destino:cuentas_taller!transferencias_entre_cuentas_id_cuenta_destino_fkey(nombre)&order=fecha.desc,creado_en.desc&limit=20" })
+    ];
     if (puedeVerCxP) {
       pedidos.push(restRequest("GET", "vista_cuentas_por_pagar", { query: "select=*&order=fecha.asc" }));
     }
     return Promise.all(pedidos).then(function (resultados) {
       renderizarTablaCxC(resultados[0] || []);
-      if (puedeVerCxP) renderizarTablaCxP(resultados[1] || []);
+      todasCuentasTaller = resultados[1] || [];
+      llenarSelectCuentas($("cxc-abono-cuenta"), true);
+      llenarSelectCuentas($("cxp-abono-cuenta"), true);
+      llenarSelectCuentas($("transf-origen"), false);
+      llenarSelectCuentas($("transf-destino"), false);
+      renderizarSaldoCuentas(resultados[2] || []);
+      renderizarListaTransferencias(resultados[3] || []);
+      if (!$("transf-fecha").value) $("transf-fecha").value = aFechaISO(new Date());
+      if (puedeVerCxP) renderizarTablaCxP(resultados[4] || []);
     });
   }
 
@@ -7581,7 +7854,7 @@ the data-access layer at all.
     btnCxcAbono.disabled = true;
     btnCxcAbono.textContent = "Registrando…";
     return restRequest("POST", "abonos_cuentas_cobrar", {
-      body: { id_ot: idOt, monto: monto, forma_pago: formaPago, fecha: fecha, id_usuario_registro: usuarioActualId }
+      body: { id_ot: idOt, monto: monto, forma_pago: formaPago, fecha: fecha, id_usuario_registro: usuarioActualId, id_cuenta: $("cxc-abono-cuenta").value || null }
     }).then(function () {
       if (saldoRestante <= 0.01) {
         return restRequest("PATCH", "ordenes_trabajo", {
@@ -7666,7 +7939,7 @@ the data-access layer at all.
     btnCxpAbono.disabled = true;
     btnCxpAbono.textContent = "Registrando…";
     return restRequest("POST", "abonos_cuentas_pagar", {
-      body: { id_egreso: idEgreso, monto: monto, forma_pago: formaPago, fecha: fecha, id_usuario_registro: usuarioActualId }
+      body: { id_egreso: idEgreso, monto: monto, forma_pago: formaPago, fecha: fecha, id_usuario_registro: usuarioActualId, id_cuenta: $("cxp-abono-cuenta").value || null }
     }).then(function () {
       if (saldoRestante <= 0.01) {
         return restRequest("PATCH", "egresos", {
@@ -7687,6 +7960,41 @@ the data-access layer at all.
       throw err;
     });
   }, "cuentas-error"));
+
+  $("btn-registrar-transferencia").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("transferencia-error");
+    var origen = $("transf-origen").value;
+    var destino = $("transf-destino").value;
+    var monto = parseFloat($("transf-monto").value);
+    var fecha = $("transf-fecha").value || aFechaISO(new Date());
+    var nota = $("transf-nota").value.trim();
+    if (!origen || !destino) {
+      mostrarError("transferencia-error", "Elige la cuenta de origen y la de destino.");
+      return;
+    }
+    if (origen === destino) {
+      mostrarError("transferencia-error", "La cuenta de origen y destino no pueden ser la misma.");
+      return;
+    }
+    if (!(monto > 0)) {
+      mostrarError("transferencia-error", "Escribe un monto válido.");
+      return;
+    }
+    return restRequest("POST", "transferencias_entre_cuentas", {
+      body: {
+        id_cuenta_origen: origen,
+        id_cuenta_destino: destino,
+        monto: monto,
+        fecha: fecha,
+        nota: nota || null,
+        id_usuario_registro: usuarioActualId
+      }
+    }).then(function () {
+      $("transf-monto").value = "";
+      $("transf-nota").value = "";
+      return cargarCuentas();
+    });
+  }, "transferencia-error"));
 
   // =====================================================================
   // ÍTEMS DE LA ORDEN
@@ -8782,6 +9090,25 @@ the data-access layer at all.
     if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
   });
 
+  function mostrarModoFirmaVerbal(mostrar) {
+    $("firma-modo-dibujo").classList.toggle("oculto", mostrar);
+    $("firma-modo-verbal").classList.toggle("oculto", !mostrar);
+    if (!mostrar) {
+      $("firma-verbal-nota").value = "";
+      $("firma-verbal-confirmo").checked = false;
+    }
+  }
+
+  $("btn-ir-verbal").addEventListener("click", function () {
+    ocultarError("firma-error");
+    mostrarModoFirmaVerbal(true);
+  });
+
+  $("btn-volver-dibujo").addEventListener("click", function () {
+    ocultarError("firma-error");
+    mostrarModoFirmaVerbal(false);
+  });
+
   $("btn-ir-firma").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("item-error");
     var query = "select=cantidad,precio_aplicado_cliente&id_ot=eq." + ordenActual.id_ot + "&estado_autorizacion=eq.pendiente";
@@ -8794,6 +9121,7 @@ the data-access layer at all.
       $("firma-resumen").innerHTML = "<b>Total a autorizar: " + formatoMoneda(total) + "</b>";
       $("tarjeta-items").classList.add("oculto");
       $("tarjeta-firma").classList.remove("oculto");
+      mostrarModoFirmaVerbal(false);
       if (!canvas) inicializarCanvas();
       else ctx.clearRect(0, 0, canvas.width, canvas.height);
     });
@@ -8912,6 +9240,40 @@ the data-access layer at all.
     }).then(function () {
       $("tarjeta-firma").classList.add("oculto");
       $("texto-firma-exito").innerHTML = "✅ Autorización registrada correctamente.";
+      $("tarjeta-firma-exito").classList.remove("oculto");
+      ordenActual.estado = "en_proceso";
+      mostrarNotificarCambioEstado("firma-exito-notificar", "en_proceso", "¿Avisar al cliente que su vehículo ya está en proceso?");
+    }).catch(function (err) {
+      mostrarError("firma-error", err.message);
+    });
+  }, "firma-error"));
+
+  $("btn-confirmar-verbal").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("firma-error");
+    var nombreFirmante = $("firma-nombre").value.trim();
+    var nota = $("firma-verbal-nota").value.trim();
+    if (!nombreFirmante) {
+      mostrarError("firma-error", "Escribe el nombre de quien autorizó.");
+      return;
+    }
+    if (!$("firma-verbal-confirmo").checked) {
+      mostrarError("firma-error", "Marca la casilla confirmando que el cliente autorizó verbalmente.");
+      return;
+    }
+
+    return restRequest("POST", "rpc/registrar_autorizacion", {
+      body: {
+        p_id_ot: ordenActual.id_ot,
+        p_nombre_firmante: nombreFirmante,
+        p_documento_firmante: $("firma-documento").value.trim() || null,
+        p_firma_imagen: null,
+        p_id_usuario_registro: usuarioActualId,
+        p_verbal: true,
+        p_notas_verbal: nota || null
+      }
+    }).then(function () {
+      $("tarjeta-firma").classList.add("oculto");
+      $("texto-firma-exito").innerHTML = "✅ Autorización verbal registrada correctamente.";
       $("tarjeta-firma-exito").classList.remove("oculto");
       ordenActual.estado = "en_proceso";
       mostrarNotificarCambioEstado("firma-exito-notificar", "en_proceso", "¿Avisar al cliente que su vehículo ya está en proceso?");
@@ -9305,6 +9667,85 @@ the data-access layer at all.
       });
   }
 
+  // =====================================================================
+  // AGENDAMIENTO PÚBLICO (página pública, sin login, ?agendar=1)
+  // Enlace fijo (no vence). El cliente elige fecha y hora dentro del
+  // horario del taller y queda como "solicitada" hasta que el taller la
+  // confirme desde la Agenda interna.
+  // =====================================================================
+  function cargarHorasDisponiblesPublico() {
+    var fecha = $("ag-fecha").value;
+    var select = $("ag-hora");
+    select.innerHTML = "<option value=\"\">Cargando horarios…</option>";
+    $("ag-sin-horarios").classList.add("oculto");
+    if (!fecha) {
+      select.innerHTML = "<option value=\"\">— Elige primero una fecha —</option>";
+      return;
+    }
+    return restRequest("POST", "rpc/franjas_disponibles_agenda", { body: { p_fecha: fecha } })
+      .then(function (filas) {
+        var libres = (filas || []).filter(function (f) { return f.disponible; });
+        if (!libres.length) {
+          select.innerHTML = "<option value=\"\">— Sin horarios —</option>";
+          $("ag-sin-horarios").classList.remove("oculto");
+          return;
+        }
+        select.innerHTML = "<option value=\"\">— Elige una hora —</option>" +
+          libres.map(function (f) { return "<option value=\"" + f.hora + "\">" + f.hora + "</option>"; }).join("");
+      })
+      .catch(function () {
+        select.innerHTML = "<option value=\"\">No se pudieron cargar los horarios</option>";
+      });
+  }
+
+  function iniciarAgendarPublico() {
+    $("contenedor-login").classList.add("oculto");
+    $("pantalla-agendar-publico").classList.remove("oculto");
+
+    var hoy = new Date();
+    var hoyStr = hoy.getFullYear() + "-" + String(hoy.getMonth() + 1).padStart(2, "0") + "-" + String(hoy.getDate()).padStart(2, "0");
+    $("ag-fecha").min = hoyStr;
+
+    restRequest("GET", "parametros_taller", { query: "select=nombre_taller&id=eq.1" })
+      .then(function (filas) {
+        if (filas && filas[0] && filas[0].nombre_taller) $("ag-nombre-taller").textContent = filas[0].nombre_taller;
+      })
+      .catch(function () {});
+
+    $("ag-fecha").addEventListener("change", cargarHorasDisponiblesPublico);
+
+    $("btn-enviar-agendamiento").addEventListener("click", conManejoDeErrores(function () {
+      ocultarError("ag-error");
+      var nombre = $("ag-nombre").value.trim();
+      var telefono = $("ag-telefono").value.trim();
+      var placa = $("ag-placa").value.trim();
+      var motivo = $("ag-motivo").value.trim();
+      var fecha = $("ag-fecha").value;
+      var hora = $("ag-hora").value;
+      if (!nombre || !telefono || !placa || !motivo || !fecha || !hora) {
+        mostrarError("ag-error", "Completa tu nombre, teléfono, placa, motivo, fecha y hora.");
+        return;
+      }
+      return restRequest("POST", "rpc/solicitar_cita_publica", {
+        body: {
+          p_nombre: nombre,
+          p_telefono: telefono,
+          p_fecha: fecha,
+          p_hora: hora,
+          p_motivo: motivo,
+          p_placa: placa,
+          p_vehiculo: $("ag-vehiculo").value.trim() || null,
+          p_notas: $("ag-notas").value.trim() || null
+        }
+      }).then(function () {
+        $("ag-formulario").classList.add("oculto");
+        $("ag-exito").classList.remove("oculto");
+      }).catch(function (err) {
+        mostrarError("ag-error", err.message);
+      });
+    }, "ag-error"));
+  }
+
   var parametrosUrl = new URLSearchParams(location.search);
   var tokenEnUrl = parametrosUrl.get("firmar");
   if (tokenEnUrl) {
@@ -9318,6 +9759,10 @@ the data-access layer at all.
   var tokenHistorialEnUrl = parametrosUrl.get("historial");
   if (tokenHistorialEnUrl) {
     iniciarHistorialPublico(tokenHistorialEnUrl);
+  }
+  var agendarEnUrl = parametrosUrl.get("agendar");
+  if (agendarEnUrl) {
+    iniciarAgendarPublico();
   }
 
 })();
