@@ -7733,11 +7733,25 @@ the data-access layer at all.
 
   function renderizarSaldoCuentas(filas) {
     var cont = $("lista-saldo-cuentas");
+    var esAdmin = rolActual === "administrador";
     cont.innerHTML = filas.length ? "" : "<p class=\"nota-ayuda\">Agrega tus cuentas para empezar a conciliar.</p>";
     filas.forEach(function (f) {
       var fila = document.createElement("div");
       fila.className = "fila-renglon";
-      fila.innerHTML = "<span><b>" + f.nombre + "</b></span><span style=\"font-weight:700;\">" + formatoMoneda(f.saldo_calculado) + "</span>";
+      fila.style.flexWrap = "wrap";
+      var html = "<span><b>" + f.nombre + "</b>" +
+        (f.fecha_saldo_inicial ? "<br><span class=\"fila-detalle\">Saldo inicial: " + formatoMoneda(f.saldo_inicial) + " (" + formatoFechaCorta(new Date(f.fecha_saldo_inicial + "T00:00:00")) + ")</span>" : "") +
+        "</span><span style=\"font-weight:700;\">" + formatoMoneda(f.saldo_calculado) + "</span>";
+      if (esAdmin) {
+        html += "<div style=\"flex-basis:100%;display:flex;gap:8px;align-items:flex-end;margin-top:6px;flex-wrap:wrap;\">" +
+          "<div><label style=\"font-size:12px;\" for=\"saldoini-monto-" + f.id_cuenta + "\">Saldo inicial</label>" +
+          "<input type=\"number\" step=\"0.01\" id=\"saldoini-monto-" + f.id_cuenta + "\" value=\"" + Number(f.saldo_inicial || 0) + "\" style=\"width:130px;\"></div>" +
+          "<div><label style=\"font-size:12px;\" for=\"saldoini-fecha-" + f.id_cuenta + "\">Fecha</label>" +
+          "<input type=\"date\" id=\"saldoini-fecha-" + f.id_cuenta + "\" value=\"" + (f.fecha_saldo_inicial || "") + "\"></div>" +
+          "<button type=\"button\" class=\"secundario btn-guardar-saldo-inicial\" data-id-cuenta=\"" + f.id_cuenta + "\">Guardar saldo inicial</button>" +
+          "</div>";
+      }
+      fila.innerHTML = html;
       cont.appendChild(fila);
     });
   }
@@ -7995,6 +8009,31 @@ the data-access layer at all.
       return cargarCuentas();
     });
   }, "transferencia-error"));
+
+  $("lista-saldo-cuentas").addEventListener("click", conManejoDeErrores(function (ev) {
+    var btn = ev.target.closest(".btn-guardar-saldo-inicial");
+    if (!btn) return;
+    ocultarError("cuentas-error");
+    var idCuenta = btn.getAttribute("data-id-cuenta");
+    var monto = parseFloat($("saldoini-monto-" + idCuenta).value);
+    var fecha = $("saldoini-fecha-" + idCuenta).value || null;
+    if (!(monto >= 0)) {
+      mostrarError("cuentas-error", "Escribe un saldo inicial válido.");
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = "Guardando…";
+    return restRequest("PATCH", "cuentas_taller", {
+      query: "id_cuenta=eq." + idCuenta,
+      body: { saldo_inicial: monto, fecha_saldo_inicial: fecha }
+    }).then(function () {
+      return cargarCuentas();
+    }).catch(function (err) {
+      btn.disabled = false;
+      btn.textContent = "Guardar saldo inicial";
+      throw err;
+    });
+  }, "cuentas-error"));
 
   // =====================================================================
   // ÍTEMS DE LA ORDEN
