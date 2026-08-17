@@ -186,6 +186,7 @@ the data-access layer at all.
     <a href="#" class="nav-link oculto" id="nav-clientes" data-pagina="clientes">🙍 Clientes</a>
     <a href="#" class="nav-link oculto" id="nav-vehiculos" data-pagina="vehiculos">🚗 Vehículos</a>
     <a href="#" class="nav-link oculto" id="nav-proveedores" data-pagina="proveedores">🏭 Proveedores</a>
+    <a href="#" class="nav-link oculto" id="nav-ordenes-compra" data-pagina="ordenescompra">📋 Órdenes de compra</a>
     <a href="#" class="nav-link oculto" id="nav-personal" data-pagina="personal">🧑‍🔧 Personal</a>
 
     <div class="nav-seccion">Stock</div>
@@ -600,8 +601,46 @@ the data-access layer at all.
 
         <button id="btn-ir-firma" class="secundario">Solicitar firma de autorización</button>
         <button id="btn-enviar-firma-whatsapp" class="secundario">Enviar enlace de firma por WhatsApp</button>
+        <button type="button" id="btn-generar-orden-compra" class="secundario oculto">Generar orden de compra a proveedor</button>
 
         </div>
+      </div>
+
+      <div id="fondo-form-compra" class="fondo-modal oculto"></div>
+      <div class="tarjeta tarjeta-formulario tarjeta-modal oculto" id="tarjeta-form-compra" style="max-width:720px;">
+        <h2>Generar orden de compra</h2>
+        <label for="compra-proveedor">Proveedor</label>
+        <select id="compra-proveedor"></select>
+        <label for="compra-fecha">Fecha</label>
+        <input id="compra-fecha" type="date">
+        <label style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="compra-es-credito" style="width:auto;margin:0;" checked>
+          Compra a crédito (queda registrada como cuenta por pagar automáticamente)
+        </label>
+        <div id="grupo-compra-vencimiento">
+          <label for="compra-vencimiento">Fecha límite de pago (opcional)</label>
+          <input id="compra-vencimiento" type="date">
+        </div>
+
+        <label>Repuestos/insumos de esta orden — elige cuáles pedir</label>
+        <div id="lista-compra-items"></div>
+        <div id="compra-sin-items" class="nota-ayuda oculto">Esta orden todavía no tiene repuestos o insumos agregados.</div>
+
+        <label for="compra-mensaje">Mensaje al proveedor (opcional)</label>
+        <textarea id="compra-mensaje" rows="2"></textarea>
+        <label for="compra-observaciones">Observaciones (opcional)</label>
+        <textarea id="compra-observaciones" rows="2"></textarea>
+        <label for="compra-descuento">Descuento</label>
+        <input id="compra-descuento" type="number" min="0" step="0.01" value="0">
+        <label for="compra-envio">Envío</label>
+        <input id="compra-envio" type="number" min="0" step="0.01" value="0">
+        <label for="compra-iva">IVA (%)</label>
+        <input id="compra-iva" type="number" min="0" step="0.01" value="0">
+        <div id="compra-totales" style="font-weight:700;text-align:right;margin-top:8px;"></div>
+
+        <button type="button" id="btn-confirmar-orden-compra">Generar e imprimir</button>
+        <button type="button" class="secundario" id="btn-cancelar-orden-compra">Cancelar</button>
+        <div id="compra-error" class="mensaje-error"></div>
       </div>
 
       <div id="tarjeta-firma" class="tarjeta tarjeta-formulario oculto">
@@ -864,6 +903,10 @@ the data-access layer at all.
         <input id="vehiculo-color" type="text">
         <label for="vehiculo-tipo-carroceria">Tipo (ej. Sedán, Camioneta, Platón)</label>
         <input id="vehiculo-tipo-carroceria" type="text">
+        <label for="vehiculo-transmision">Transmisión (opcional)</label>
+        <input id="vehiculo-transmision" type="text" placeholder="Ej. Automática, Mecánica">
+        <label for="vehiculo-version">Versión (opcional)</label>
+        <input id="vehiculo-version" type="text" placeholder="Ej. TX, LX, Sport">
         <label for="vehiculo-km">Kilometraje</label>
         <input id="vehiculo-km" type="number" min="0" value="0">
         <label for="vehiculo-soat">Vencimiento SOAT (opcional)</label>
@@ -967,9 +1010,38 @@ the data-access layer at all.
         <input id="proveedor-contacto" type="text">
         <label for="proveedor-condiciones">Condiciones de pago</label>
         <input id="proveedor-condiciones" type="text" placeholder="Ej. Contado, crédito 30 días">
+        <label for="proveedor-direccion">Dirección (opcional)</label>
+        <input id="proveedor-direccion" type="text">
+        <label for="proveedor-ciudad">Ciudad (opcional)</label>
+        <input id="proveedor-ciudad" type="text">
         <button id="btn-agregar-proveedor">Agregar proveedor</button>
         <button id="btn-cancelar-edicion-proveedor" class="secundario">Cancelar</button>
         <div id="proveedor-error" class="mensaje-error"></div>
+      </div>
+    </section>
+
+    <section id="pantalla-ordenescompra" class="pagina pagina-ancha oculto">
+      <h1>Órdenes de compra</h1>
+      <div class="nota-ayuda">Se generan desde una orden de trabajo (pestaña Repuestos e insumos → "Generar orden de compra a proveedor"). Aquí puedes consultarlas y reimprimirlas.</div>
+      <div id="ordenescompra-error" class="mensaje-error"></div>
+
+      <div class="tarjeta">
+        <div class="tabla-scroll">
+          <table class="tabla-datos" id="tabla-ordenescompra">
+            <thead>
+              <tr>
+                <th>N.º</th>
+                <th>Fecha</th>
+                <th>Proveedor</th>
+                <th>Orden relacionada</th>
+                <th>Total</th>
+                <th>Forma de pago</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="cuerpo-tabla-ordenescompra"></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
@@ -1196,47 +1268,14 @@ the data-access layer at all.
       <div class="tarjeta">
         <h1>Inventario</h1>
         <h2>Stock de insumos que manejas por volumen</h2>
+        <div class="tabla-toolbar">
+          <button type="button" id="btn-nueva-entrada-stock">+ Registrar entrada</button>
+        </div>
         <label for="stock-filtro-categoria">Filtrar por categoría</label>
         <select id="stock-filtro-categoria">
           <option value="">Todas las categorías</option>
         </select>
         <div id="lista-stock"></div>
-      </div>
-
-      <div class="tarjeta">
-        <h2>Registrar entrada de stock (compra por volumen)</h2>
-        <label for="stock-item">Ítem</label>
-        <select id="stock-item"></select>
-
-        <div id="grupo-stock-nuevo-item" class="oculto">
-          <label for="stock-nuevo-tipo">Tipo</label>
-          <select id="stock-nuevo-tipo">
-            <option value="insumo">Insumo</option>
-            <option value="repuesto">Repuesto</option>
-          </select>
-          <label for="stock-nuevo-nombre">Nombre</label>
-          <input id="stock-nuevo-nombre" type="text" placeholder="Ej. Aceite Kixx 5W30 (galón)">
-          <label for="stock-nuevo-categoria">Categoría (opcional)</label>
-          <input id="stock-nuevo-categoria" type="text" list="lista-categorias-items" placeholder="Ej. Frenos, Motor, Eléctrico...">
-          <datalist id="lista-categorias-items"></datalist>
-          <label for="stock-nuevo-minimo">Stock mínimo (para alertarte)</label>
-          <input id="stock-nuevo-minimo" type="number" min="0" step="0.01" value="0">
-        </div>
-
-        <label for="stock-cantidad">Cantidad que compraste</label>
-        <input id="stock-cantidad" type="number" min="0.01" step="0.01">
-        <label for="stock-costo-unitario">Costo por unidad</label>
-        <input id="stock-costo-unitario" type="number" min="0" step="0.01">
-        <label for="stock-proveedor">Proveedor</label>
-        <select id="stock-proveedor"></select>
-        <label style="display:flex;align-items:center;gap:8px;margin-top:10px;">
-          <input type="checkbox" id="stock-pagado-caja-menor" style="width:auto;margin:0;">
-          Pagado con caja menor (efectivo)
-        </label>
-        <div class="nota-ayuda" style="margin-top:2px;">Marca esto solo si pagaste esta compra con efectivo de caja menor. Se descuenta del fondo y queda registrada como salida de caja, pero no afecta tu utilidad del mes — ese costo se contabiliza cuando el repuesto se use en una orden.</div>
-        <button id="btn-registrar-entrada">Registrar entrada</button>
-        <div id="stock-error" class="mensaje-error"></div>
-        <div id="stock-exito" class="mensaje-error oculto" style="background:#f0fdf4;color:var(--verde);border-color:#bbf7d0;"></div>
       </div>
 
       <div class="tarjeta">
@@ -1250,6 +1289,44 @@ the data-access layer at all.
         <div id="importar-repuestos-resultado" class="nota-ayuda oculto"></div>
       </div>
     </section>
+
+    <div id="fondo-form-stock" class="fondo-modal oculto"></div>
+    <div class="tarjeta tarjeta-formulario tarjeta-modal oculto" id="tarjeta-form-stock">
+      <h2>Registrar entrada de stock (compra por volumen)</h2>
+      <label for="stock-item">Ítem</label>
+      <select id="stock-item"></select>
+
+      <div id="grupo-stock-nuevo-item" class="oculto">
+        <label for="stock-nuevo-tipo">Tipo</label>
+        <select id="stock-nuevo-tipo">
+          <option value="insumo">Insumo</option>
+          <option value="repuesto">Repuesto</option>
+        </select>
+        <label for="stock-nuevo-nombre">Nombre</label>
+        <input id="stock-nuevo-nombre" type="text" placeholder="Ej. Aceite Kixx 5W30 (galón)">
+        <label for="stock-nuevo-categoria">Categoría (opcional)</label>
+        <input id="stock-nuevo-categoria" type="text" list="lista-categorias-items" placeholder="Ej. Frenos, Motor, Eléctrico...">
+        <datalist id="lista-categorias-items"></datalist>
+        <label for="stock-nuevo-minimo">Stock mínimo (para alertarte)</label>
+        <input id="stock-nuevo-minimo" type="number" min="0" step="0.01" value="0">
+      </div>
+
+      <label for="stock-cantidad">Cantidad que compraste</label>
+      <input id="stock-cantidad" type="number" min="0.01" step="0.01">
+      <label for="stock-costo-unitario">Costo por unidad</label>
+      <input id="stock-costo-unitario" type="number" min="0" step="0.01">
+      <label for="stock-proveedor">Proveedor</label>
+      <select id="stock-proveedor"></select>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:10px;">
+        <input type="checkbox" id="stock-pagado-caja-menor" style="width:auto;margin:0;">
+        Pagado con caja menor (efectivo)
+      </label>
+      <div class="nota-ayuda" style="margin-top:2px;">Marca esto solo si pagaste esta compra con efectivo de caja menor. Se descuenta del fondo y queda registrada como salida de caja, pero no afecta tu utilidad del mes — ese costo se contabiliza cuando el repuesto se use en una orden.</div>
+      <button id="btn-registrar-entrada">Registrar entrada</button>
+      <button type="button" class="secundario" id="btn-cancelar-stock">Cancelar</button>
+      <div id="stock-error" class="mensaje-error"></div>
+      <div id="stock-exito" class="mensaje-error oculto" style="background:#f0fdf4;color:var(--verde);border-color:#bbf7d0;"></div>
+    </div>
 
     <section id="pantalla-servicios" class="pagina pagina-ancha oculto">
       <h1>Servicios</h1>
@@ -2340,6 +2417,7 @@ the data-access layer at all.
         $("nav-clientes").classList.toggle("oculto", !puedeVerInventario);
         $("nav-vehiculos").classList.toggle("oculto", !puedeVerInventario);
         $("nav-proveedores").classList.toggle("oculto", !puedeVerInventario);
+        $("nav-ordenes-compra").classList.toggle("oculto", !puedeVerInventario);
         $("nav-comunicaciones").classList.toggle("oculto", !puedeVerInventario);
         $("nav-personal").classList.toggle("oculto", rolActual !== "administrador");
         aplicarRestriccionesTecnicoItems();
@@ -2365,7 +2443,7 @@ the data-access layer at all.
   // =====================================================================
   // NAVEGACIÓN (menú lateral)
   // =====================================================================
-  var PAGINAS = ["inicio", "app", "agenda", "clientes", "vehiculos", "historial", "proveedores", "personal", "inventario", "servicios", "combos", "contabilidad", "facturacion", "caja", "cuentas", "egreso", "configuracion", "nomina", "reportes", "comunicaciones"];
+  var PAGINAS = ["inicio", "app", "agenda", "clientes", "vehiculos", "historial", "proveedores", "ordenescompra", "personal", "inventario", "servicios", "combos", "contabilidad", "facturacion", "caja", "cuentas", "egreso", "configuracion", "nomina", "reportes", "comunicaciones"];
   var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", agenda: "Agenda", clientes: "Clientes", vehiculos: "Vehículos", historial: "Historial del vehículo", proveedores: "Proveedores", personal: "Personal", inventario: "Inventario", servicios: "Servicios", combos: "Combos de servicio", contabilidad: "Contabilidad", facturacion: "Facturación", caja: "Caja", cuentas: "Cuentas por cobrar/pagar", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes", comunicaciones: "Comunicaciones" };
   var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", agenda: "agenda-error", clientes: "clientes-error", vehiculos: "vehiculos-error", historial: "historial-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", servicios: "servicios-error", combos: "combos-error", contabilidad: "contab-horas-error", facturacion: "facturacion-error", caja: "caja-error", cuentas: "cuentas-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error", comunicaciones: "comunicaciones-error" };
 
@@ -2388,6 +2466,8 @@ the data-access layer at all.
     $("fondo-form-servicio").classList.add("oculto");
     $("tarjeta-form-combo").classList.add("oculto");
     $("fondo-form-combo").classList.add("oculto");
+    $("tarjeta-form-stock").classList.add("oculto");
+    $("fondo-form-stock").classList.add("oculto");
 
     var promesa = null;
     if (nombre === "inicio") promesa = cargarInicio();
@@ -2397,6 +2477,7 @@ the data-access layer at all.
     else if (nombre === "vehiculos") promesa = cargarVehiculos();
     else if (nombre === "historial") reiniciarPantallaHistorial();
     else if (nombre === "proveedores") promesa = cargarProveedoresPagina();
+    else if (nombre === "ordenescompra") promesa = cargarOrdenesCompraPagina();
     else if (nombre === "personal") promesa = cargarPersonal();
     else if (nombre === "inventario") promesa = cargarInventario();
     else if (nombre === "servicios") promesa = cargarServicios();
@@ -2848,6 +2929,31 @@ the data-access layer at all.
     $("grupo-stock-nuevo-item").classList.toggle("oculto", this.value !== "__nuevo__");
   });
 
+  function abrirFormularioStock() {
+    ocultarError("stock-error");
+    $("stock-exito").classList.add("oculto");
+    $("stock-item").value = "__nuevo__";
+    $("grupo-stock-nuevo-item").classList.remove("oculto");
+    $("stock-nuevo-nombre").value = "";
+    $("stock-nuevo-categoria").value = "";
+    $("stock-nuevo-minimo").value = "0";
+    $("stock-cantidad").value = "";
+    $("stock-costo-unitario").value = "";
+    $("stock-proveedor").value = "";
+    $("stock-pagado-caja-menor").checked = false;
+    $("tarjeta-form-stock").classList.remove("oculto");
+    $("fondo-form-stock").classList.remove("oculto");
+  }
+
+  function cerrarFormularioStock() {
+    $("tarjeta-form-stock").classList.add("oculto");
+    $("fondo-form-stock").classList.add("oculto");
+  }
+
+  $("btn-nueva-entrada-stock").addEventListener("click", conManejoDeErrores(abrirFormularioStock, "stock-error"));
+  $("btn-cancelar-stock").addEventListener("click", cerrarFormularioStock);
+  $("fondo-form-stock").addEventListener("click", cerrarFormularioStock);
+
   $("btn-registrar-entrada").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("stock-error");
     $("stock-exito").classList.add("oculto");
@@ -2923,16 +3029,10 @@ the data-access layer at all.
         });
       });
     }).then(function () {
-      $("stock-nuevo-nombre").value = "";
-      $("stock-nuevo-categoria").value = "";
-      $("stock-nuevo-minimo").value = "0";
-      $("stock-cantidad").value = "";
-      $("stock-costo-unitario").value = "";
-      $("stock-pagado-caja-menor").checked = false;
-      var exito = $("stock-exito");
-      exito.textContent = "Entrada registrada correctamente." + (pagadoConCajaMenor ? " Se descontó de caja menor." : "");
-      exito.classList.remove("oculto");
-      return cargarInventario();
+      return cargarInventario().then(function () {
+        cerrarFormularioStock();
+        mostrarAlertaFlotante("Entrada registrada correctamente." + (pagadoConCajaMenor ? " Se descontó de caja menor." : ""));
+      });
     });
   }, "stock-error"));
 
@@ -4050,6 +4150,8 @@ the data-access layer at all.
     $("vehiculo-anio").value = v.anio || "";
     $("vehiculo-color").value = v.color || "";
     $("vehiculo-tipo-carroceria").value = v.tipo_carroceria || "";
+    $("vehiculo-transmision").value = v.transmision || "";
+    $("vehiculo-version").value = v.version || "";
     $("vehiculo-km").value = v.kilometraje || 0;
     $("vehiculo-soat").value = v.soat_vencimiento || "";
     $("vehiculo-tecnomecanica").value = v.tecnomecanica_vencimiento || "";
@@ -4060,7 +4162,7 @@ the data-access layer at all.
 
   function reiniciarFormularioVehiculo() {
     vehiculoEditando = null;
-    ["vehiculo-placa", "vehiculo-vin", "vehiculo-marca", "vehiculo-modelo", "vehiculo-anio", "vehiculo-color", "vehiculo-tipo-carroceria", "vehiculo-soat", "vehiculo-tecnomecanica"].forEach(function (id) { $(id).value = ""; });
+    ["vehiculo-placa", "vehiculo-vin", "vehiculo-marca", "vehiculo-modelo", "vehiculo-anio", "vehiculo-color", "vehiculo-tipo-carroceria", "vehiculo-transmision", "vehiculo-version", "vehiculo-soat", "vehiculo-tecnomecanica"].forEach(function (id) { $(id).value = ""; });
     $("vehiculo-km").value = "0";
     $("vehiculos-form-titulo").textContent = "Agregar vehículo";
     $("btn-guardar-vehiculo").textContent = "Agregar vehículo";
@@ -4080,6 +4182,8 @@ the data-access layer at all.
     var anio = $("vehiculo-anio").value ? parseInt($("vehiculo-anio").value, 10) : null;
     var color = $("vehiculo-color").value.trim();
     var tipoCarroceria = $("vehiculo-tipo-carroceria").value.trim();
+    var transmision = $("vehiculo-transmision").value.trim();
+    var version = $("vehiculo-version").value.trim();
     var km = $("vehiculo-km").value ? parseInt($("vehiculo-km").value, 10) : 0;
     var soatVencimiento = $("vehiculo-soat").value;
     var tecnomecanicaVencimiento = $("vehiculo-tecnomecanica").value;
@@ -4095,7 +4199,7 @@ the data-access layer at all.
       mostrarError("vehiculos-error", "El VIN debe tener 17 caracteres (o déjalo vacío).");
       return;
     }
-    var body = { id_cliente: idCliente, placa: placa, vin: vin || null, marca: marca || null, modelo: modelo || null, anio: anio, color: color || null, tipo_carroceria: tipoCarroceria || null, kilometraje: km, soat_vencimiento: soatVencimiento || null, tecnomecanica_vencimiento: tecnomecanicaVencimiento || null };
+    var body = { id_cliente: idCliente, placa: placa, vin: vin || null, marca: marca || null, modelo: modelo || null, anio: anio, color: color || null, tipo_carroceria: tipoCarroceria || null, transmision: transmision || null, version: version || null, kilometraje: km, soat_vencimiento: soatVencimiento || null, tecnomecanica_vencimiento: tecnomecanicaVencimiento || null };
     var pedido = vehiculoEditando
       ? restRequest("PATCH", "vehiculos", { query: "id_vehiculo=eq." + vehiculoEditando, body: body })
       : restRequest("POST", "vehiculos", { body: body });
@@ -4285,6 +4389,8 @@ the data-access layer at all.
     $("proveedor-nombre").value = p.nombre || "";
     $("proveedor-contacto").value = p.contacto || "";
     $("proveedor-condiciones").value = p.condiciones_pago || "";
+    $("proveedor-direccion").value = p.direccion || "";
+    $("proveedor-ciudad").value = p.ciudad || "";
     $("proveedores-form-titulo").textContent = "Editar proveedor";
     $("btn-agregar-proveedor").textContent = "Guardar cambios";
     mostrarFormularioProveedor();
@@ -4295,6 +4401,8 @@ the data-access layer at all.
     $("proveedor-nombre").value = "";
     $("proveedor-contacto").value = "";
     $("proveedor-condiciones").value = "";
+    $("proveedor-direccion").value = "";
+    $("proveedor-ciudad").value = "";
     $("proveedores-form-titulo").textContent = "Agregar proveedor";
     $("btn-agregar-proveedor").textContent = "Agregar proveedor";
     $("tarjeta-form-proveedor").classList.add("oculto");
@@ -4308,11 +4416,13 @@ the data-access layer at all.
     var nombre = $("proveedor-nombre").value.trim();
     var contacto = $("proveedor-contacto").value.trim();
     var condiciones = $("proveedor-condiciones").value.trim();
+    var direccion = $("proveedor-direccion").value.trim();
+    var ciudad = $("proveedor-ciudad").value.trim();
     if (!nombre) {
       mostrarError("proveedor-error", "Escribe el nombre del proveedor.");
       return;
     }
-    var body = { nombre: nombre, contacto: contacto || null, condiciones_pago: condiciones || null };
+    var body = { nombre: nombre, contacto: contacto || null, condiciones_pago: condiciones || null, direccion: direccion || null, ciudad: ciudad || null };
     var pedido = proveedorEditando
       ? restRequest("PATCH", "proveedores", { query: "id_proveedor=eq." + proveedorEditando, body: body })
       : restRequest("POST", "proveedores", { body: body });
@@ -8445,8 +8555,8 @@ the data-access layer at all.
   }
 
   function cargarItemsDeOrden() {
-    var queryItems = "select=id_detalle,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,fecha_inicio_real,fecha_fin_real,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
-    var queryOrden = "select=estado,tipo_orden,token_consulta,fecha_apertura,fecha_cierre,diagnostico,presupuesto_tentativo,hallazgos_diagnostico,veces_devuelta_calidad,motivo_devolucion_calidad,fecha_devolucion_calidad,id_asesor,id_tecnico,asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre),clientes(nombre,telefono,documento,direccion),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje)&id_ot=eq." + ordenActual.id_ot;
+    var queryItems = "select=id_detalle,id_item,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,fecha_inicio_real,fecha_fin_real,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
+    var queryOrden = "select=estado,tipo_orden,token_consulta,fecha_apertura,fecha_cierre,diagnostico,presupuesto_tentativo,hallazgos_diagnostico,veces_devuelta_calidad,motivo_devolucion_calidad,fecha_devolucion_calidad,id_asesor,id_tecnico,asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre),clientes(nombre,telefono,documento,direccion),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,transmision,version,vin,kilometraje)&id_ot=eq." + ordenActual.id_ot;
     return Promise.all([
       restRequest("GET", "ot_detalle", { query: queryItems }),
       restRequest("GET", "ordenes_trabajo", { query: queryOrden }),
@@ -8475,6 +8585,7 @@ the data-access layer at all.
         ordenActual.asesorNombre = orden.asesor ? orden.asesor.nombre : null;
         ordenActual.tecnicoNombre = orden.tecnico ? orden.tecnico.nombre : null;
         ordenActual.vehiculoKilometraje = orden.vehiculos ? orden.vehiculos.kilometraje : null;
+        ordenActual.vehiculo = orden.vehiculos || null;
         // Se calcula acá (antes de renderizarEstadoOrden) porque la sugerencia
         // automática de próximo mantenimiento la necesita: qué servicios de
         // mano de obra tiene esta orden, para cruzarlos con la frecuencia
@@ -8513,6 +8624,10 @@ the data-access layer at all.
       renderizarTablaExternos(filasExternos);
       renderizarTotalesOrden(filas);
 
+      var esAdminOAsesorOC = rolActual === "administrador" || rolActual === "asesor";
+      ordenActual.itemsPartesOC = filasPartes.filter(function (f) { return f.estado_autorizacion !== "rechazado"; });
+      $("btn-generar-orden-compra").classList.toggle("oculto", !esAdminOAsesorOC || ordenActual.itemsPartesOC.length === 0);
+
       var hayPendientes = false;
       var montoPendiente = 0;
       filas.forEach(function (f) {
@@ -8524,6 +8639,309 @@ the data-access layer at all.
       $("btn-ir-firma").style.display = hayPendientes ? "block" : "none";
 
       renderizarAutorizacionPendiente(hayPendientes, montoPendiente);
+    });
+  }
+
+  // =====================================================================
+  // ORDEN DE COMPRA A PROVEEDOR (desde una orden de trabajo)
+  // =====================================================================
+  function abrirFormularioOrdenCompra() {
+    ocultarError("compra-error");
+    return restRequest("GET", "proveedores", { query: "select=id_proveedor,nombre&order=nombre.asc" }).then(function (proveedores) {
+      var sel = $("compra-proveedor");
+      sel.innerHTML = "";
+      if (!proveedores || !proveedores.length) {
+        var opt = document.createElement("option");
+        opt.value = ""; opt.textContent = "No hay proveedores registrados";
+        sel.appendChild(opt);
+      } else {
+        proveedores.forEach(function (p) {
+          var o = document.createElement("option");
+          o.value = p.id_proveedor; o.textContent = p.nombre;
+          sel.appendChild(o);
+        });
+      }
+      $("compra-fecha").value = aFechaISO(new Date());
+      $("compra-es-credito").checked = true;
+      $("grupo-compra-vencimiento").classList.remove("oculto");
+      $("compra-vencimiento").value = "";
+      $("compra-mensaje").value = "";
+      $("compra-observaciones").value = "";
+      $("compra-descuento").value = "0";
+      $("compra-envio").value = "0";
+      $("compra-iva").value = "0";
+
+      var items = ordenActual.itemsPartesOC || [];
+      var cont = $("lista-compra-items");
+      cont.innerHTML = "";
+      $("compra-sin-items").classList.toggle("oculto", items.length > 0);
+      items.forEach(function (it) {
+        var fila = document.createElement("div");
+        fila.className = "fila-renglon";
+        fila.style.flexWrap = "wrap";
+        fila.innerHTML =
+          "<label style=\"display:flex;align-items:center;gap:6px;flex:1;min-width:220px;\">" +
+          "<input type=\"checkbox\" class=\"compra-item-check\" data-id=\"" + it.id_detalle + "\" style=\"width:auto;\" checked>" +
+          (it.codigo ? "<b>" + it.codigo + "</b> " : "") + it.items.nombre + "</label>" +
+          "<span style=\"display:flex;gap:6px;align-items:center;flex-wrap:wrap;\">" +
+          "Cant. <input type=\"number\" min=\"0.01\" step=\"0.01\" value=\"" + it.cantidad + "\" id=\"compra-cant-" + it.id_detalle + "\" style=\"width:70px;\">" +
+          "Precio <input type=\"number\" min=\"0\" step=\"0.01\" value=\"" + Number(it.costo_interno || 0) + "\" id=\"compra-precio-" + it.id_detalle + "\" style=\"width:100px;\">" +
+          "</span>";
+        cont.appendChild(fila);
+      });
+
+      recalcularTotalesOrdenCompra();
+      $("tarjeta-form-compra").classList.remove("oculto");
+      $("fondo-form-compra").classList.remove("oculto");
+    });
+  }
+
+  function cerrarFormularioOrdenCompra() {
+    $("tarjeta-form-compra").classList.add("oculto");
+    $("fondo-form-compra").classList.add("oculto");
+  }
+
+  function itemsSeleccionadosOrdenCompra() {
+    var items = ordenActual.itemsPartesOC || [];
+    var resultado = [];
+    items.forEach(function (it) {
+      var check = document.querySelector(".compra-item-check[data-id=\"" + it.id_detalle + "\"]");
+      if (!check || !check.checked) return;
+      var inpCant = $("compra-cant-" + it.id_detalle);
+      var inpPrecio = $("compra-precio-" + it.id_detalle);
+      resultado.push({
+        id_item: it.id_item || null,
+        id_detalle_ot: it.id_detalle,
+        codigo: it.codigo || null,
+        descripcion: it.items.nombre,
+        cantidad: inpCant ? (parseFloat(inpCant.value) || 0) : 0,
+        precio: inpPrecio ? (parseFloat(inpPrecio.value) || 0) : 0
+      });
+    });
+    return resultado;
+  }
+
+  function recalcularTotalesOrdenCompra() {
+    var items = itemsSeleccionadosOrdenCompra();
+    var subtotal = items.reduce(function (a, it) { return a + it.cantidad * it.precio; }, 0);
+    var descuento = parseFloat($("compra-descuento").value) || 0;
+    var envio = parseFloat($("compra-envio").value) || 0;
+    var pctIva = parseFloat($("compra-iva").value) || 0;
+    var iva = (subtotal - descuento + envio) * pctIva / 100;
+    var total = subtotal - descuento + envio + iva;
+    $("compra-totales").innerHTML = "Subtotal: " + formatoMoneda(subtotal) +
+      (descuento > 0 ? " · Descuento: -" + formatoMoneda(descuento) : "") +
+      (envio > 0 ? " · Envío: +" + formatoMoneda(envio) : "") +
+      (pctIva > 0 ? " · IVA: " + formatoMoneda(iva) : "") +
+      "<br>TOTAL: " + formatoMoneda(total);
+  }
+
+  $("btn-generar-orden-compra").addEventListener("click", conManejoDeErrores(abrirFormularioOrdenCompra, "item-error"));
+  $("btn-cancelar-orden-compra").addEventListener("click", cerrarFormularioOrdenCompra);
+  $("fondo-form-compra").addEventListener("click", cerrarFormularioOrdenCompra);
+  $("compra-es-credito").addEventListener("change", function () {
+    $("grupo-compra-vencimiento").classList.toggle("oculto", !this.checked);
+  });
+  ["compra-descuento", "compra-envio", "compra-iva"].forEach(function (id) {
+    $(id).addEventListener("input", recalcularTotalesOrdenCompra);
+  });
+  $("lista-compra-items").addEventListener("input", recalcularTotalesOrdenCompra);
+  $("lista-compra-items").addEventListener("change", recalcularTotalesOrdenCompra);
+
+  $("btn-confirmar-orden-compra").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("compra-error");
+    var idProveedor = $("compra-proveedor").value;
+    var nombreProveedor = idProveedor && $("compra-proveedor").selectedOptions.length ? $("compra-proveedor").selectedOptions[0].textContent : "";
+    var fecha = $("compra-fecha").value || aFechaISO(new Date());
+    var esCredito = $("compra-es-credito").checked;
+    var vencimiento = $("compra-vencimiento").value || null;
+    var mensaje = $("compra-mensaje").value.trim();
+    var observaciones = $("compra-observaciones").value.trim();
+    var descuento = parseFloat($("compra-descuento").value) || 0;
+    var envio = parseFloat($("compra-envio").value) || 0;
+    var pctIva = parseFloat($("compra-iva").value) || 0;
+    var items = itemsSeleccionadosOrdenCompra();
+
+    if (!idProveedor) {
+      mostrarError("compra-error", "Elige un proveedor.");
+      return;
+    }
+    if (!items.length) {
+      mostrarError("compra-error", "Elige al menos un repuesto o insumo para pedir.");
+      return;
+    }
+    for (var i = 0; i < items.length; i++) {
+      if (!(items[i].cantidad > 0) || !(items[i].precio >= 0)) {
+        mostrarError("compra-error", "Revisa las cantidades y precios de los ítems elegidos.");
+        return;
+      }
+    }
+
+    var subtotal = items.reduce(function (a, it) { return a + it.cantidad * it.precio; }, 0);
+    var iva = (subtotal - descuento + envio) * pctIva / 100;
+    var total = subtotal - descuento + envio + iva;
+
+    var btn = $("btn-confirmar-orden-compra");
+    btn.disabled = true;
+    btn.textContent = "Generando…";
+
+    return restRequest("POST", "ordenes_compra", {
+      body: {
+        fecha: fecha, id_ot: ordenActual.id_ot, id_proveedor: idProveedor,
+        mensaje_proveedor: mensaje || null, observaciones: observaciones || null,
+        descuento: descuento, envio: envio, pct_iva: pctIva,
+        es_credito: esCredito, fecha_vencimiento: esCredito ? vencimiento : null,
+        id_usuario_registro: usuarioActualId
+      }
+    }).then(function (creadas) {
+      var oc = creadas[0];
+      var detalleBody = items.map(function (it) {
+        return { id_orden_compra: oc.id_orden_compra, codigo: it.codigo, descripcion: it.descripcion, cantidad: it.cantidad, precio: it.precio, id_item: it.id_item, id_detalle_ot: it.id_detalle_ot };
+      });
+      return restRequest("POST", "ordenes_compra_detalle", { body: detalleBody }).then(function () {
+        if (!esCredito) return oc;
+        var concepto = "Orden de compra N.º " + String(oc.numero_orden).padStart(7, "0") + " — " + nombreProveedor + " (Orden " + prefijoOT + ordenActual.numero_ot + ")";
+        return restRequest("POST", "egresos", {
+          body: {
+            fecha: fecha, proveedor: nombreProveedor, concepto: concepto, categoria: "compra",
+            monto: total, forma_pago: "credito", estado_pago: "credito",
+            fecha_vencimiento: vencimiento, id_ot: ordenActual.id_ot, id_usuario_registro: usuarioActualId
+          }
+        }).then(function (egresosCreados) {
+          return restRequest("PATCH", "ordenes_compra", { query: "id_orden_compra=eq." + oc.id_orden_compra, body: { id_egreso: egresosCreados[0].id_egreso } }).then(function () { return oc; });
+        });
+      });
+    }).then(function (oc) {
+      cerrarFormularioOrdenCompra();
+      mostrarAlertaFlotante("Orden de compra generada." + (esCredito ? " Se registró como cuenta por pagar." : ""));
+      btn.disabled = false;
+      btn.textContent = "Generar e imprimir";
+      return imprimirOrdenCompra(oc.id_orden_compra);
+    }).catch(function (err) {
+      btn.disabled = false;
+      btn.textContent = "Generar e imprimir";
+      throw err;
+    });
+  }, "compra-error"));
+
+  function imprimirOrdenCompra(idOrdenCompra, idError) {
+    idError = idError || "compra-error";
+    var query = "select=*,proveedores(nombre,contacto,direccion,ciudad),ordenes_trabajo(numero_ot,vehiculos(placa,marca,modelo,anio,transmision,version,tipo_carroceria,vin))&id_orden_compra=eq." + idOrdenCompra;
+    return Promise.all([
+      restRequest("GET", "ordenes_compra", { query: query }),
+      restRequest("GET", "ordenes_compra_detalle", { query: "select=*&id_orden_compra=eq." + idOrdenCompra + "&order=codigo.asc" }),
+      obtenerDatosTaller()
+    ]).then(function (r) {
+      var oc = r[0] && r[0][0];
+      var detalle = r[1] || [];
+      var taller = r[2];
+      if (!oc) {
+        mostrarError(idError, "No se pudo cargar la orden de compra.");
+        return;
+      }
+      var prov = oc.proveedores || {};
+      var ot = oc.ordenes_trabajo || {};
+      var veh = ot.vehiculos || {};
+
+      var filasItems = detalle.map(function (d, i) {
+        return "<tr><td>" + (i + 1) + "</td><td>" + (d.codigo || "") + "</td><td>" + d.descripcion + "</td><td>" + d.cantidad + "</td><td>" + formatoMoneda(d.precio) + "</td><td>" + formatoMoneda(d.cantidad * d.precio) + "</td></tr>";
+      }).join("");
+
+      var subtotal = detalle.reduce(function (a, d) { return a + d.cantidad * d.precio; }, 0);
+      var iva = (subtotal - Number(oc.descuento || 0) + Number(oc.envio || 0)) * (Number(oc.pct_iva) || 0) / 100;
+      var total = subtotal - Number(oc.descuento || 0) + Number(oc.envio || 0) + iva;
+      var numeroFormateado = String(oc.numero_orden).padStart(7, "0");
+
+      var contenido =
+        "<style>" +
+        ".oc-barra{display:flex;border:1px solid #111827;margin-bottom:10px;font-size:12px;}" +
+        ".oc-barra>div{flex:1;padding:6px 10px;}" +
+        ".oc-barra .oc-etq{background:#4b5563;color:#fff;font-weight:700;text-transform:uppercase;font-size:10.5px;flex:0 0 110px;display:flex;align-items:center;}" +
+        ".oc-cajas{display:flex;gap:12px;margin-bottom:10px;}" +
+        ".oc-caja{flex:1;border:1px solid #111827;font-size:12px;line-height:1.6;}" +
+        ".oc-caja-titulo{background:#4b5563;color:#fff;font-weight:700;text-transform:uppercase;font-size:10.5px;padding:5px 10px;}" +
+        ".oc-caja-cuerpo{padding:8px 10px;}" +
+        ".oc-vin{font-weight:700;margin-bottom:6px;}" +
+        ".oc-vin span{color:#dc2626;}" +
+        ".tabla-oc-veh th{background:#4b5563;color:#fff;font-size:10px;text-transform:uppercase;}" +
+        ".tabla-oc-items th{background:#d1d5db;font-size:10.5px;text-transform:uppercase;}" +
+        ".tabla-oc-items td:first-child,.tabla-oc-items th:first-child{text-align:center;width:26px;}" +
+        ".oc-abajo{display:flex;gap:12px;margin-top:10px;align-items:flex-start;}" +
+        ".oc-mensajes{flex:1;}" +
+        ".oc-mensajes .oc-caja{margin-bottom:8px;}" +
+        ".oc-mensajes .oc-caja-cuerpo{min-height:34px;font-size:11.5px;}" +
+        ".oc-totales{width:260px;border:1px solid #111827;font-size:12px;}" +
+        ".oc-totales div{display:flex;justify-content:space-between;padding:5px 10px;border-top:1px solid #d1d5db;}" +
+        ".oc-totales div:first-child{border-top:none;}" +
+        ".oc-totales .oc-total-final{background:#111827;color:#fff;font-weight:700;font-size:13px;}" +
+        "</style>" +
+        "<div class=\"oc-barra\"><div class=\"oc-etq\">Fecha</div><div>" + formatoFechaCorta(new Date(oc.fecha + "T00:00:00")) + "</div>" +
+        "<div class=\"oc-etq\">Orden No.</div><div>" + numeroFormateado + "</div></div>" +
+        "<div class=\"oc-cajas\">" +
+        "<div class=\"oc-caja\"><div class=\"oc-caja-titulo\">Proveedor</div><div class=\"oc-caja-cuerpo\"><b>" + (prov.nombre || "—") + "</b>" +
+        (prov.direccion ? "<br>" + prov.direccion : "") + (prov.ciudad ? "<br>" + prov.ciudad : "") + (prov.contacto ? "<br>" + prov.contacto : "") + "</div></div>" +
+        "<div class=\"oc-caja\"><div class=\"oc-caja-titulo\">Enviar a</div><div class=\"oc-caja-cuerpo\"><b>" + (taller.nombre_taller || "Taller Servi Motors") + "</b>" +
+        (taller.direccion ? "<br>" + taller.direccion : "") + (taller.telefono ? "<br>" + taller.telefono : "") + "</div></div>" +
+        "</div>" +
+        "<div class=\"oc-vin\">Datos del Vehículo" + (veh.vin ? " - VIN: <span>" + veh.vin + "</span>" : "") + "</div>" +
+        "<table class=\"tabla-oc-veh\"><thead><tr><th>Presupuesto</th><th>Año</th><th>Marca</th><th>Modelo</th><th>Transmisión</th><th>Versión</th><th>Tipo</th></tr></thead>" +
+        "<tbody><tr><td>" + prefijoOT + ot.numero_ot + "</td><td>" + (veh.anio || "—") + "</td><td>" + (veh.marca || "—") + "</td><td>" + (veh.modelo || "—") +
+        "</td><td>" + (veh.transmision || "—") + "</td><td>" + (veh.version || "—") + "</td><td>" + (veh.tipo_carroceria || "—") + "</td></tr></tbody></table>" +
+        "<h3>Ítems solicitados</h3>" +
+        "<table class=\"tabla-oc-items\"><thead><tr><th>#</th><th>Código</th><th>Descripción de compra</th><th>Cant.</th><th>Precio</th><th>Total</th></tr></thead><tbody>" + filasItems + "</tbody></table>" +
+        "<div class=\"oc-abajo\">" +
+        "<div class=\"oc-mensajes\">" +
+        "<div class=\"oc-caja\"><div class=\"oc-caja-titulo\">Mensaje al proveedor</div><div class=\"oc-caja-cuerpo\">" + (oc.mensaje_proveedor ? String(oc.mensaje_proveedor).replace(/\n/g, "<br>") : "") + "</div></div>" +
+        "<div class=\"oc-caja\"><div class=\"oc-caja-titulo\">Observaciones</div><div class=\"oc-caja-cuerpo\">" + (oc.observaciones ? String(oc.observaciones).replace(/\n/g, "<br>") : "") + "</div></div>" +
+        (oc.es_credito ? "<div class=\"nota-periodo\">Compra a crédito" + (oc.fecha_vencimiento ? " — vence " + formatoFechaCorta(new Date(oc.fecha_vencimiento + "T00:00:00")) : "") + "</div>" : "") +
+        "</div>" +
+        "<div class=\"oc-totales\">" +
+        "<div><span>Sub-total</span><b>" + formatoMoneda(subtotal) + "</b></div>" +
+        "<div><span>Descuento -</span><b>" + formatoMoneda(oc.descuento) + "</b></div>" +
+        "<div><span>Envío +</span><b>" + formatoMoneda(oc.envio) + "</b></div>" +
+        "<div><span>IVA " + Number(oc.pct_iva || 0).toFixed(4) + "% +</span><b>" + formatoMoneda(iva) + "</b></div>" +
+        "<div class=\"oc-total-final\"><span>Total general</span><b>" + formatoMoneda(total) + "</b></div>" +
+        "</div>" +
+        "</div>";
+
+      abrirVentanaImpresion("Orden de compra N.º " + numeroFormateado, contenido, taller, null);
+    });
+  }
+
+  function cargarOrdenesCompraPagina() {
+    ocultarError("ordenescompra-error");
+    var query = "select=id_orden_compra,numero_orden,fecha,es_credito,fecha_vencimiento,descuento,envio,pct_iva,proveedores(nombre),ordenes_trabajo(numero_ot),ordenes_compra_detalle(cantidad,precio)&order=numero_orden.desc&limit=200";
+    return restRequest("GET", "ordenes_compra", { query: query }).then(function (filas) {
+      var cuerpo = $("cuerpo-tabla-ordenescompra");
+      cuerpo.innerHTML = "";
+      if (!filas || !filas.length) {
+        cuerpo.innerHTML = "<tr><td colspan=\"7\">Todavía no has generado ninguna orden de compra.</td></tr>";
+        return;
+      }
+      filas.forEach(function (oc) {
+        var subtotal = (oc.ordenes_compra_detalle || []).reduce(function (a, d) { return a + d.cantidad * d.precio; }, 0);
+        var iva = (subtotal - Number(oc.descuento || 0) + Number(oc.envio || 0)) * (Number(oc.pct_iva) || 0) / 100;
+        var total = subtotal - Number(oc.descuento || 0) + Number(oc.envio || 0) + iva;
+        var tr = document.createElement("tr");
+        tr.innerHTML =
+          "<td>" + String(oc.numero_orden).padStart(7, "0") + "</td>" +
+          "<td>" + formatoFechaCorta(new Date(oc.fecha + "T00:00:00")) + "</td>" +
+          "<td>" + (oc.proveedores ? oc.proveedores.nombre : "—") + "</td>" +
+          "<td>" + (oc.ordenes_trabajo ? prefijoOT + oc.ordenes_trabajo.numero_ot : "—") + "</td>" +
+          "<td>" + formatoMoneda(total) + "</td>" +
+          "<td>" + (oc.es_credito ? "Crédito" + (oc.fecha_vencimiento ? " (vence " + formatoFechaCorta(new Date(oc.fecha_vencimiento + "T00:00:00")) + ")" : "") : "Contado") + "</td>";
+        var tdAcciones = document.createElement("td");
+        var btnVer = document.createElement("button");
+        btnVer.type = "button";
+        btnVer.className = "secundario";
+        btnVer.textContent = "Ver / Reimprimir";
+        btnVer.addEventListener("click", conManejoDeErrores(function () {
+          return imprimirOrdenCompra(oc.id_orden_compra, "ordenescompra-error");
+        }, "ordenescompra-error"));
+        tdAcciones.appendChild(btnVer);
+        tr.appendChild(tdAcciones);
+        cuerpo.appendChild(tr);
+      });
     });
   }
 
