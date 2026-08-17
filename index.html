@@ -219,8 +219,15 @@ the data-access layer at all.
 
     <section id="pantalla-inicio" class="pagina pagina-ancha">
       <h1>Panel principal</h1>
-      <h2>Visión general de tu taller</h2>
       <div id="inicio-error" class="mensaje-error"></div>
+
+      <div class="tarjeta" id="tarjeta-accesos-rapidos">
+        <h2>Accesos rápidos</h2>
+        <button id="btn-inicio-nueva-orden">+ Nueva orden</button>
+        <button id="btn-inicio-registrar-gasto" class="secundario">+ Registrar gasto</button>
+      </div>
+
+      <h2>Visión general de tu taller</h2>
 
       <div class="grid-kpis">
         <div class="tarjeta-kpi">
@@ -249,6 +256,28 @@ the data-access layer at all.
         </div>
       </div>
 
+      <div class="tarjeta oculto" id="tarjeta-resumen-financiero-hoy">
+        <h2>Resumen financiero de hoy</h2>
+        <div class="grid-kpis">
+          <div class="tarjeta-kpi">
+            <div class="kpi-numero" id="kpi-ventas-hoy">—</div>
+            <div class="kpi-etiqueta">Ventas de hoy</div>
+          </div>
+          <div class="tarjeta-kpi">
+            <div class="kpi-numero" id="kpi-efectivo-hoy">—</div>
+            <div class="kpi-etiqueta">Efectivo en caja hoy</div>
+          </div>
+          <div class="tarjeta-kpi">
+            <div class="kpi-numero" id="kpi-cxc-pendiente">—</div>
+            <div class="kpi-etiqueta">Por cobrar (clientes)</div>
+          </div>
+          <div class="tarjeta-kpi">
+            <div class="kpi-numero" id="kpi-cxp-pendiente">—</div>
+            <div class="kpi-etiqueta">Por pagar (proveedores/gastos)</div>
+          </div>
+        </div>
+      </div>
+
       <div class="grid-graficos">
         <div class="tarjeta">
           <h2>Órdenes e ingresos por mes</h2>
@@ -259,36 +288,6 @@ the data-access layer at all.
           <h2>Estado actual de órdenes</h2>
           <div class="grafico-cont"><canvas id="grafico-estados"></canvas></div>
           <div id="sin-datos-estados" class="nota-ayuda oculto">Todavía no hay órdenes para mostrar.</div>
-        </div>
-      </div>
-
-      <div class="fila-inferior-inicio">
-        <div class="tarjeta oculto" id="tarjeta-resumen-financiero-hoy">
-          <h2>Resumen financiero de hoy</h2>
-          <div class="grid-kpis">
-            <div class="tarjeta-kpi">
-              <div class="kpi-numero" id="kpi-ventas-hoy">—</div>
-              <div class="kpi-etiqueta">Ventas de hoy</div>
-            </div>
-            <div class="tarjeta-kpi">
-              <div class="kpi-numero" id="kpi-efectivo-hoy">—</div>
-              <div class="kpi-etiqueta">Efectivo en caja hoy</div>
-            </div>
-            <div class="tarjeta-kpi">
-              <div class="kpi-numero" id="kpi-cxc-pendiente">—</div>
-              <div class="kpi-etiqueta">Por cobrar (clientes)</div>
-            </div>
-            <div class="tarjeta-kpi">
-              <div class="kpi-numero" id="kpi-cxp-pendiente">—</div>
-              <div class="kpi-etiqueta">Por pagar (proveedores/gastos)</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="tarjeta" id="tarjeta-accesos-rapidos">
-          <h2>Accesos rápidos</h2>
-          <button id="btn-inicio-nueva-orden">+ Nueva orden</button>
-          <button id="btn-inicio-registrar-gasto" class="secundario">+ Registrar gasto</button>
         </div>
       </div>
 
@@ -2030,9 +2029,7 @@ the data-access layer at all.
 
   /* Panel principal: ajustes propios además de la compactación general */
   #pantalla-inicio .grid-graficos { gap: 10px; margin-bottom: 10px; }
-  #pantalla-inicio .fila-inferior-inicio { display: flex; gap: 10px; flex-wrap: wrap; }
-  #pantalla-inicio .fila-inferior-inicio > .tarjeta { flex: 1; min-width: 260px; margin-bottom: 0; }
-  #pantalla-inicio #tarjeta-accesos-rapidos { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  #pantalla-inicio #tarjeta-accesos-rapidos { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
   #pantalla-inicio #tarjeta-accesos-rapidos h2 { width: 100%; margin-bottom: 2px; }
   #pantalla-inicio #tarjeta-accesos-rapidos button { width: auto; flex: 1; min-width: 140px; margin-top: 0; padding: 9px 12px; font-size: 13px; }
 
