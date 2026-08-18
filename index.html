@@ -1153,60 +1153,13 @@ the data-access layer at all.
         <h2>Costo y precio hora de equilibrio</h2>
         <div id="costo-hora-actual" class="info-vehiculo"></div>
         <div id="precio-hora-actual" class="info-vehiculo"></div>
-
-        <div class="info-vehiculo" style="border:2px solid var(--azul);">
-          <b>Precio de mano de obra a cobrar</b>
-          <div class="nota-ayuda" style="margin:0 0 8px;">Este es el precio que realmente se usa en cotizaciones, órdenes y facturas — puede incluir tu ganancia. Nunca puede quedar por debajo del precio de equilibrio de arriba. Si lo dejas vacío, se usa el precio de equilibrio.</div>
-          <label for="contab-precio-mano-obra">Precio por hora ($)</label>
-          <input id="contab-precio-mano-obra" type="number" min="0" step="0.01" placeholder="Ej. 95000">
-          <button id="btn-guardar-precio-mano-obra">Guardar precio de mano de obra</button>
-          <div id="precio-mano-obra-error" class="mensaje-error"></div>
-        </div>
-
-        <label for="contab-horas-mes">Horas de mano de obra disponibles al mes</label>
-        <input id="contab-horas-mes" type="number" min="0" step="0.01">
-        <label for="contab-pct-tecnico">% variable técnico (solo para estimar el precio de equilibrio)</label>
-        <input id="contab-pct-tecnico" type="number" min="0" max="99.99" step="0.01" placeholder="Ej. 25.714">
-        <label for="contab-pct-comisiones">% comisiones (solo para estimar el precio de equilibrio)</label>
-        <input id="contab-pct-comisiones" type="number" min="0" max="99.99" step="0.01" placeholder="Ej. 4">
-        <label for="contab-pct-datafono">% costo de datáfono</label>
-        <input id="contab-pct-datafono" type="number" min="0" max="99.99" step="0.01" placeholder="Ej. 3.5">
-        <div class="nota-ayuda">Estos tres se descuentan de cada hora vendida (no son costos fijos), por eso el precio de equilibrio los cubre aparte del costo fijo. Ni el % variable técnico ni el % comisiones son ya lo que se paga realmente — solo sirven para calcular cuánto debe costar la hora. El pago real de técnicos y asesores se define abajo.</div>
-
-        <label for="contab-tramo-horas-tecnico">Pago a técnico — horas con tarifa base (por período liquidado)</label>
-        <input id="contab-tramo-horas-tecnico" type="number" min="0" step="0.01" placeholder="Ej. 20">
-        <label for="contab-tarifa-hora-base">Pago a técnico — tarifa por hora hasta ese tope ($)</label>
-        <input id="contab-tarifa-hora-base" type="number" min="0" step="0.01" placeholder="Ej. 22000">
-        <label for="contab-tarifa-hora-extra">Pago a técnico — tarifa por hora que exceda el tope ($)</label>
-        <input id="contab-tarifa-hora-extra" type="number" min="0" step="0.01" placeholder="Ej. 28000">
-        <div class="nota-ayuda">Así se le paga realmente al técnico en Nómina: si en el período vende hasta este tope de horas, cada una se paga a la tarifa base; las horas que superen el tope se pagan a la tarifa mayor.</div>
-
-        <label for="contab-tramo-horas-ticket-asesor">Comisión a asesor — tope de horas promedio por ticket</label>
-        <input id="contab-tramo-horas-ticket-asesor" type="number" min="0" step="0.01" placeholder="Ej. 3">
-        <label for="contab-pct-comision-mo-baja">Comisión a asesor — % de mano de obra si el ticket promedio es MENOR al tope</label>
-        <input id="contab-pct-comision-mo-baja" type="number" min="0" max="100" step="0.01" placeholder="Ej. 3">
-        <label for="contab-pct-comision-mo-alta">Comisión a asesor — % de mano de obra si el ticket promedio ALCANZA o SUPERA el tope</label>
-        <input id="contab-pct-comision-mo-alta" type="number" min="0" max="100" step="0.01" placeholder="Ej. 5">
-        <label for="contab-pct-comision-margen-otros">Comisión a asesor — % del margen de repuestos, insumos y trabajos externos</label>
-        <input id="contab-pct-comision-margen-otros" type="number" min="0" max="100" step="0.01" placeholder="Ej. 10">
-        <div class="nota-ayuda">Así se le paga realmente al asesor en Nómina: se calcula el promedio de horas de mano de obra por orden cerrada en el período (ticket promedio); si ese promedio es menor al tope se paga el % bajo sobre el valor de mano de obra vendida, si lo alcanza o supera se paga el % alto. Aparte, se paga el % de margen sobre repuestos, insumos y trabajos externos.</div>
-
-        <div id="contab-solo-admin-nota" class="nota-ayuda oculto">Solo el administrador puede modificar estos valores — determinan el precio de mano de obra que se cobra en las órdenes y el pago variable a técnicos y asesores.</div>
-        <button id="btn-guardar-horas">Guardar</button>
-        <div id="contab-horas-error" class="mensaje-error"></div>
+        <button type="button" id="btn-abrir-precioshora">Editar precios y parámetros</button>
       </div>
 
       <div class="tarjeta">
         <h2>Costos fijos mensuales</h2>
         <div id="lista-costos-fijos"></div>
-        <h3>Agregar costo fijo</h3>
-        <div id="costos-fijos-solo-admin-nota" class="nota-ayuda oculto">Solo el administrador puede agregar o modificar costos fijos.</div>
-        <label for="costo-fijo-concepto">Concepto</label>
-        <input id="costo-fijo-concepto" type="text" placeholder="Ej. Arriendo">
-        <label for="costo-fijo-monto">Monto mensual</label>
-        <input id="costo-fijo-monto" type="number" min="0" step="0.01">
-        <button id="btn-agregar-costo-fijo">Agregar</button>
-        <div id="costo-fijo-error" class="mensaje-error"></div>
+        <button type="button" id="btn-abrir-costofijo">+ Agregar costo fijo</button>
       </div>
 
       <div class="tarjeta">
@@ -1229,22 +1182,89 @@ the data-access layer at all.
       <div class="tarjeta">
         <h2>Transferir entre mis cuentas</h2>
         <div class="nota-ayuda">Usa esto cuando muevas plata entre tus propias cuentas (por ejemplo, de Nequi a Bancolombia). No cuenta como ingreso ni como gasto del taller.</div>
-        <label for="transf-origen">De la cuenta</label>
-        <select id="transf-origen"></select>
-        <label for="transf-destino">A la cuenta</label>
-        <select id="transf-destino"></select>
-        <label for="transf-monto">Monto</label>
-        <input id="transf-monto" type="number" min="0" step="0.01">
-        <label for="transf-fecha">Fecha</label>
-        <input id="transf-fecha" type="date">
-        <label for="transf-nota">Nota (opcional)</label>
-        <input id="transf-nota" type="text">
-        <button id="btn-registrar-transferencia">Registrar transferencia</button>
-        <div id="transferencia-error" class="mensaje-error"></div>
+        <button type="button" id="btn-abrir-transferencia">+ Nueva transferencia</button>
         <h3 style="margin-top:16px;">Últimas transferencias</h3>
         <div id="lista-transferencias"></div>
       </div>
     </section>
+
+    <div id="fondo-form-precioshora" class="fondo-modal oculto"></div>
+    <div class="tarjeta tarjeta-formulario tarjeta-modal oculto" id="tarjeta-form-precioshora">
+      <h2>Precios y parámetros de mano de obra</h2>
+
+      <div class="info-vehiculo" style="border:2px solid var(--azul);">
+        <b>Precio de mano de obra a cobrar</b>
+        <div class="nota-ayuda" style="margin:0 0 8px;">Este es el precio que realmente se usa en cotizaciones, órdenes y facturas — puede incluir tu ganancia. Nunca puede quedar por debajo del precio de equilibrio de arriba. Si lo dejas vacío, se usa el precio de equilibrio.</div>
+        <label for="contab-precio-mano-obra">Precio por hora ($)</label>
+        <input id="contab-precio-mano-obra" type="number" min="0" step="0.01" placeholder="Ej. 95000">
+        <button id="btn-guardar-precio-mano-obra">Guardar precio de mano de obra</button>
+        <div id="precio-mano-obra-error" class="mensaje-error"></div>
+      </div>
+
+      <label for="contab-horas-mes">Horas de mano de obra disponibles al mes</label>
+      <input id="contab-horas-mes" type="number" min="0" step="0.01">
+      <label for="contab-pct-tecnico">% variable técnico (solo para estimar el precio de equilibrio)</label>
+      <input id="contab-pct-tecnico" type="number" min="0" max="99.99" step="0.01" placeholder="Ej. 25.714">
+      <label for="contab-pct-comisiones">% comisiones (solo para estimar el precio de equilibrio)</label>
+      <input id="contab-pct-comisiones" type="number" min="0" max="99.99" step="0.01" placeholder="Ej. 4">
+      <label for="contab-pct-datafono">% costo de datáfono</label>
+      <input id="contab-pct-datafono" type="number" min="0" max="99.99" step="0.01" placeholder="Ej. 3.5">
+      <div class="nota-ayuda">Estos tres se descuentan de cada hora vendida (no son costos fijos), por eso el precio de equilibrio los cubre aparte del costo fijo. Ni el % variable técnico ni el % comisiones son ya lo que se paga realmente — solo sirven para calcular cuánto debe costar la hora. El pago real de técnicos y asesores se define abajo.</div>
+
+      <label for="contab-tramo-horas-tecnico">Pago a técnico — horas con tarifa base (por período liquidado)</label>
+      <input id="contab-tramo-horas-tecnico" type="number" min="0" step="0.01" placeholder="Ej. 20">
+      <label for="contab-tarifa-hora-base">Pago a técnico — tarifa por hora hasta ese tope ($)</label>
+      <input id="contab-tarifa-hora-base" type="number" min="0" step="0.01" placeholder="Ej. 22000">
+      <label for="contab-tarifa-hora-extra">Pago a técnico — tarifa por hora que exceda el tope ($)</label>
+      <input id="contab-tarifa-hora-extra" type="number" min="0" step="0.01" placeholder="Ej. 28000">
+      <div class="nota-ayuda">Así se le paga realmente al técnico en Nómina: si en el período vende hasta este tope de horas, cada una se paga a la tarifa base; las horas que superen el tope se pagan a la tarifa mayor.</div>
+
+      <label for="contab-tramo-horas-ticket-asesor">Comisión a asesor — tope de horas promedio por ticket</label>
+      <input id="contab-tramo-horas-ticket-asesor" type="number" min="0" step="0.01" placeholder="Ej. 3">
+      <label for="contab-pct-comision-mo-baja">Comisión a asesor — % de mano de obra si el ticket promedio es MENOR al tope</label>
+      <input id="contab-pct-comision-mo-baja" type="number" min="0" max="100" step="0.01" placeholder="Ej. 3">
+      <label for="contab-pct-comision-mo-alta">Comisión a asesor — % de mano de obra si el ticket promedio ALCANZA o SUPERA el tope</label>
+      <input id="contab-pct-comision-mo-alta" type="number" min="0" max="100" step="0.01" placeholder="Ej. 5">
+      <label for="contab-pct-comision-margen-otros">Comisión a asesor — % del margen de repuestos, insumos y trabajos externos</label>
+      <input id="contab-pct-comision-margen-otros" type="number" min="0" max="100" step="0.01" placeholder="Ej. 10">
+      <div class="nota-ayuda">Así se le paga realmente al asesor en Nómina: se calcula el promedio de horas de mano de obra por orden cerrada en el período (ticket promedio); si ese promedio es menor al tope se paga el % bajo sobre el valor de mano de obra vendida, si lo alcanza o supera se paga el % alto. Aparte, se paga el % de margen sobre repuestos, insumos y trabajos externos.</div>
+
+      <div id="contab-solo-admin-nota" class="nota-ayuda oculto">Solo el administrador puede modificar estos valores — determinan el precio de mano de obra que se cobra en las órdenes y el pago variable a técnicos y asesores.</div>
+      <button id="btn-guardar-horas">Guardar</button>
+      <button type="button" class="secundario" id="btn-cancelar-precioshora">Cerrar</button>
+      <div id="contab-horas-error" class="mensaje-error"></div>
+    </div>
+
+    <div id="fondo-form-costofijo" class="fondo-modal oculto"></div>
+    <div class="tarjeta tarjeta-formulario tarjeta-modal oculto" id="tarjeta-form-costofijo">
+      <h2>Agregar costo fijo</h2>
+      <div id="costos-fijos-solo-admin-nota" class="nota-ayuda oculto">Solo el administrador puede agregar o modificar costos fijos.</div>
+      <label for="costo-fijo-concepto">Concepto</label>
+      <input id="costo-fijo-concepto" type="text" placeholder="Ej. Arriendo">
+      <label for="costo-fijo-monto">Monto mensual</label>
+      <input id="costo-fijo-monto" type="number" min="0" step="0.01">
+      <button id="btn-agregar-costo-fijo">Agregar</button>
+      <button type="button" class="secundario" id="btn-cancelar-costofijo">Cancelar</button>
+      <div id="costo-fijo-error" class="mensaje-error"></div>
+    </div>
+
+    <div id="fondo-form-transferencia" class="fondo-modal oculto"></div>
+    <div class="tarjeta tarjeta-formulario tarjeta-modal oculto" id="tarjeta-form-transferencia">
+      <h2>Transferir entre mis cuentas</h2>
+      <label for="transf-origen">De la cuenta</label>
+      <select id="transf-origen"></select>
+      <label for="transf-destino">A la cuenta</label>
+      <select id="transf-destino"></select>
+      <label for="transf-monto">Monto</label>
+      <input id="transf-monto" type="number" min="0" step="0.01">
+      <label for="transf-fecha">Fecha</label>
+      <input id="transf-fecha" type="date">
+      <label for="transf-nota">Nota (opcional)</label>
+      <input id="transf-nota" type="text">
+      <button id="btn-registrar-transferencia">Registrar transferencia</button>
+      <button type="button" class="secundario" id="btn-cancelar-transferencia">Cancelar</button>
+      <div id="transferencia-error" class="mensaje-error"></div>
+    </div>
 
     <section id="pantalla-egreso" class="pagina oculto">
       <div class="tarjeta">
@@ -2468,6 +2488,12 @@ the data-access layer at all.
     $("fondo-form-combo").classList.add("oculto");
     $("tarjeta-form-stock").classList.add("oculto");
     $("fondo-form-stock").classList.add("oculto");
+    $("tarjeta-form-precioshora").classList.add("oculto");
+    $("fondo-form-precioshora").classList.add("oculto");
+    $("tarjeta-form-costofijo").classList.add("oculto");
+    $("fondo-form-costofijo").classList.add("oculto");
+    $("tarjeta-form-transferencia").classList.add("oculto");
+    $("fondo-form-transferencia").classList.add("oculto");
 
     var promesa = null;
     if (nombre === "inicio") promesa = cargarInicio();
@@ -2928,6 +2954,57 @@ the data-access layer at all.
   $("stock-item").addEventListener("change", function () {
     $("grupo-stock-nuevo-item").classList.toggle("oculto", this.value !== "__nuevo__");
   });
+
+  function abrirFormularioPrecioshora() {
+    ocultarError("contab-horas-error");
+    ocultarError("precio-mano-obra-error");
+    $("tarjeta-form-precioshora").classList.remove("oculto");
+    $("fondo-form-precioshora").classList.remove("oculto");
+  }
+
+  function cerrarFormularioPrecioshora() {
+    $("tarjeta-form-precioshora").classList.add("oculto");
+    $("fondo-form-precioshora").classList.add("oculto");
+  }
+
+  function abrirFormularioCostofijo() {
+    ocultarError("costo-fijo-error");
+    $("costo-fijo-concepto").value = "";
+    $("costo-fijo-monto").value = "";
+    $("tarjeta-form-costofijo").classList.remove("oculto");
+    $("fondo-form-costofijo").classList.remove("oculto");
+  }
+
+  function cerrarFormularioCostofijo() {
+    $("tarjeta-form-costofijo").classList.add("oculto");
+    $("fondo-form-costofijo").classList.add("oculto");
+  }
+
+  function abrirFormularioTransferencia() {
+    ocultarError("transferencia-error");
+    $("transf-monto").value = "";
+    $("transf-nota").value = "";
+    if (!$("transf-fecha").value) $("transf-fecha").value = aFechaISO(new Date());
+    $("tarjeta-form-transferencia").classList.remove("oculto");
+    $("fondo-form-transferencia").classList.remove("oculto");
+  }
+
+  function cerrarFormularioTransferencia() {
+    $("tarjeta-form-transferencia").classList.add("oculto");
+    $("fondo-form-transferencia").classList.add("oculto");
+  }
+
+  $("btn-abrir-precioshora").addEventListener("click", abrirFormularioPrecioshora);
+  $("btn-cancelar-precioshora").addEventListener("click", cerrarFormularioPrecioshora);
+  $("fondo-form-precioshora").addEventListener("click", cerrarFormularioPrecioshora);
+
+  $("btn-abrir-costofijo").addEventListener("click", abrirFormularioCostofijo);
+  $("btn-cancelar-costofijo").addEventListener("click", cerrarFormularioCostofijo);
+  $("fondo-form-costofijo").addEventListener("click", cerrarFormularioCostofijo);
+
+  $("btn-abrir-transferencia").addEventListener("click", conManejoDeErrores(abrirFormularioTransferencia, "transferencia-error"));
+  $("btn-cancelar-transferencia").addEventListener("click", cerrarFormularioTransferencia);
+  $("fondo-form-transferencia").addEventListener("click", cerrarFormularioTransferencia);
 
   function abrirFormularioStock() {
     ocultarError("stock-error");
@@ -4923,6 +5000,7 @@ the data-access layer at all.
       .then(function () {
         $("costo-fijo-concepto").value = "";
         $("costo-fijo-monto").value = "";
+        cerrarFormularioCostofijo();
         return cargarContabilidad();
       });
   }, "costo-fijo-error"));
@@ -8131,6 +8209,7 @@ the data-access layer at all.
     }).then(function () {
       $("transf-monto").value = "";
       $("transf-nota").value = "";
+      cerrarFormularioTransferencia();
       return cargarContabilidad();
     });
   }, "transferencia-error"));
