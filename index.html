@@ -460,6 +460,9 @@ the data-access layer at all.
           <h3 style="margin-top:20px;">Checklist de recepción del vehículo</h3>
           <div class="nota-ayuda">Registra en qué estado llega el vehículo. Queda impreso en el presupuesto/orden/factura y firmado por quien lo entrega.</div>
 
+          <label>Exteriores</label>
+          <div id="checklist-exteriores-grupo" class="grupo-sino"></div>
+
           <label>Daños en la carrocería — toca el dibujo donde haya un rayón, golpe o abolladura</label>
           <svg id="checklist-diagrama-svg" viewBox="0 0 300 520" style="width:100%;max-width:280px;display:block;margin:0 auto;background:#f9fafb;border:1px solid var(--borde);border-radius:8px;cursor:crosshair;touch-action:none;">
             <path d="M90,20 Q150,5 210,20 L230,60 Q245,80 245,110 L245,420 Q245,460 225,480 L220,495 Q150,510 80,495 L75,480 Q55,460 55,420 L55,110 Q55,80 70,60 Z" fill="#e5e7eb" stroke="#111827" stroke-width="2"></path>
@@ -475,15 +478,23 @@ the data-access layer at all.
           <div id="checklist-danos-lista"></div>
           <div class="nota-ayuda">Toca un punto ya marcado para borrarlo. Puedes escribir una nota corta para cada uno (ej. "rayón", "golpe").</div>
 
-          <label for="checklist-combustible">Nivel de combustible</label>
-          <select id="checklist-combustible">
-            <option value="">— Sin especificar —</option>
-            <option value="vacio">Vacío</option>
-            <option value="cuarto">1/4</option>
-            <option value="mitad">1/2</option>
-            <option value="tres_cuartos">3/4</option>
-            <option value="lleno">Lleno</option>
-          </select>
+          <label>Nivel de combustible</label>
+          <div id="checklist-combustible-gauge" style="max-width:220px;margin:6px auto;">
+            <svg viewBox="0 0 200 120" style="width:100%;display:block;">
+              <path d="M20,110 L60,20 L140,20 L180,110 Z" fill="#f9fafb" stroke="#111827" stroke-width="2"></path>
+              <line x1="100" y1="105" x2="35" y2="35" stroke="#9ca3af" stroke-width="1"></line>
+              <line x1="100" y1="105" x2="67" y2="25" stroke="#9ca3af" stroke-width="1"></line>
+              <line x1="100" y1="105" x2="100" y2="22" stroke="#9ca3af" stroke-width="1"></line>
+              <line x1="100" y1="105" x2="133" y2="25" stroke="#9ca3af" stroke-width="1"></line>
+              <line x1="100" y1="105" x2="165" y2="35" stroke="#9ca3af" stroke-width="1"></line>
+              <text x="26" y="32" font-size="9" fill="#4b5563">VACÍO</text>
+              <text x="174" y="32" font-size="9" text-anchor="end" fill="#4b5563">LLENO</text>
+              <text x="100" y="18" font-size="9" text-anchor="middle" fill="#4b5563">½</text>
+              <line id="checklist-combustible-aguja" x1="100" y1="105" x2="100" y2="30" stroke="#dc2626" stroke-width="3" style="transform-origin:100px 105px;transform:rotate(0deg);transition:transform .15s;"></line>
+              <circle cx="100" cy="105" r="5" fill="#111827"></circle>
+            </svg>
+            <div id="checklist-combustible-botones" style="display:flex;justify-content:space-between;gap:4px;margin-top:6px;"></div>
+          </div>
 
           <label for="checklist-aceite">Nivel de aceite de motor</label>
           <select id="checklist-aceite">
@@ -507,10 +518,29 @@ the data-access layer at all.
             <option value="no_aplica">No aplica</option>
           </select>
 
-          <label>Accesorios y pertenencias presentes</label>
-          <div id="checklist-accesorios-grupo" style="display:flex;flex-wrap:wrap;gap:10px 16px;margin:6px 0;"></div>
+          <label>Accesorios</label>
+          <div id="checklist-accesorios-grupo" class="grupo-sino"></div>
           <label for="checklist-accesorios-otros">Otros accesorios (opcional)</label>
           <input id="checklist-accesorios-otros" type="text" placeholder="Ej. Silla para bebé, decoración">
+
+          <label>Interiores</label>
+          <div id="checklist-interiores-grupo" class="grupo-sino"></div>
+
+          <label>Testigos encendidos al ingresar — marca los que estén prendidos en el tablero</label>
+          <div id="checklist-testigos-grupo" class="grupo-testigos"></div>
+
+          <label for="checklist-birlos">Birlos de seguridad</label>
+          <select id="checklist-birlos">
+            <option value="">— Sin especificar —</option>
+            <option value="si">Sí</option>
+            <option value="no">No</option>
+          </select>
+          <label for="checklist-llave-candado">Llave candado de birlo</label>
+          <select id="checklist-llave-candado">
+            <option value="">— Sin especificar —</option>
+            <option value="si">Sí</option>
+            <option value="no">No</option>
+          </select>
 
           <label for="checklist-objetos-valor">Objetos de valor declarados por el cliente (opcional)</label>
           <input id="checklist-objetos-valor" type="text" placeholder="Ej. Ninguno / Gafas de sol en la guantera">
@@ -2179,6 +2209,18 @@ the data-access layer at all.
   .caja-totales-doc { border: 1px solid var(--borde); border-radius: 8px; padding: 10px 14px; font-size: 13px; max-width: 360px; margin-left: auto; }
   .caja-totales-doc > div { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; }
   .caja-totales-doc .linea-total-final { display: flex; justify-content: space-between; border-top: 1px solid var(--borde); margin-top: 6px; padding-top: 8px; font-size: 16px; font-weight: 700; color: var(--azul-oscuro); }
+
+  /* Checklist de recepción: grupos "SÍ/NO" por ítem (exteriores, accesorios,
+     interiores) — imitan el formato en papel de toda la vida. */
+  .grupo-sino { border: 1px solid var(--borde); border-radius: 8px; overflow: hidden; margin: 6px 0 14px; }
+  .grupo-sino-header { display: grid; grid-template-columns: 1fr 46px 46px; background: var(--gris-claro); font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; color: var(--gris); padding: 6px 10px; }
+  .grupo-sino-header span:not(:first-child) { text-align: center; }
+  .grupo-sino-fila { display: grid; grid-template-columns: 1fr 46px 46px; align-items: center; padding: 6px 10px; border-top: 1px solid var(--borde); font-size: 13px; }
+  .grupo-sino-fila .casilla-sino { display: flex; justify-content: center; margin: 0; }
+  .grupo-sino-fila .casilla-sino input { width: auto; margin: 0; }
+  .grupo-testigos { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 6px 0 14px; }
+  .grupo-testigos label { display: flex; align-items: center; gap: 6px; font-weight: 400; min-width: 140px; font-size: 13px; }
+  .grupo-testigos label input { width: auto; margin: 0; }
 
   /* En pantallas anchas (PC / tablet en horizontal), aprovecha el espacio:
      las páginas de listas y formularios pasan a 2 columnas. */
@@ -7382,17 +7424,29 @@ the data-access layer at all.
   // El checklist de recepción se imprime dentro del MISMO documento de
   // presupuesto/orden/factura (no es un papel aparte) — así queda visible
   // en cualquier versión que se le entregue al cliente.
+  // Resume un grupo "SÍ/NO" ({ítem: "si"|"no"}) como texto compacto para el
+  // impreso: "Sí: a, b · No: c". Si no se marcó nada, lo dice explícito.
+  function resumenGrupoSiNoImpresion(datos) {
+    datos = datos || {};
+    var claves = Object.keys(datos);
+    if (!claves.length) return "Sin marcar";
+    var si = claves.filter(function (k) { return datos[k] === "si"; });
+    var no = claves.filter(function (k) { return datos[k] === "no"; });
+    return (si.length ? "Sí: " + si.join(", ") : "") + (si.length && no.length ? " &nbsp;·&nbsp; " : "") + (no.length ? "No: " + no.join(", ") : "");
+  }
+
   function construirBloqueChecklistRecepcionImpresion(checklist, dataUrlFirma) {
     if (!checklist) return "";
     var ETIQUETAS_COMBUSTIBLE = { vacio: "Vacío", cuarto: "1/4", mitad: "1/2", tres_cuartos: "3/4", lleno: "Lleno" };
     var ETIQUETAS_NIVEL = { ok: "Normal", bajo: "Bajo", no_aplica: "No aplica" };
+    var ETIQUETAS_SINO = { si: "Sí", no: "No" };
     var danos = checklist.danos || [];
     var marcadoresSvg = danos.map(function (d, i) {
       var vx = (Number(d.x) / 100) * 300, vy = (Number(d.y) / 100) * 520;
       return "<circle cx=\"" + vx + "\" cy=\"" + vy + "\" r=\"11\" fill=\"#dc2626\" stroke=\"#fff\" stroke-width=\"2\"></circle>" +
         "<text x=\"" + vx + "\" y=\"" + (vy + 4) + "\" text-anchor=\"middle\" font-size=\"11\" fill=\"#fff\">" + (i + 1) + "</text>";
     }).join("");
-    var diagramaSvg = "<svg viewBox=\"0 0 300 520\" style=\"width:150px;display:block;\">" +
+    var diagramaSvg = "<svg viewBox=\"0 0 300 520\" style=\"width:130px;display:block;\">" +
       "<path d=\"M90,20 Q150,5 210,20 L230,60 Q245,80 245,110 L245,420 Q245,460 225,480 L220,495 Q150,510 80,495 L75,480 Q55,460 55,420 L55,110 Q55,80 70,60 Z\" fill=\"#e5e7eb\" stroke=\"#111827\" stroke-width=\"2\"></path>" +
       "<line x1=\"70\" y1=\"130\" x2=\"230\" y2=\"130\" stroke=\"#111827\" stroke-width=\"1.5\"></line>" +
       "<rect x=\"90\" y=\"135\" width=\"120\" height=\"140\" rx=\"14\" fill=\"#f3f4f6\" stroke=\"#111827\" stroke-width=\"1.5\"></rect>" +
@@ -7405,20 +7459,24 @@ the data-access layer at all.
       ? "<ol style=\"margin:4px 0 0;padding-left:16px;font-size:10px;\">" + danos.map(function (d) { return "<li>" + (d.nota || "Sin nota") + "</li>"; }).join("") + "</ol>"
       : "<div style=\"font-size:10px;color:#4b5563;margin-top:4px;\">Sin daños marcados.</div>";
 
-    var accesorios = checklist.accesorios || [];
-    var listaAccesorios = (accesorios.length ? accesorios.join(", ") : "Ninguno marcado") + (checklist.accesorios_otros ? " · Otros: " + checklist.accesorios_otros : "");
-
     var niveles = "Combustible: " + (ETIQUETAS_COMBUSTIBLE[checklist.nivel_combustible] || "—") +
       " &nbsp;·&nbsp; Aceite motor: " + (ETIQUETAS_NIVEL[checklist.nivel_aceite_motor] || "—") +
       " &nbsp;·&nbsp; Refrigerante: " + (ETIQUETAS_NIVEL[checklist.nivel_refrigerante] || "—") +
-      " &nbsp;·&nbsp; Líquido de frenos: " + (ETIQUETAS_NIVEL[checklist.nivel_liquido_frenos] || "—");
+      " &nbsp;·&nbsp; Líquido de frenos: " + (ETIQUETAS_NIVEL[checklist.nivel_liquido_frenos] || "—") +
+      " &nbsp;·&nbsp; Birlos de seguridad: " + (ETIQUETAS_SINO[checklist.birlos_seguridad] || "—") +
+      " &nbsp;·&nbsp; Llave candado de birlo: " + (ETIQUETAS_SINO[checklist.llave_candado_birlo] || "—");
+
+    var testigos = checklist.testigos_encendidos || [];
 
     return "<div class=\"fila-datos-ancha\" style=\"page-break-inside:avoid;\"><b>Checklist de recepción del vehículo</b>" +
       "<div style=\"display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;margin-top:6px;\">" +
       "<div>" + diagramaSvg + listaDanos + "</div>" +
       "<div style=\"flex:1;min-width:220px;font-size:11px;\">" +
       "<div style=\"margin-bottom:6px;\">" + niveles + "</div>" +
-      "<div style=\"margin-bottom:6px;\"><b>Accesorios presentes:</b> " + listaAccesorios + "</div>" +
+      "<div style=\"margin-bottom:6px;\"><b>Exteriores —</b> " + resumenGrupoSiNoImpresion(checklist.exteriores) + "</div>" +
+      "<div style=\"margin-bottom:6px;\"><b>Accesorios —</b> " + resumenGrupoSiNoImpresion(checklist.accesorios) + (checklist.accesorios_otros ? " &nbsp;·&nbsp; Otros: " + checklist.accesorios_otros : "") + "</div>" +
+      "<div style=\"margin-bottom:6px;\"><b>Interiores —</b> " + resumenGrupoSiNoImpresion(checklist.interiores) + "</div>" +
+      "<div style=\"margin-bottom:6px;\"><b>Testigos encendidos al ingresar:</b> " + (testigos.length ? testigos.join(", ") : "Ninguno") + "</div>" +
       (checklist.objetos_valor ? "<div style=\"margin-bottom:6px;\"><b>Objetos de valor declarados:</b> " + checklist.objetos_valor + "</div>" : "") +
       (checklist.observaciones ? "<div style=\"margin-bottom:6px;\"><b>Observaciones:</b> " + checklist.observaciones + "</div>" : "") +
       "</div></div>" +
@@ -9368,8 +9426,19 @@ the data-access layer at all.
   // =====================================================================
   // CHECKLIST DE RECEPCIÓN (estado del vehículo al recibirlo, con firma)
   // =====================================================================
-  var ACCESORIOS_CHECKLIST = ["Llanta de repuesto", "Gato", "Cruceta", "Herramientas", "Radio/pantalla", "Tapetes", "Documentos del vehículo", "Extintor", "Botiquín", "Triángulos de seguridad"];
+  var LISTA_EXTERIORES = ["Antena", "Espejo lateral derecho", "Espejo lateral izquierdo", "Cristales", "Emblema", "Llantas (4)", "Tapón de ruedas", "Molduras completas", "Tapón de gasolina", "Carrocería sin golpes", "Bocinas de claxon", "Limpiadores (plumas)"];
+  var LISTA_ACCESORIOS_SINO = ["Gato", "Llave de ruedas", "Estuche de herramientas", "Triángulo de seguridad", "Llanta de refacción", "Extintor"];
+  var LISTA_INTERIORES = ["Radio / tipo", "Encendedor", "Ceniceros", "Espejo retrovisor", "Botones interiores", "Tapetes", "Vestiduras"];
+  var LISTA_TESTIGOS = ["ABS", "Air bag", "AT", "Batería", "Check engine", "Presión de aceite", "Presión de llantas", "SRC", "TCS"];
+  var NIVELES_COMBUSTIBLE = [
+    { valor: "vacio", etiqueta: "Vacío", angulo: -60 },
+    { valor: "cuarto", etiqueta: "1/4", angulo: -30 },
+    { valor: "mitad", etiqueta: "1/2", angulo: 0 },
+    { valor: "tres_cuartos", etiqueta: "3/4", angulo: 30 },
+    { valor: "lleno", etiqueta: "Lleno", angulo: 60 }
+  ];
   var danosRecepcion = [];
+  var nivelCombustibleActual = "";
   var checklistRecepcionActual = null;
   var checklistRecepcionIdOtCargado = null;
   // La pantalla de la orden se refresca sola cada 5 segundos (ver
@@ -9378,12 +9447,82 @@ the data-access layer at all.
   var checklistRecepcionTocado = false;
   function marcarChecklistRecepcionTocado() { checklistRecepcionTocado = true; }
 
-  (function renderizarAccesoriosChecklist() {
-    $("checklist-accesorios-grupo").innerHTML = ACCESORIOS_CHECKLIST.map(function (nombre) {
-      return "<label style=\"display:flex;align-items:center;gap:6px;font-weight:400;min-width:150px;\">" +
-        "<input type=\"checkbox\" class=\"checklist-acc-item\" value=\"" + nombre + "\" style=\"width:auto;margin:0;\">" + nombre + "</label>";
-    }).join("");
-  })();
+  // Grupo "SÍ/NO" por ítem (exteriores, accesorios, interiores) — imita el
+  // formato en papel: una casilla en SÍ y otra en NO por cada renglón, y
+  // marcar una desmarca la otra automáticamente.
+  function renderizarGrupoSiNo(idContenedor, lista) {
+    $(idContenedor).innerHTML =
+      "<div class=\"grupo-sino-header\"><span></span><span>Sí</span><span>No</span></div>" +
+      lista.map(function (nombre) {
+        return "<div class=\"grupo-sino-fila\"><span>" + nombre + "</span>" +
+          "<label class=\"casilla-sino\"><input type=\"checkbox\" data-valor=\"si\"></label>" +
+          "<label class=\"casilla-sino\"><input type=\"checkbox\" data-valor=\"no\"></label></div>";
+      }).join("");
+  }
+
+  function leerGrupoSiNo(idContenedor) {
+    var resultado = {};
+    document.querySelectorAll("#" + idContenedor + " .grupo-sino-fila").forEach(function (fila) {
+      var nombre = fila.querySelector("span").textContent;
+      var marcado = fila.querySelector('input[data-valor]:checked');
+      if (marcado) resultado[nombre] = marcado.getAttribute("data-valor");
+    });
+    return resultado;
+  }
+
+  function fijarGrupoSiNo(idContenedor, datos) {
+    datos = datos || {};
+    document.querySelectorAll("#" + idContenedor + " .grupo-sino-fila").forEach(function (fila) {
+      var nombre = fila.querySelector("span").textContent;
+      var valor = datos[nombre];
+      fila.querySelectorAll("input[data-valor]").forEach(function (cb) { cb.checked = cb.getAttribute("data-valor") === valor; });
+    });
+  }
+
+  function manejarClicGrupoSiNo(e) {
+    var cb = e.target;
+    if (!cb.matches || !cb.matches('input[type="checkbox"][data-valor]')) return;
+    marcarChecklistRecepcionTocado();
+    if (!cb.checked) return;
+    cb.closest(".grupo-sino-fila").querySelectorAll("input[data-valor]").forEach(function (otro) {
+      if (otro !== cb) otro.checked = false;
+    });
+  }
+
+  renderizarGrupoSiNo("checklist-exteriores-grupo", LISTA_EXTERIORES);
+  renderizarGrupoSiNo("checklist-accesorios-grupo", LISTA_ACCESORIOS_SINO);
+  renderizarGrupoSiNo("checklist-interiores-grupo", LISTA_INTERIORES);
+  ["checklist-exteriores-grupo", "checklist-accesorios-grupo", "checklist-interiores-grupo"].forEach(function (id) {
+    $(id).addEventListener("change", manejarClicGrupoSiNo);
+  });
+
+  $("checklist-testigos-grupo").innerHTML = LISTA_TESTIGOS.map(function (nombre) {
+    return "<label><input type=\"checkbox\" class=\"checklist-testigo-item\" value=\"" + nombre + "\">" + nombre + "</label>";
+  }).join("");
+  $("checklist-testigos-grupo").addEventListener("change", marcarChecklistRecepcionTocado);
+
+  function fijarNivelCombustible(valor) {
+    nivelCombustibleActual = valor || "";
+    var nivel = NIVELES_COMBUSTIBLE.filter(function (n) { return n.valor === nivelCombustibleActual; })[0];
+    $("checklist-combustible-aguja").style.transform = "rotate(" + (nivel ? nivel.angulo : 0) + "deg)";
+    document.querySelectorAll(".checklist-combustible-btn").forEach(function (b) {
+      var activo = b.getAttribute("data-valor") === nivelCombustibleActual;
+      b.style.background = activo ? "var(--azul)" : "";
+      b.style.color = activo ? "#fff" : "";
+      b.style.borderColor = activo ? "var(--azul)" : "";
+    });
+  }
+
+  $("checklist-combustible-botones").innerHTML = NIVELES_COMBUSTIBLE.map(function (n) {
+    return "<button type=\"button\" class=\"secundario checklist-combustible-btn\" data-valor=\"" + n.valor + "\" style=\"flex:1;padding:6px 2px;font-size:11px;\">" + n.etiqueta + "</button>";
+  }).join("");
+  $("checklist-combustible-botones").addEventListener("click", function (e) {
+    var btn = e.target.closest(".checklist-combustible-btn");
+    if (!btn) return;
+    marcarChecklistRecepcionTocado();
+    var valor = btn.getAttribute("data-valor");
+    fijarNivelCombustible(valor === nivelCombustibleActual ? "" : valor);
+  });
 
   var firmaChecklistRecepcion = crearControladorFirma("checklist-firma-canvas");
   $("btn-limpiar-checklist-firma").addEventListener("click", function () {
@@ -9452,21 +9591,25 @@ the data-access layer at all.
     renderizarMarcadoresDano();
   });
 
-  ["checklist-combustible", "checklist-aceite", "checklist-refrigerante", "checklist-frenos", "checklist-accesorios-otros", "checklist-objetos-valor", "checklist-observaciones", "checklist-nombre-entrega", "checklist-documento-entrega"].forEach(function (id) {
+  ["checklist-aceite", "checklist-refrigerante", "checklist-frenos", "checklist-accesorios-otros", "checklist-objetos-valor", "checklist-observaciones", "checklist-nombre-entrega", "checklist-documento-entrega", "checklist-birlos", "checklist-llave-candado"].forEach(function (id) {
     $(id).addEventListener("input", marcarChecklistRecepcionTocado);
     $(id).addEventListener("change", marcarChecklistRecepcionTocado);
   });
-  $("checklist-accesorios-grupo").addEventListener("change", marcarChecklistRecepcionTocado);
 
   function limpiarFormularioChecklistRecepcion() {
     danosRecepcion = [];
     renderizarMarcadoresDano();
-    $("checklist-combustible").value = "";
+    fijarNivelCombustible("");
     $("checklist-aceite").value = "";
     $("checklist-refrigerante").value = "";
     $("checklist-frenos").value = "";
-    document.querySelectorAll(".checklist-acc-item").forEach(function (cb) { cb.checked = false; });
+    fijarGrupoSiNo("checklist-exteriores-grupo", {});
+    fijarGrupoSiNo("checklist-accesorios-grupo", {});
+    fijarGrupoSiNo("checklist-interiores-grupo", {});
+    document.querySelectorAll(".checklist-testigo-item").forEach(function (cb) { cb.checked = false; });
     $("checklist-accesorios-otros").value = "";
+    $("checklist-birlos").value = "";
+    $("checklist-llave-candado").value = "";
     $("checklist-objetos-valor").value = "";
     $("checklist-observaciones").value = "";
     $("checklist-nombre-entrega").value = "";
@@ -9488,13 +9631,18 @@ the data-access layer at all.
       if (!c) return;
       danosRecepcion = (c.danos || []).map(function (d) { return { x: d.x, y: d.y, nota: d.nota || "" }; });
       renderizarMarcadoresDano();
-      $("checklist-combustible").value = c.nivel_combustible || "";
+      fijarNivelCombustible(c.nivel_combustible || "");
       $("checklist-aceite").value = c.nivel_aceite_motor || "";
       $("checklist-refrigerante").value = c.nivel_refrigerante || "";
       $("checklist-frenos").value = c.nivel_liquido_frenos || "";
-      var accesorios = c.accesorios || [];
-      document.querySelectorAll(".checklist-acc-item").forEach(function (cb) { cb.checked = accesorios.indexOf(cb.value) !== -1; });
+      fijarGrupoSiNo("checklist-exteriores-grupo", c.exteriores || {});
+      fijarGrupoSiNo("checklist-accesorios-grupo", c.accesorios || {});
+      fijarGrupoSiNo("checklist-interiores-grupo", c.interiores || {});
+      var testigos = c.testigos_encendidos || [];
+      document.querySelectorAll(".checklist-testigo-item").forEach(function (cb) { cb.checked = testigos.indexOf(cb.value) !== -1; });
       $("checklist-accesorios-otros").value = c.accesorios_otros || "";
+      $("checklist-birlos").value = c.birlos_seguridad || "";
+      $("checklist-llave-candado").value = c.llave_candado_birlo || "";
       $("checklist-objetos-valor").value = c.objetos_valor || "";
       $("checklist-observaciones").value = c.observaciones || "";
       $("checklist-nombre-entrega").value = c.nombre_quien_entrega || "";
@@ -9511,15 +9659,20 @@ the data-access layer at all.
   $("btn-guardar-checklist-recepcion").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("checklist-recepcion-error");
     firmaChecklistRecepcion.asegurarInicializado();
-    var accesoriosMarcados = Array.prototype.slice.call(document.querySelectorAll(".checklist-acc-item:checked")).map(function (cb) { return cb.value; });
+    var testigosMarcados = Array.prototype.slice.call(document.querySelectorAll(".checklist-testigo-item:checked")).map(function (cb) { return cb.value; });
 
     var cuerpo = {
       id_ot: ordenActual.id_ot,
-      nivel_combustible: $("checklist-combustible").value || null,
+      nivel_combustible: nivelCombustibleActual || null,
       nivel_aceite_motor: $("checklist-aceite").value || null,
       nivel_refrigerante: $("checklist-refrigerante").value || null,
       nivel_liquido_frenos: $("checklist-frenos").value || null,
-      accesorios: accesoriosMarcados,
+      exteriores: leerGrupoSiNo("checklist-exteriores-grupo"),
+      accesorios: leerGrupoSiNo("checklist-accesorios-grupo"),
+      interiores: leerGrupoSiNo("checklist-interiores-grupo"),
+      testigos_encendidos: testigosMarcados,
+      birlos_seguridad: $("checklist-birlos").value || null,
+      llave_candado_birlo: $("checklist-llave-candado").value || null,
       accesorios_otros: $("checklist-accesorios-otros").value.trim() || null,
       objetos_valor: $("checklist-objetos-valor").value.trim() || null,
       danos: danosRecepcion,
