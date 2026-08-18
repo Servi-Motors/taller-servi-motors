@@ -1219,6 +1219,31 @@ the data-access layer at all.
         <h2>Resultado del mes actual</h2>
         <div id="resultado-mensual" class="info-vehiculo"></div>
       </div>
+
+      <div class="tarjeta">
+        <h2>Cuentas bancarias — saldo calculado</h2>
+        <div class="nota-ayuda">Este saldo lo calcula la app sumando los pagos que marcaste en cada cuenta. Compáralo con el saldo real de tu Nequi, Bancolombia, Daviplata o Bold para conciliar. Si no coincide, revisa que todos los pagos y transferencias tengan la cuenta correcta.</div>
+        <div id="lista-saldo-cuentas"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Transferir entre mis cuentas</h2>
+        <div class="nota-ayuda">Usa esto cuando muevas plata entre tus propias cuentas (por ejemplo, de Nequi a Bancolombia). No cuenta como ingreso ni como gasto del taller.</div>
+        <label for="transf-origen">De la cuenta</label>
+        <select id="transf-origen"></select>
+        <label for="transf-destino">A la cuenta</label>
+        <select id="transf-destino"></select>
+        <label for="transf-monto">Monto</label>
+        <input id="transf-monto" type="number" min="0" step="0.01">
+        <label for="transf-fecha">Fecha</label>
+        <input id="transf-fecha" type="date">
+        <label for="transf-nota">Nota (opcional)</label>
+        <input id="transf-nota" type="text">
+        <button id="btn-registrar-transferencia">Registrar transferencia</button>
+        <div id="transferencia-error" class="mensaje-error"></div>
+        <h3 style="margin-top:16px;">Últimas transferencias</h3>
+        <div id="lista-transferencias"></div>
+      </div>
     </section>
 
     <section id="pantalla-egreso" class="pagina oculto">
@@ -1560,31 +1585,6 @@ the data-access layer at all.
       <h1>Cuentas por cobrar y por pagar</h1>
       <div class="nota-ayuda">Aquí aparecen las facturas vendidas a crédito y las compras a proveedores hechas a crédito. Puedes ir abonando de a poco hasta saldarlas.</div>
       <div id="cuentas-error" class="mensaje-error"></div>
-
-      <div class="tarjeta">
-        <h2>Cuentas bancarias — saldo calculado</h2>
-        <div class="nota-ayuda">Este saldo lo calcula la app sumando los pagos que marcaste en cada cuenta. Compáralo con el saldo real de tu Nequi, Bancolombia, Daviplata o Bold para conciliar. Si no coincide, revisa que todos los pagos y transferencias tengan la cuenta correcta.</div>
-        <div id="lista-saldo-cuentas"></div>
-      </div>
-
-      <div class="tarjeta">
-        <h2>Transferir entre mis cuentas</h2>
-        <div class="nota-ayuda">Usa esto cuando muevas plata entre tus propias cuentas (por ejemplo, de Nequi a Bancolombia). No cuenta como ingreso ni como gasto del taller.</div>
-        <label for="transf-origen">De la cuenta</label>
-        <select id="transf-origen"></select>
-        <label for="transf-destino">A la cuenta</label>
-        <select id="transf-destino"></select>
-        <label for="transf-monto">Monto</label>
-        <input id="transf-monto" type="number" min="0" step="0.01">
-        <label for="transf-fecha">Fecha</label>
-        <input id="transf-fecha" type="date">
-        <label for="transf-nota">Nota (opcional)</label>
-        <input id="transf-nota" type="text">
-        <button id="btn-registrar-transferencia">Registrar transferencia</button>
-        <div id="transferencia-error" class="mensaje-error"></div>
-        <h3 style="margin-top:16px;">Últimas transferencias</h3>
-        <div id="lista-transferencias"></div>
-      </div>
 
       <div class="tarjeta">
         <h2>Cuentas por cobrar (clientes)</h2>
@@ -4742,7 +4742,10 @@ the data-access layer at all.
       restRequest("GET", "parametros_taller", { query: "select=horas_disponibles_mes,pct_variable_tecnico,pct_comisiones,pct_datafono,precio_mano_obra,tramo_horas_tecnico,tarifa_hora_tecnico_base,tarifa_hora_tecnico_extra,tramo_horas_ticket_asesor,pct_comision_mo_baja,pct_comision_mo_alta,pct_comision_margen_otros&id=eq.1" }),
       restRequest("GET", "costos_fijos_mensuales", { query: "select=*&order=creado_en.desc" }),
       restRequest("GET", "egresos", { query: "select=*,ordenes_trabajo(numero_ot)&order=fecha.desc,creado_en.desc&limit=20" }),
-      restRequest("GET", "vista_resultado_mensual", { query: "select=*&limit=1" })
+      restRequest("GET", "vista_resultado_mensual", { query: "select=*&limit=1" }),
+      restRequest("GET", "cuentas_taller", { query: "select=id_cuenta,nombre&activa=eq.true&order=orden.asc" }),
+      restRequest("GET", "vista_saldo_cuentas", { query: "select=*" }),
+      restRequest("GET", "transferencias_entre_cuentas", { query: "select=fecha,monto,nota,origen:cuentas_taller!transferencias_entre_cuentas_id_cuenta_origen_fkey(nombre),destino:cuentas_taller!transferencias_entre_cuentas_id_cuenta_destino_fkey(nombre)&order=fecha.desc,creado_en.desc&limit=20" })
     ]).then(function (r) {
       var costoHora = r[0];
       var precioHora = r[1];
@@ -4750,6 +4753,12 @@ the data-access layer at all.
       var costosFijos = r[3] || [];
       var egresos = r[4] || [];
       var resultado = r[5] && r[5][0];
+      todasCuentasTaller = r[6] || [];
+      llenarSelectCuentas($("transf-origen"), false);
+      llenarSelectCuentas($("transf-destino"), false);
+      renderizarSaldoCuentas(r[7] || []);
+      renderizarListaTransferencias(r[8] || []);
+      if (!$("transf-fecha").value) $("transf-fecha").value = aFechaISO(new Date());
 
       precioEquilibrioActualContab = (precioHora === null || precioHora === undefined) ? null : Number(precioHora);
 
@@ -7904,9 +7913,7 @@ the data-access layer at all.
 
     var pedidos = [
       restRequest("GET", "vista_cuentas_por_cobrar", { query: "select=*&order=fecha_cierre.asc" }),
-      restRequest("GET", "cuentas_taller", { query: "select=id_cuenta,nombre&activa=eq.true&order=orden.asc" }),
-      restRequest("GET", "vista_saldo_cuentas", { query: "select=*" }),
-      restRequest("GET", "transferencias_entre_cuentas", { query: "select=fecha,monto,nota,origen:cuentas_taller!transferencias_entre_cuentas_id_cuenta_origen_fkey(nombre),destino:cuentas_taller!transferencias_entre_cuentas_id_cuenta_destino_fkey(nombre)&order=fecha.desc,creado_en.desc&limit=20" })
+      restRequest("GET", "cuentas_taller", { query: "select=id_cuenta,nombre&activa=eq.true&order=orden.asc" })
     ];
     if (puedeVerCxP) {
       pedidos.push(restRequest("GET", "vista_cuentas_por_pagar", { query: "select=*&order=fecha.asc" }));
@@ -7916,12 +7923,7 @@ the data-access layer at all.
       todasCuentasTaller = resultados[1] || [];
       llenarSelectCuentas($("cxc-abono-cuenta"), true);
       llenarSelectCuentas($("cxp-abono-cuenta"), true);
-      llenarSelectCuentas($("transf-origen"), false);
-      llenarSelectCuentas($("transf-destino"), false);
-      renderizarSaldoCuentas(resultados[2] || []);
-      renderizarListaTransferencias(resultados[3] || []);
-      if (!$("transf-fecha").value) $("transf-fecha").value = aFechaISO(new Date());
-      if (puedeVerCxP) renderizarTablaCxP(resultados[4] || []);
+      if (puedeVerCxP) renderizarTablaCxP(resultados[2] || []);
     });
   }
 
@@ -8129,19 +8131,19 @@ the data-access layer at all.
     }).then(function () {
       $("transf-monto").value = "";
       $("transf-nota").value = "";
-      return cargarCuentas();
+      return cargarContabilidad();
     });
   }, "transferencia-error"));
 
   $("lista-saldo-cuentas").addEventListener("click", conManejoDeErrores(function (ev) {
     var btn = ev.target.closest(".btn-guardar-saldo-inicial");
     if (!btn) return;
-    ocultarError("cuentas-error");
+    ocultarError("contab-horas-error");
     var idCuenta = btn.getAttribute("data-id-cuenta");
     var monto = parseFloat($("saldoini-monto-" + idCuenta).value);
     var fecha = $("saldoini-fecha-" + idCuenta).value || null;
     if (!(monto >= 0)) {
-      mostrarError("cuentas-error", "Escribe un saldo inicial válido.");
+      mostrarError("contab-horas-error", "Escribe un saldo inicial válido.");
       return;
     }
     btn.disabled = true;
@@ -8150,13 +8152,13 @@ the data-access layer at all.
       query: "id_cuenta=eq." + idCuenta,
       body: { saldo_inicial: monto, fecha_saldo_inicial: fecha }
     }).then(function () {
-      return cargarCuentas();
+      return cargarContabilidad();
     }).catch(function (err) {
       btn.disabled = false;
       btn.textContent = "Guardar saldo inicial";
       throw err;
     });
-  }, "cuentas-error"));
+  }, "contab-horas-error"));
 
   // =====================================================================
   // ÍTEMS DE LA ORDEN
