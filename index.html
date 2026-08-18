@@ -457,7 +457,81 @@ the data-access layer at all.
           <button type="button" class="secundario" id="btn-guardar-presupuesto-tentativo">Guardar presupuesto tentativo</button>
           <div class="nota-ayuda">Es solo un estimado inicial; puede cambiar una vez se haga el diagnóstico.</div>
 
-          <label>Fotos de evidencia (mínimo 4)</label>
+          <h3 style="margin-top:20px;">Checklist de recepción del vehículo</h3>
+          <div class="nota-ayuda">Registra en qué estado llega el vehículo. Queda impreso en el presupuesto/orden/factura y firmado por quien lo entrega.</div>
+
+          <label>Daños en la carrocería — toca el dibujo donde haya un rayón, golpe o abolladura</label>
+          <svg id="checklist-diagrama-svg" viewBox="0 0 300 520" style="width:100%;max-width:280px;display:block;margin:0 auto;background:#f9fafb;border:1px solid var(--borde);border-radius:8px;cursor:crosshair;touch-action:none;">
+            <path d="M90,20 Q150,5 210,20 L230,60 Q245,80 245,110 L245,420 Q245,460 225,480 L220,495 Q150,510 80,495 L75,480 Q55,460 55,420 L55,110 Q55,80 70,60 Z" fill="#e5e7eb" stroke="#111827" stroke-width="2"></path>
+            <line x1="70" y1="130" x2="230" y2="130" stroke="#111827" stroke-width="1.5"></line>
+            <rect x="90" y="135" width="120" height="140" rx="14" fill="#f3f4f6" stroke="#111827" stroke-width="1.5"></rect>
+            <line x1="70" y1="390" x2="230" y2="390" stroke="#111827" stroke-width="1.5"></line>
+            <rect x="40" y="120" width="14" height="24" rx="4" fill="#9ca3af" stroke="#111827"></rect>
+            <rect x="246" y="120" width="14" height="24" rx="4" fill="#9ca3af" stroke="#111827"></rect>
+            <text x="150" y="45" text-anchor="middle" font-size="13" fill="#4b5563">FRENTE</text>
+            <text x="150" y="505" text-anchor="middle" font-size="13" fill="#4b5563">ATRÁS</text>
+            <g id="checklist-marcadores-grupo"></g>
+          </svg>
+          <div id="checklist-danos-lista"></div>
+          <div class="nota-ayuda">Toca un punto ya marcado para borrarlo. Puedes escribir una nota corta para cada uno (ej. "rayón", "golpe").</div>
+
+          <label for="checklist-combustible">Nivel de combustible</label>
+          <select id="checklist-combustible">
+            <option value="">— Sin especificar —</option>
+            <option value="vacio">Vacío</option>
+            <option value="cuarto">1/4</option>
+            <option value="mitad">1/2</option>
+            <option value="tres_cuartos">3/4</option>
+            <option value="lleno">Lleno</option>
+          </select>
+
+          <label for="checklist-aceite">Nivel de aceite de motor</label>
+          <select id="checklist-aceite">
+            <option value="">— Sin especificar —</option>
+            <option value="ok">Normal</option>
+            <option value="bajo">Bajo</option>
+            <option value="no_aplica">No aplica</option>
+          </select>
+          <label for="checklist-refrigerante">Nivel de refrigerante</label>
+          <select id="checklist-refrigerante">
+            <option value="">— Sin especificar —</option>
+            <option value="ok">Normal</option>
+            <option value="bajo">Bajo</option>
+            <option value="no_aplica">No aplica</option>
+          </select>
+          <label for="checklist-frenos">Nivel de líquido de frenos</label>
+          <select id="checklist-frenos">
+            <option value="">— Sin especificar —</option>
+            <option value="ok">Normal</option>
+            <option value="bajo">Bajo</option>
+            <option value="no_aplica">No aplica</option>
+          </select>
+
+          <label>Accesorios y pertenencias presentes</label>
+          <div id="checklist-accesorios-grupo" style="display:flex;flex-wrap:wrap;gap:10px 16px;margin:6px 0;"></div>
+          <label for="checklist-accesorios-otros">Otros accesorios (opcional)</label>
+          <input id="checklist-accesorios-otros" type="text" placeholder="Ej. Silla para bebé, decoración">
+
+          <label for="checklist-objetos-valor">Objetos de valor declarados por el cliente (opcional)</label>
+          <input id="checklist-objetos-valor" type="text" placeholder="Ej. Ninguno / Gafas de sol en la guantera">
+
+          <label for="checklist-observaciones">Observaciones generales (opcional)</label>
+          <textarea id="checklist-observaciones" rows="2" placeholder="Ej. Vehículo con golpe previo en puerta izquierda, no relacionado con este ingreso"></textarea>
+
+          <label for="checklist-nombre-entrega">Nombre de quien entrega el vehículo</label>
+          <input id="checklist-nombre-entrega" type="text" placeholder="Nombre completo" autocomplete="off">
+          <label for="checklist-documento-entrega">Documento (opcional)</label>
+          <input id="checklist-documento-entrega" type="text" placeholder="Cédula" autocomplete="off">
+
+          <label for="checklist-firma-canvas">Firma de quien entrega</label>
+          <canvas id="checklist-firma-canvas" style="width:100%;height:130px;border:1px solid var(--borde);border-radius:8px;touch-action:none;background:#fff;display:block;"></canvas>
+          <button type="button" class="secundario" id="btn-limpiar-checklist-firma">Limpiar firma</button>
+
+          <div id="checklist-recepcion-guardado" class="nota-ayuda oculto" style="color:var(--verde);"></div>
+          <button type="button" id="btn-guardar-checklist-recepcion">Guardar checklist de recepción</button>
+          <div id="checklist-recepcion-error" class="mensaje-error"></div>
+
+          <label style="margin-top:20px;">Fotos de evidencia (mínimo 4)</label>
           <div id="evidencias-recepcion-galeria" class="galeria-evidencias"></div>
           <div class="agenda-controles">
             <button type="button" class="secundario" id="btn-camara-recepcion">📷 Tomar foto</button>
@@ -7290,6 +7364,53 @@ the data-access layer at all.
       bloqueFirma(datosFirma.autorizacion, "Firma", true);
   }
 
+  // El checklist de recepción se imprime dentro del MISMO documento de
+  // presupuesto/orden/factura (no es un papel aparte) — así queda visible
+  // en cualquier versión que se le entregue al cliente.
+  function construirBloqueChecklistRecepcionImpresion(checklist, dataUrlFirma) {
+    if (!checklist) return "";
+    var ETIQUETAS_COMBUSTIBLE = { vacio: "Vacío", cuarto: "1/4", mitad: "1/2", tres_cuartos: "3/4", lleno: "Lleno" };
+    var ETIQUETAS_NIVEL = { ok: "Normal", bajo: "Bajo", no_aplica: "No aplica" };
+    var danos = checklist.danos || [];
+    var marcadoresSvg = danos.map(function (d, i) {
+      var vx = (Number(d.x) / 100) * 300, vy = (Number(d.y) / 100) * 520;
+      return "<circle cx=\"" + vx + "\" cy=\"" + vy + "\" r=\"11\" fill=\"#dc2626\" stroke=\"#fff\" stroke-width=\"2\"></circle>" +
+        "<text x=\"" + vx + "\" y=\"" + (vy + 4) + "\" text-anchor=\"middle\" font-size=\"11\" fill=\"#fff\">" + (i + 1) + "</text>";
+    }).join("");
+    var diagramaSvg = "<svg viewBox=\"0 0 300 520\" style=\"width:150px;display:block;\">" +
+      "<path d=\"M90,20 Q150,5 210,20 L230,60 Q245,80 245,110 L245,420 Q245,460 225,480 L220,495 Q150,510 80,495 L75,480 Q55,460 55,420 L55,110 Q55,80 70,60 Z\" fill=\"#e5e7eb\" stroke=\"#111827\" stroke-width=\"2\"></path>" +
+      "<line x1=\"70\" y1=\"130\" x2=\"230\" y2=\"130\" stroke=\"#111827\" stroke-width=\"1.5\"></line>" +
+      "<rect x=\"90\" y=\"135\" width=\"120\" height=\"140\" rx=\"14\" fill=\"#f3f4f6\" stroke=\"#111827\" stroke-width=\"1.5\"></rect>" +
+      "<line x1=\"70\" y1=\"390\" x2=\"230\" y2=\"390\" stroke=\"#111827\" stroke-width=\"1.5\"></line>" +
+      "<text x=\"150\" y=\"45\" text-anchor=\"middle\" font-size=\"13\" fill=\"#4b5563\">FRENTE</text>" +
+      "<text x=\"150\" y=\"505\" text-anchor=\"middle\" font-size=\"13\" fill=\"#4b5563\">ATRÁS</text>" +
+      marcadoresSvg + "</svg>";
+
+    var listaDanos = danos.length
+      ? "<ol style=\"margin:4px 0 0;padding-left:16px;font-size:10px;\">" + danos.map(function (d) { return "<li>" + (d.nota || "Sin nota") + "</li>"; }).join("") + "</ol>"
+      : "<div style=\"font-size:10px;color:#4b5563;margin-top:4px;\">Sin daños marcados.</div>";
+
+    var accesorios = checklist.accesorios || [];
+    var listaAccesorios = (accesorios.length ? accesorios.join(", ") : "Ninguno marcado") + (checklist.accesorios_otros ? " · Otros: " + checklist.accesorios_otros : "");
+
+    var niveles = "Combustible: " + (ETIQUETAS_COMBUSTIBLE[checklist.nivel_combustible] || "—") +
+      " &nbsp;·&nbsp; Aceite motor: " + (ETIQUETAS_NIVEL[checklist.nivel_aceite_motor] || "—") +
+      " &nbsp;·&nbsp; Refrigerante: " + (ETIQUETAS_NIVEL[checklist.nivel_refrigerante] || "—") +
+      " &nbsp;·&nbsp; Líquido de frenos: " + (ETIQUETAS_NIVEL[checklist.nivel_liquido_frenos] || "—");
+
+    return "<div class=\"fila-datos-ancha\" style=\"page-break-inside:avoid;\"><b>Checklist de recepción del vehículo</b>" +
+      "<div style=\"display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;margin-top:6px;\">" +
+      "<div>" + diagramaSvg + listaDanos + "</div>" +
+      "<div style=\"flex:1;min-width:220px;font-size:11px;\">" +
+      "<div style=\"margin-bottom:6px;\">" + niveles + "</div>" +
+      "<div style=\"margin-bottom:6px;\"><b>Accesorios presentes:</b> " + listaAccesorios + "</div>" +
+      (checklist.objetos_valor ? "<div style=\"margin-bottom:6px;\"><b>Objetos de valor declarados:</b> " + checklist.objetos_valor + "</div>" : "") +
+      (checklist.observaciones ? "<div style=\"margin-bottom:6px;\"><b>Observaciones:</b> " + checklist.observaciones + "</div>" : "") +
+      "</div></div>" +
+      bloqueFirma(checklist.nombre_quien_entrega ? { nombre: checklist.nombre_quien_entrega, fecha: checklist.creado_en, dataUrl: dataUrlFirma } : null, "Entrega el vehículo", true) +
+      "</div>";
+  }
+
   function imprimirOrdenActual(modo, idError) {
     idError = idError || "item-error";
     ocultarError(idError);
@@ -7297,19 +7418,22 @@ the data-access layer at all.
     var queryItems = "select=cantidad,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
     var queryAutorizacionInicial = "select=fecha_hora,nombre_firmante,firma_imagen,autorizacion_verbal,notas_verbal,usuario_registro:usuarios!autorizaciones_ot_id_usuario_registro_fkey(nombre)&id_ot=eq." + ordenActual.id_ot + "&tipo=eq.inicial&order=fecha_hora.desc&limit=1";
     var queryEntrega = "select=nombre_recibe,firma_tecnico_imagen,firma_cliente_imagen,creado_en&id_ot=eq." + ordenActual.id_ot + "&limit=1";
+    var queryChecklistRecepcion = "select=*&id_ot=eq." + ordenActual.id_ot + "&limit=1";
 
     return Promise.all([
       restRequest("GET", "ordenes_trabajo", { query: queryOrden }),
       restRequest("GET", "ot_detalle", { query: queryItems }),
       obtenerDatosTaller(),
       restRequest("GET", "autorizaciones_ot", { query: queryAutorizacionInicial }),
-      restRequest("GET", "entregas_ot", { query: queryEntrega })
+      restRequest("GET", "entregas_ot", { query: queryEntrega }),
+      restRequest("GET", "checklist_recepcion_ot", { query: queryChecklistRecepcion })
     ]).then(function (r) {
       var orden = r[0] && r[0][0];
       var items = (r[1] || []).filter(function (it) { return it.estado_autorizacion !== "rechazado"; });
       var taller = r[2];
       var autorizacionInicial = r[3] && r[3][0];
       var entrega = r[4] && r[4][0];
+      var checklistRecepcion = r[5] && r[5][0];
       if (!orden) {
         mostrarError(idError, "No se pudo cargar la orden para imprimir.");
         return;
@@ -7336,7 +7460,8 @@ the data-access layer at all.
       return Promise.all([
         obtenerDataUrlFirma(autorizacionInicial && autorizacionInicial.firma_imagen),
         entrega ? obtenerDataUrlFirma(entrega.firma_tecnico_imagen) : Promise.resolve(null),
-        entrega ? obtenerDataUrlFirma(entrega.firma_cliente_imagen) : Promise.resolve(null)
+        entrega ? obtenerDataUrlFirma(entrega.firma_cliente_imagen) : Promise.resolve(null),
+        checklistRecepcion ? obtenerDataUrlFirma(checklistRecepcion.firma_imagen) : Promise.resolve(null)
       ]).then(function (urlsFirma) {
         var datosFirma = {
           autorizacion: autorizacionInicial ? {
@@ -7353,6 +7478,7 @@ the data-access layer at all.
 
         var titulo = modo === "factura" ? "Factura — " + prefijoOT + orden.numero_ot : "Presupuesto / Cotización — " + prefijoOT + orden.numero_ot;
         var contenido = construirEncabezadoDocImpresion(orden, modo, fechaEntregaEstimada, fechaAutorizacionInicial) +
+          construirBloqueChecklistRecepcionImpresion(checklistRecepcion, urlsFirma[3]) +
           construirTablaManoObraImpresion(itemsMO) +
           construirTablaPartesImpresion(itemsPartes) +
           construirTablaExternosImpresion(itemsExternos) +
@@ -8711,6 +8837,7 @@ the data-access layer at all.
         // Solo hace falta traer las fotos de la etapa en la que está la orden
         // ahora mismo — es la única galería visible y la única que se exige.
         if (ETAPAS_EVIDENCIA.indexOf(orden.estado) !== -1) cargarEvidencias(orden.estado);
+        if (orden.estado === "recepcion") cargarChecklistRecepcion();
       }
 
       var filasMO = filas.filter(function (f) { return f.items.tipo === "mano_obra"; });
@@ -9207,6 +9334,202 @@ the data-access layer at all.
     $(ui.camara).addEventListener("change", conManejoDeErrores(function () { return subirEvidencias(etapa, $(ui.camara)); }, ERROR_POR_ETAPA_EVIDENCIA[etapa]));
     $(ui.archivo).addEventListener("change", conManejoDeErrores(function () { return subirEvidencias(etapa, $(ui.archivo)); }, ERROR_POR_ETAPA_EVIDENCIA[etapa]));
   });
+
+  // =====================================================================
+  // CHECKLIST DE RECEPCIÓN (estado del vehículo al recibirlo, con firma)
+  // =====================================================================
+  var ACCESORIOS_CHECKLIST = ["Llanta de repuesto", "Gato", "Cruceta", "Herramientas", "Radio/pantalla", "Tapetes", "Documentos del vehículo", "Extintor", "Botiquín", "Triángulos de seguridad"];
+  var danosRecepcion = [];
+  var checklistRecepcionActual = null;
+  var checklistRecepcionIdOtCargado = null;
+  // La pantalla de la orden se refresca sola cada 5 segundos (ver
+  // refrescarPantallaOrdenesSiAplica) — sin esta bandera, ese refresco de
+  // fondo borraría lo que el asesor esté marcando o firmando ahora mismo.
+  var checklistRecepcionTocado = false;
+  function marcarChecklistRecepcionTocado() { checklistRecepcionTocado = true; }
+
+  (function renderizarAccesoriosChecklist() {
+    $("checklist-accesorios-grupo").innerHTML = ACCESORIOS_CHECKLIST.map(function (nombre) {
+      return "<label style=\"display:flex;align-items:center;gap:6px;font-weight:400;min-width:150px;\">" +
+        "<input type=\"checkbox\" class=\"checklist-acc-item\" value=\"" + nombre + "\" style=\"width:auto;margin:0;\">" + nombre + "</label>";
+    }).join("");
+  })();
+
+  var firmaChecklistRecepcion = crearControladorFirma("checklist-firma-canvas");
+  $("btn-limpiar-checklist-firma").addEventListener("click", function () {
+    marcarChecklistRecepcionTocado();
+    firmaChecklistRecepcion.asegurarInicializado();
+    firmaChecklistRecepcion.limpiar();
+  });
+
+  function coordenadasClicDiagrama(e) {
+    var svg = $("checklist-diagrama-svg");
+    var rect = svg.getBoundingClientRect();
+    var punto = e.touches && e.touches.length ? e.touches[0] : e;
+    var xPct = ((punto.clientX - rect.left) / rect.width) * 100;
+    var yPct = ((punto.clientY - rect.top) / rect.height) * 100;
+    return { x: Math.max(0, Math.min(100, Math.round(xPct * 10) / 10)), y: Math.max(0, Math.min(100, Math.round(yPct * 10) / 10)) };
+  }
+
+  function renderizarMarcadoresDano() {
+    $("checklist-marcadores-grupo").innerHTML = danosRecepcion.map(function (d, i) {
+      var vx = (d.x / 100) * 300, vy = (d.y / 100) * 520;
+      return "<circle cx=\"" + vx + "\" cy=\"" + vy + "\" r=\"11\" fill=\"#dc2626\" stroke=\"#fff\" stroke-width=\"2\" class=\"checklist-marcador-punto\" data-indice=\"" + i + "\" style=\"cursor:pointer;\"></circle>" +
+        "<text x=\"" + vx + "\" y=\"" + (vy + 4) + "\" text-anchor=\"middle\" font-size=\"11\" fill=\"#fff\" style=\"pointer-events:none;\">" + (i + 1) + "</text>";
+    }).join("");
+
+    var lista = $("checklist-danos-lista");
+    if (!danosRecepcion.length) {
+      lista.innerHTML = "<p class=\"nota-ayuda\">Todavía no has marcado ningún daño.</p>";
+      return;
+    }
+    lista.innerHTML = "";
+    danosRecepcion.forEach(function (d, i) {
+      var fila = document.createElement("div");
+      fila.className = "fila-renglon";
+      fila.style.flexWrap = "wrap";
+      fila.innerHTML = "<span style=\"font-weight:700;\">#" + (i + 1) + "</span>" +
+        "<input type=\"text\" value=\"" + (d.nota || "").replace(/\"/g, "&quot;") + "\" placeholder=\"Nota (ej. rayón, golpe)\" style=\"flex:1;min-width:140px;\" data-indice=\"" + i + "\" class=\"checklist-dano-nota\">" +
+        "<button type=\"button\" class=\"secundario\" data-indice=\"" + i + "\" style=\"width:auto;\">Borrar</button>";
+      lista.appendChild(fila);
+    });
+  }
+
+  $("checklist-diagrama-svg").addEventListener("click", function (e) {
+    marcarChecklistRecepcionTocado();
+    if (e.target.classList.contains("checklist-marcador-punto")) {
+      danosRecepcion.splice(Number(e.target.getAttribute("data-indice")), 1);
+      renderizarMarcadoresDano();
+      return;
+    }
+    var p = coordenadasClicDiagrama(e);
+    danosRecepcion.push({ x: p.x, y: p.y, nota: "" });
+    renderizarMarcadoresDano();
+  });
+
+  $("checklist-danos-lista").addEventListener("input", function (e) {
+    if (!e.target.classList.contains("checklist-dano-nota")) return;
+    marcarChecklistRecepcionTocado();
+    var d = danosRecepcion[Number(e.target.getAttribute("data-indice"))];
+    if (d) d.nota = e.target.value;
+  });
+
+  $("checklist-danos-lista").addEventListener("click", function (e) {
+    var btn = e.target.closest("button[data-indice]");
+    if (!btn) return;
+    marcarChecklistRecepcionTocado();
+    danosRecepcion.splice(Number(btn.getAttribute("data-indice")), 1);
+    renderizarMarcadoresDano();
+  });
+
+  ["checklist-combustible", "checklist-aceite", "checklist-refrigerante", "checklist-frenos", "checklist-accesorios-otros", "checklist-objetos-valor", "checklist-observaciones", "checklist-nombre-entrega", "checklist-documento-entrega"].forEach(function (id) {
+    $(id).addEventListener("input", marcarChecklistRecepcionTocado);
+    $(id).addEventListener("change", marcarChecklistRecepcionTocado);
+  });
+  $("checklist-accesorios-grupo").addEventListener("change", marcarChecklistRecepcionTocado);
+
+  function limpiarFormularioChecklistRecepcion() {
+    danosRecepcion = [];
+    renderizarMarcadoresDano();
+    $("checklist-combustible").value = "";
+    $("checklist-aceite").value = "";
+    $("checklist-refrigerante").value = "";
+    $("checklist-frenos").value = "";
+    document.querySelectorAll(".checklist-acc-item").forEach(function (cb) { cb.checked = false; });
+    $("checklist-accesorios-otros").value = "";
+    $("checklist-objetos-valor").value = "";
+    $("checklist-observaciones").value = "";
+    $("checklist-nombre-entrega").value = "";
+    $("checklist-documento-entrega").value = "";
+    $("checklist-recepcion-guardado").classList.add("oculto");
+    firmaChecklistRecepcion.asegurarInicializado();
+    firmaChecklistRecepcion.limpiar();
+  }
+
+  function cargarChecklistRecepcion() {
+    ocultarError("checklist-recepcion-error");
+    if (checklistRecepcionIdOtCargado !== ordenActual.id_ot) checklistRecepcionTocado = false;
+    return restRequest("GET", "checklist_recepcion_ot", { query: "select=*&id_ot=eq." + ordenActual.id_ot + "&limit=1" }).then(function (filas) {
+      var c = filas && filas[0];
+      checklistRecepcionActual = c || null;
+      checklistRecepcionIdOtCargado = ordenActual.id_ot;
+      if (checklistRecepcionTocado) return;
+      limpiarFormularioChecklistRecepcion();
+      if (!c) return;
+      danosRecepcion = (c.danos || []).map(function (d) { return { x: d.x, y: d.y, nota: d.nota || "" }; });
+      renderizarMarcadoresDano();
+      $("checklist-combustible").value = c.nivel_combustible || "";
+      $("checklist-aceite").value = c.nivel_aceite_motor || "";
+      $("checklist-refrigerante").value = c.nivel_refrigerante || "";
+      $("checklist-frenos").value = c.nivel_liquido_frenos || "";
+      var accesorios = c.accesorios || [];
+      document.querySelectorAll(".checklist-acc-item").forEach(function (cb) { cb.checked = accesorios.indexOf(cb.value) !== -1; });
+      $("checklist-accesorios-otros").value = c.accesorios_otros || "";
+      $("checklist-objetos-valor").value = c.objetos_valor || "";
+      $("checklist-observaciones").value = c.observaciones || "";
+      $("checklist-nombre-entrega").value = c.nombre_quien_entrega || "";
+      $("checklist-documento-entrega").value = c.documento_quien_entrega || "";
+      if (c.firma_imagen) {
+        $("checklist-recepcion-guardado").textContent = "✓ Este checklist ya tiene una firma guardada. Solo dibuja una nueva si necesitas reemplazarla.";
+        $("checklist-recepcion-guardado").classList.remove("oculto");
+      }
+    }).catch(function (err) {
+      mostrarError("checklist-recepcion-error", "No se pudo cargar el checklist: " + err.message);
+    });
+  }
+
+  $("btn-guardar-checklist-recepcion").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("checklist-recepcion-error");
+    firmaChecklistRecepcion.asegurarInicializado();
+    var accesoriosMarcados = Array.prototype.slice.call(document.querySelectorAll(".checklist-acc-item:checked")).map(function (cb) { return cb.value; });
+
+    var cuerpo = {
+      id_ot: ordenActual.id_ot,
+      nivel_combustible: $("checklist-combustible").value || null,
+      nivel_aceite_motor: $("checklist-aceite").value || null,
+      nivel_refrigerante: $("checklist-refrigerante").value || null,
+      nivel_liquido_frenos: $("checklist-frenos").value || null,
+      accesorios: accesoriosMarcados,
+      accesorios_otros: $("checklist-accesorios-otros").value.trim() || null,
+      objetos_valor: $("checklist-objetos-valor").value.trim() || null,
+      danos: danosRecepcion,
+      observaciones: $("checklist-observaciones").value.trim() || null,
+      nombre_quien_entrega: $("checklist-nombre-entrega").value.trim() || null,
+      documento_quien_entrega: $("checklist-documento-entrega").value.trim() || null,
+      id_usuario_registro: usuarioActualId,
+      actualizado_en: new Date().toISOString()
+    };
+
+    var subidaFirma = firmaChecklistRecepcion.estaVacia()
+      ? Promise.resolve(null)
+      : firmaChecklistRecepcion.obtenerBlob().then(function (blob) {
+        var ruta = ordenActual.id_ot + "/checklist-" + Date.now() + ".png";
+        return fetch(SUPABASE_URL + "/storage/v1/object/firmas/" + ruta, {
+          method: "POST",
+          headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + accessToken, "Content-Type": "image/png" },
+          body: blob
+        }).then(function (res) {
+          if (!res.ok) return res.text().then(function (t) { throw new Error("No se pudo guardar la firma: " + t); });
+          return ruta;
+        });
+      });
+
+    return subidaFirma.then(function (rutaFirma) {
+      if (rutaFirma) cuerpo.firma_imagen = rutaFirma;
+      if (checklistRecepcionActual && checklistRecepcionActual.id_checklist) {
+        return restRequest("PATCH", "checklist_recepcion_ot", {
+          query: "id_checklist=eq." + checklistRecepcionActual.id_checklist,
+          body: cuerpo
+        });
+      }
+      return restRequest("POST", "checklist_recepcion_ot", { body: cuerpo });
+    }).then(function () {
+      checklistRecepcionTocado = false;
+      $("checklist-recepcion-guardado").textContent = "✓ Checklist de recepción guardado correctamente.";
+      $("checklist-recepcion-guardado").classList.remove("oculto");
+      return cargarChecklistRecepcion();
+    });
+  }, "checklist-recepcion-error"));
 
   window.guardarDescuentoLinea = function (idDetalle, valor) {
     var descuento = parseFloat(valor);
