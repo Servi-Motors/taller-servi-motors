@@ -6991,7 +6991,7 @@ the data-access layer at all.
     return it.cantidad * it.precio_aplicado_cliente * (1 - (it.pct_descuento || 0) / 100);
   }
 
-  function abrirVentanaImpresion(titulo, contenidoHtml, datosTaller, urlConsultaQr) {
+  function abrirVentanaImpresion(titulo, contenidoHtml, datosTaller, urlConsultaQr, ventanaExistente) {
     var t = datosTaller || {};
     var nombreTaller = t.nombre_taller || "Taller Servi Motors";
     var infoTaller = [t.direccion, t.telefono].filter(Boolean).join(" · ");
@@ -7043,7 +7043,7 @@ the data-access layer at all.
       contenidoHtml +
       "</body></html>";
 
-    var ventana = window.open("", "_blank");
+    var ventana = (ventanaExistente && !ventanaExistente.closed) ? ventanaExistente : window.open("", "_blank");
     if (!ventana) {
       alert("Tu navegador bloqueó la ventana de impresión. Permite ventanas emergentes para este sitio e inténtalo de nuevo.");
       return;
@@ -7051,6 +7051,22 @@ the data-access layer at all.
     ventana.document.open();
     ventana.document.write(html);
     ventana.document.close();
+  }
+
+  // Abre una ventana en blanco DE INMEDIATO (en el mismo instante del clic),
+  // con un aviso de "generando...". Los navegadores solo permiten window.open()
+  // sin bloquearlo si ocurre justo en respuesta al clic del usuario — si se
+  // llama después de esperar varias peticiones al servidor, puede quedar
+  // bloqueado (o aparecer un aviso nativo que se siente como que "la
+  // pantalla se congeló"). abrirVentanaImpresion reutiliza esta ventana ya
+  // abierta en vez de intentar abrir una nueva más tarde.
+  function abrirVentanaImpresionPendiente() {
+    var ventana = window.open("", "_blank");
+    if (ventana) {
+      ventana.document.write("<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"utf-8\"><title>Generando…</title></head>" +
+        "<body style=\"font-family:Arial,Helvetica,sans-serif;padding:40px;color:#4b5563;\">Generando el documento…</body></html>");
+    }
+    return ventana;
   }
 
   function formatoFechaHoraCorta(d) {
@@ -8555,7 +8571,7 @@ the data-access layer at all.
   }
 
   function cargarItemsDeOrden() {
-    var queryItems = "select=id_detalle,id_item,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,fecha_inicio_real,fecha_fin_real,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
+    var queryItems = "select=id_detalle,id_item,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,fecha_inicio_real,fecha_fin_real,items(nombre,tipo,costo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
     var queryOrden = "select=estado,tipo_orden,token_consulta,fecha_apertura,fecha_cierre,diagnostico,presupuesto_tentativo,hallazgos_diagnostico,veces_devuelta_calidad,motivo_devolucion_calidad,fecha_devolucion_calidad,id_asesor,id_tecnico,asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre),clientes(nombre,telefono,documento,direccion),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,transmision,version,vin,kilometraje)&id_ot=eq." + ordenActual.id_ot;
     return Promise.all([
       restRequest("GET", "ot_detalle", { query: queryItems }),
@@ -8676,6 +8692,7 @@ the data-access layer at all.
       cont.innerHTML = "";
       $("compra-sin-items").classList.toggle("oculto", items.length > 0);
       items.forEach(function (it) {
+        var precioSugerido = Number(it.costo_interno || (it.items && it.items.costo) || 0);
         var fila = document.createElement("div");
         fila.className = "fila-renglon";
         fila.style.flexWrap = "wrap";
@@ -8685,8 +8702,9 @@ the data-access layer at all.
           (it.codigo ? "<b>" + it.codigo + "</b> " : "") + it.items.nombre + "</label>" +
           "<span style=\"display:flex;gap:6px;align-items:center;flex-wrap:wrap;\">" +
           "Cant. <input type=\"number\" min=\"0.01\" step=\"0.01\" value=\"" + it.cantidad + "\" id=\"compra-cant-" + it.id_detalle + "\" style=\"width:70px;\">" +
-          "Precio <input type=\"number\" min=\"0\" step=\"0.01\" value=\"" + Number(it.costo_interno || 0) + "\" id=\"compra-precio-" + it.id_detalle + "\" style=\"width:100px;\">" +
-          "</span>";
+          "Precio <input type=\"number\" min=\"0\" step=\"0.01\" value=\"" + precioSugerido + "\" id=\"compra-precio-" + it.id_detalle + "\" style=\"width:100px;\">" +
+          "</span>" +
+          (precioSugerido === 0 ? "<div style=\"flex-basis:100%;color:#b45309;font-size:11.5px;\">⚠ Este ítem no tiene costo registrado (puede que lo haya agregado el técnico). Escribe el precio real antes de generar la orden.</div>" : "");
         cont.appendChild(fila);
       });
 
@@ -8771,8 +8789,12 @@ the data-access layer at all.
       return;
     }
     for (var i = 0; i < items.length; i++) {
-      if (!(items[i].cantidad > 0) || !(items[i].precio >= 0)) {
-        mostrarError("compra-error", "Revisa las cantidades y precios de los ítems elegidos.");
+      if (!(items[i].cantidad > 0)) {
+        mostrarError("compra-error", "Revisa las cantidades de los ítems elegidos.");
+        return;
+      }
+      if (!(items[i].precio > 0)) {
+        mostrarError("compra-error", "\"" + items[i].descripcion + "\" tiene precio $0 — probablemente lo agregó el técnico sin costo todavía. Escribe el precio real antes de generar la orden de compra.");
         return;
       }
     }
@@ -8784,6 +8806,8 @@ the data-access layer at all.
     var btn = $("btn-confirmar-orden-compra");
     btn.disabled = true;
     btn.textContent = "Generando…";
+
+    var ventanaImpresion = abrirVentanaImpresionPendiente();
 
     return restRequest("POST", "ordenes_compra", {
       body: {
@@ -8816,15 +8840,16 @@ the data-access layer at all.
       mostrarAlertaFlotante("Orden de compra generada." + (esCredito ? " Se registró como cuenta por pagar." : ""));
       btn.disabled = false;
       btn.textContent = "Generar e imprimir";
-      return imprimirOrdenCompra(oc.id_orden_compra);
+      return imprimirOrdenCompra(oc.id_orden_compra, "compra-error", ventanaImpresion);
     }).catch(function (err) {
+      if (ventanaImpresion && !ventanaImpresion.closed) ventanaImpresion.close();
       btn.disabled = false;
       btn.textContent = "Generar e imprimir";
       throw err;
     });
   }, "compra-error"));
 
-  function imprimirOrdenCompra(idOrdenCompra, idError) {
+  function imprimirOrdenCompra(idOrdenCompra, idError, ventanaExistente) {
     idError = idError || "compra-error";
     var query = "select=*,proveedores(nombre,contacto,direccion,ciudad),ordenes_trabajo(numero_ot,vehiculos(placa,marca,modelo,anio,transmision,version,tipo_carroceria,vin))&id_orden_compra=eq." + idOrdenCompra;
     return Promise.all([
@@ -8836,6 +8861,7 @@ the data-access layer at all.
       var detalle = r[1] || [];
       var taller = r[2];
       if (!oc) {
+        if (ventanaExistente && !ventanaExistente.closed) ventanaExistente.close();
         mostrarError(idError, "No se pudo cargar la orden de compra.");
         return;
       }
@@ -8904,7 +8930,7 @@ the data-access layer at all.
         "</div>" +
         "</div>";
 
-      abrirVentanaImpresion("Orden de compra N.º " + numeroFormateado, contenido, taller, null);
+      abrirVentanaImpresion("Orden de compra N.º " + numeroFormateado, contenido, taller, null, ventanaExistente);
     });
   }
 
@@ -8936,7 +8962,8 @@ the data-access layer at all.
         btnVer.className = "secundario";
         btnVer.textContent = "Ver / Reimprimir";
         btnVer.addEventListener("click", conManejoDeErrores(function () {
-          return imprimirOrdenCompra(oc.id_orden_compra, "ordenescompra-error");
+          var ventana = abrirVentanaImpresionPendiente();
+          return imprimirOrdenCompra(oc.id_orden_compra, "ordenescompra-error", ventana);
         }, "ordenescompra-error"));
         tdAcciones.appendChild(btnVer);
         tr.appendChild(tdAcciones);
