@@ -448,7 +448,7 @@ the data-access layer at all.
         <div id="cp-qr-cont" class="oculto" style="text-align:center;margin:8px 0;"></div>
         <div id="autorizacion-pendiente-cont"></div>
 
-        <div id="orden-datos-cliente-vehiculo" class="datos-orden-grid"></div>
+        <div id="orden-datos-cliente-vehiculo" class="datos-doc-pantalla"></div>
 
         <div id="orden-recepcion" class="oculto">
           <h3>Recepción</h3>
@@ -610,16 +610,16 @@ the data-access layer at all.
         <div class="nota-ayuda">El precio por hora lo fija el administrador en Contabilidad. Aquí solo se define el nombre y las horas. La columna "Avance del técnico" registra la hora real de inicio y fin de cada servicio (solo mientras la orden está en proceso).</div>
         <div class="tabla-scroll">
           <table class="tabla-datos tabla-items-orden" id="tabla-mano-obra">
-            <thead><tr><th>Código</th><th>Descripción</th><th>Horas</th><th>Precio/hora</th><th>% Dscto</th><th>Total</th><th>Estado</th><th>Avance del técnico</th></tr></thead>
+            <thead><tr><th>Código</th><th>Descripción</th><th>Precio/hora</th><th>Horas</th><th>% Dscto</th><th>Total Dscto</th><th>Total</th><th>Estado</th><th>Avance del técnico</th></tr></thead>
             <tbody id="cuerpo-mano-obra"></tbody>
             <tfoot>
               <tr class="fila-agregar">
                 <td><input id="mo-codigo" type="text" placeholder="Cód."></td>
                 <td><input id="mo-nombre" type="text" placeholder="Ej. Cambio de pastillas" list="lista-servicios-mano-obra" autocomplete="off"><datalist id="lista-servicios-mano-obra"></datalist></td>
-                <td><input id="mo-horas" type="number" min="0.01" step="0.01" value="1"></td>
                 <td><input id="mo-precio" type="number" disabled placeholder="—"></td>
+                <td><input id="mo-horas" type="number" min="0.01" step="0.01" value="1"></td>
                 <td><input id="mo-descuento" type="number" min="0" max="100" step="0.01" value="0"></td>
-                <td colspan="3"><button type="button" id="btn-agregar-mano-obra">+ Agregar</button></td>
+                <td colspan="4"><button type="button" id="btn-agregar-mano-obra">+ Agregar</button></td>
               </tr>
             </tfoot>
           </table>
@@ -628,17 +628,17 @@ the data-access layer at all.
         <h3>Repuestos e insumos</h3>
         <div class="tabla-scroll">
           <table class="tabla-datos tabla-items-orden" id="tabla-partes">
-            <thead><tr><th>Tipo</th><th>Código</th><th>Cant.</th><th>Descripción</th><th>De tu stock</th><th>Costo</th><th>% Dscto</th><th>Total</th><th>Estado</th></tr></thead>
+            <thead><tr><th>Código</th><th>Tipo</th><th>Cant.</th><th>Descripción</th><th>De tu stock</th><th>Costo</th><th>% Dscto</th><th>Total Dscto</th><th>Total</th><th>Estado</th></tr></thead>
             <tbody id="cuerpo-partes"></tbody>
             <tfoot>
               <tr class="fila-agregar">
+                <td><input id="pa-codigo" type="text" placeholder="Cód."></td>
                 <td>
                   <select id="pa-tipo">
                     <option value="repuesto">Repuesto</option>
                     <option value="insumo">Insumo</option>
                   </select>
                 </td>
-                <td><input id="pa-codigo" type="text" placeholder="Cód."></td>
                 <td><input id="pa-cantidad" type="number" min="0.01" step="0.01" value="1"></td>
                 <td><input id="pa-nombre" type="text" placeholder="Ej. Filtro de aceite"></td>
                 <td>
@@ -646,7 +646,7 @@ the data-access layer at all.
                 </td>
                 <td><input id="pa-costo" type="number" min="0" step="0.01" placeholder="Lo que te cuesta"></td>
                 <td><input id="pa-descuento" type="number" min="0" max="100" step="0.01" value="0"></td>
-                <td colspan="2"><button type="button" id="btn-agregar-parte">+ Agregar</button></td>
+                <td colspan="3"><button type="button" id="btn-agregar-parte">+ Agregar</button></td>
               </tr>
             </tfoot>
           </table>
@@ -656,14 +656,14 @@ the data-access layer at all.
         <h3>Trabajos externos</h3>
         <div class="tabla-scroll">
           <table class="tabla-datos tabla-items-orden" id="tabla-externos">
-            <thead><tr><th>Descripción</th><th>Costo</th><th>% Dscto</th><th>Total</th><th>Estado</th></tr></thead>
+            <thead><tr><th>Descripción</th><th>Costo</th><th>% Dscto</th><th>Total Dscto</th><th>Total</th><th>Estado</th></tr></thead>
             <tbody id="cuerpo-externos"></tbody>
             <tfoot>
               <tr class="fila-agregar">
                 <td><input id="ex-nombre" type="text" placeholder="Ej. Servicio de grúa" list="lista-trabajos-externos" autocomplete="off"><datalist id="lista-trabajos-externos"></datalist></td>
                 <td><input id="ex-costo" type="number" min="0" step="0.01"></td>
                 <td><input id="ex-descuento" type="number" min="0" max="100" step="0.01" value="0"></td>
-                <td colspan="2"><button type="button" id="btn-agregar-externo">+ Agregar</button></td>
+                <td colspan="3"><button type="button" id="btn-agregar-externo">+ Agregar</button></td>
               </tr>
             </tfoot>
           </table>
@@ -671,7 +671,7 @@ the data-access layer at all.
         </div>
 
         <div id="item-error" class="mensaje-error"></div>
-        <div id="orden-totales" class="info-vehiculo"></div>
+        <div id="orden-totales"></div>
 
         <button id="btn-ir-firma" class="secundario">Solicitar firma de autorización</button>
         <button id="btn-enviar-firma-whatsapp" class="secundario">Enviar enlace de firma por WhatsApp</button>
@@ -2156,14 +2156,29 @@ the data-access layer at all.
   .denominaciones-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; margin-bottom: 6px; }
   .datos-orden-grid .bloque-datos { background: var(--gris-claro); border-radius: 8px; padding: 10px 12px; font-size: 13px; line-height: 1.6; }
   .datos-orden-grid .bloque-datos b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--gris); margin-bottom: 3px; }
+  /* Caja de datos del cliente/vehículo con el mismo look del presupuesto en
+     papel (dos cajas con borde, una por cada lado) — se usa solo en la
+     pantalla de edición de la orden, para que se sienta como llenar el
+     mismo documento que luego se le imprime al cliente. */
+  .datos-doc-pantalla { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-bottom: 10px; }
+  .caja-datos-doc { border: 1px solid var(--borde); border-radius: 8px; overflow: hidden; }
+  .caja-datos-doc-titulo { background: var(--gris-claro); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--gris); padding: 6px 12px; border-bottom: 1px solid var(--borde); }
+  .caja-datos-doc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px 12px; padding: 10px 12px; font-size: 13px; }
+  .caja-datos-doc-grid .col-ancha { grid-column: 1 / -1; }
+  .caja-datos-doc-grid b { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--gris); margin-bottom: 2px; }
   table.tabla-items-orden { white-space: normal; }
+  table.tabla-items-orden thead th { background: var(--gris-claro); }
   table.tabla-items-orden input, table.tabla-items-orden select {
     width: 100%; min-width: 76px; padding: 6px 7px; font-size: 13px; border-radius: 6px;
   }
   .fila-agregar td { background: var(--gris-claro); vertical-align: middle; }
   table.tabla-items-orden td.celda-numero { text-align: right; }
-  .totales-doc { font-size: 13px; line-height: 1.8; }
-  .totales-doc .linea-total-final { font-size: 16px; font-weight: 700; border-top: 1px solid var(--borde); margin-top: 6px; padding-top: 6px; }
+  /* Caja de totales con el mismo estilo del recuadro de totales del
+     presupuesto impreso (Total MO / Total partes / Total externos /
+     Descuento / IVA / Total general). */
+  .caja-totales-doc { border: 1px solid var(--borde); border-radius: 8px; padding: 10px 14px; font-size: 13px; max-width: 360px; margin-left: auto; }
+  .caja-totales-doc > div { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; }
+  .caja-totales-doc .linea-total-final { display: flex; justify-content: space-between; border-top: 1px solid var(--borde); margin-top: 6px; padding-top: 8px; font-size: 16px; font-weight: 700; color: var(--azul-oscuro); }
 
   /* En pantallas anchas (PC / tablet en horizontal), aprovecha el espacio:
      las páginas de listas y formularios pasan a 2 columnas. */
@@ -8641,6 +8656,12 @@ the data-access layer at all.
     return f.cantidad * f.precio_aplicado_cliente * (1 - (f.pct_descuento || 0) / 100);
   }
 
+  // Monto del descuento en pesos de una línea (aparte del %), para mostrarlo
+  // como columna propia — igual que en el presupuesto en papel de siempre.
+  function montoDescuentoLinea(f) {
+    return f.cantidad * f.precio_aplicado_cliente * ((f.pct_descuento || 0) / 100);
+  }
+
   // El técnico solo trabaja con nombres y cantidades — nunca con montos en
   // dinero (ni al agregar ítems, ni al ver los que ya están en la orden).
   function celdaMonedaTecnico(monto) {
@@ -8687,11 +8708,11 @@ the data-access layer at all.
 
   function renderizarTablaManoObra(filas) {
     var html = filas.map(function (f) {
-      return "<tr><td>" + (f.codigo || "—") + "</td><td>" + f.items.nombre + "</td><td>" + f.cantidad + "</td><td>" + celdaMonedaTecnico(f.precio_aplicado_cliente) + "</td>" +
-        "<td>" + celdaDescuentoLinea(f) + "</td><td class=\"celda-numero\">" + celdaMonedaTecnico(totalLineaOrden(f)) + "</td><td>" + celdaEstadoLinea(f) + botonEliminarLinea(f) + "</td>" +
+      return "<tr><td>" + (f.codigo || "—") + "</td><td>" + f.items.nombre + "</td><td>" + celdaMonedaTecnico(f.precio_aplicado_cliente) + "</td><td>" + f.cantidad + "</td>" +
+        "<td>" + celdaDescuentoLinea(f) + "</td><td class=\"celda-numero\">" + celdaMonedaTecnico(montoDescuentoLinea(f)) + "</td><td class=\"celda-numero\">" + celdaMonedaTecnico(totalLineaOrden(f)) + "</td><td>" + celdaEstadoLinea(f) + botonEliminarLinea(f) + "</td>" +
         "<td>" + celdaAvanceLinea(f) + "</td></tr>";
     }).join("");
-    $("cuerpo-mano-obra").innerHTML = html || "<tr><td colspan=\"8\" class=\"tabla-vacia\">Sin ítems de mano de obra todavía.</td></tr>";
+    $("cuerpo-mano-obra").innerHTML = html || "<tr><td colspan=\"9\" class=\"tabla-vacia\">Sin ítems de mano de obra todavía.</td></tr>";
   }
 
   // Avance real del técnico por servicio de mano de obra: botones Iniciar /
@@ -8726,19 +8747,19 @@ the data-access layer at all.
 
   function renderizarTablaPartes(filas) {
     var html = filas.map(function (f) {
-      return "<tr><td>" + (ETIQUETAS_TIPO_ITEM[f.items.tipo] || f.items.tipo) + "</td><td>" + (f.codigo || "—") + "</td><td>" + f.cantidad + "</td><td>" + f.items.nombre + "</td><td>—</td>" +
-        "<td>" + celdaMonedaTecnico(f.costo_interno) + "</td><td>" + celdaDescuentoLinea(f) + "</td>" +
+      return "<tr><td>" + (f.codigo || "—") + "</td><td>" + (ETIQUETAS_TIPO_ITEM[f.items.tipo] || f.items.tipo) + "</td><td>" + f.cantidad + "</td><td>" + f.items.nombre + "</td><td>—</td>" +
+        "<td>" + celdaMonedaTecnico(f.costo_interno) + "</td><td>" + celdaDescuentoLinea(f) + "</td><td class=\"celda-numero\">" + celdaMonedaTecnico(montoDescuentoLinea(f)) + "</td>" +
         "<td class=\"celda-numero\">" + celdaMonedaTecnico(totalLineaOrden(f)) + botonEditarPrecio(f) + botonEliminarLinea(f) + "</td><td>" + celdaEstadoLinea(f) + "</td></tr>";
     }).join("");
-    $("cuerpo-partes").innerHTML = html || "<tr><td colspan=\"9\" class=\"tabla-vacia\">Sin repuestos ni insumos todavía.</td></tr>";
+    $("cuerpo-partes").innerHTML = html || "<tr><td colspan=\"10\" class=\"tabla-vacia\">Sin repuestos ni insumos todavía.</td></tr>";
   }
 
   function renderizarTablaExternos(filas) {
     var html = filas.map(function (f) {
       return "<tr><td>" + f.items.nombre + "</td><td>" + formatoMoneda(f.costo_interno) + "</td><td>" + celdaDescuentoLinea(f) + "</td>" +
-        "<td class=\"celda-numero\">" + formatoMoneda(totalLineaOrden(f)) + botonEditarPrecio(f) + botonEliminarLinea(f) + "</td><td>" + celdaEstadoLinea(f) + "</td></tr>";
+        "<td class=\"celda-numero\">" + formatoMoneda(montoDescuentoLinea(f)) + "</td><td class=\"celda-numero\">" + formatoMoneda(totalLineaOrden(f)) + botonEditarPrecio(f) + botonEliminarLinea(f) + "</td><td>" + celdaEstadoLinea(f) + "</td></tr>";
     }).join("");
-    $("cuerpo-externos").innerHTML = html || "<tr><td colspan=\"5\" class=\"tabla-vacia\">Sin trabajos externos todavía.</td></tr>";
+    $("cuerpo-externos").innerHTML = html || "<tr><td colspan=\"6\" class=\"tabla-vacia\">Sin trabajos externos todavía.</td></tr>";
   }
 
   function renderizarTotalesOrden(filas) {
@@ -8746,6 +8767,7 @@ the data-access layer at all.
     var subtotalMO = vigentes.filter(function (f) { return f.items.tipo === "mano_obra"; }).reduce(function (a, f) { return a + totalLineaOrden(f); }, 0);
     var subtotalPartes = vigentes.filter(function (f) { return f.items.tipo === "repuesto" || f.items.tipo === "insumo"; }).reduce(function (a, f) { return a + totalLineaOrden(f); }, 0);
     var subtotalExternos = vigentes.filter(function (f) { return f.items.tipo === "trabajo_externo"; }).reduce(function (a, f) { return a + totalLineaOrden(f); }, 0);
+    var descuentoTotal = vigentes.reduce(function (a, f) { return a + montoDescuentoLinea(f); }, 0);
     var subtotal = subtotalMO + subtotalPartes + subtotalExternos;
     var pctIva = ordenActual.pctIva || 0;
     var iva = subtotal * pctIva / 100;
@@ -8754,27 +8776,35 @@ the data-access layer at all.
       $("orden-totales").innerHTML = '<div class="nota-ayuda">Los montos y el total de la orden los maneja el asesor o el administrador.</div>';
       return;
     }
-    $("orden-totales").innerHTML = '<div class="totales-doc">' +
-      "Mano de obra: " + formatoMoneda(subtotalMO) + "<br>" +
-      "Repuestos e insumos: " + formatoMoneda(subtotalPartes) + "<br>" +
-      "Trabajos externos: " + formatoMoneda(subtotalExternos) + "<br>" +
-      (pctIva > 0 ? "IVA (" + pctIva + "%): " + formatoMoneda(iva) + "<br>" : "") +
-      '<div class="linea-total-final">Total: ' + formatoMoneda(total) + "</div></div>";
+    $("orden-totales").innerHTML = '<div class="caja-totales-doc">' +
+      "<div><span>Total mano de obra</span><span>" + formatoMoneda(subtotalMO) + "</span></div>" +
+      "<div><span>Total repuestos e insumos</span><span>" + formatoMoneda(subtotalPartes) + "</span></div>" +
+      "<div><span>Total trabajos externos</span><span>" + formatoMoneda(subtotalExternos) + "</span></div>" +
+      (descuentoTotal > 0 ? "<div><span>Descuento</span><span>-" + formatoMoneda(descuentoTotal) + "</span></div>" : "") +
+      (pctIva > 0 ? "<div><span>IVA (" + pctIva + "%)</span><span>" + formatoMoneda(iva) + "</span></div>" : "") +
+      '<div class="linea-total-final"><span>Total general</span><span>' + formatoMoneda(total) + "</span></div></div>";
   }
 
   function renderizarDatosClienteVehiculo(orden) {
     var c = orden.clientes || {};
     var v = orden.vehiculos || {};
     $("orden-datos-cliente-vehiculo").innerHTML =
-      '<div class="bloque-datos"><b>Cliente</b>' + (c.nombre || "—") +
-      (c.documento ? "<br>Doc: " + c.documento : "") +
-      (c.telefono ? "<br>Tel: " + c.telefono : "") +
-      (c.direccion ? "<br>" + c.direccion : "") + "</div>" +
-      '<div class="bloque-datos"><b>Vehículo</b>' +
-      ([v.marca, v.modelo, v.color, v.anio].filter(Boolean).join(" ") || "—") +
-      (v.tipo_carroceria ? "<br>Tipo: " + v.tipo_carroceria : "") +
-      (v.vin ? "<br>VIN: " + v.vin : "") +
-      (v.kilometraje ? "<br>" + v.kilometraje + " km" : "") + "</div>";
+      '<div class="caja-datos-doc"><div class="caja-datos-doc-titulo">Datos del cliente</div><div class="caja-datos-doc-grid">' +
+      "<div><b>Nombre</b>" + (c.nombre || "—") + "</div>" +
+      "<div><b>Cédula/NIT</b>" + (c.documento || "—") + "</div>" +
+      "<div><b>Teléfono</b>" + (c.telefono || "—") + "</div>" +
+      "<div class=\"col-ancha\"><b>Dirección</b>" + (c.direccion || "—") + "</div>" +
+      "</div></div>" +
+      '<div class="caja-datos-doc"><div class="caja-datos-doc-titulo">Datos del vehículo</div><div class="caja-datos-doc-grid">' +
+      "<div><b>Marca</b>" + (v.marca || "—") + "</div>" +
+      "<div><b>Modelo</b>" + (v.modelo || "—") + "</div>" +
+      "<div><b>Color</b>" + (v.color || "—") + "</div>" +
+      "<div><b>Año</b>" + (v.anio || "—") + "</div>" +
+      "<div><b>Tipo</b>" + (v.tipo_carroceria || "—") + "</div>" +
+      "<div><b>VIN</b>" + (v.vin || "—") + "</div>" +
+      "<div><b>Odómetro</b>" + (v.kilometraje ? v.kilometraje + " km" : "—") + "</div>" +
+      "<div><b>Placa</b>" + (v.placa || "—") + "</div>" +
+      "</div></div>";
   }
 
   function cargarItemsDeOrden() {
