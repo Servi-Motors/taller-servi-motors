@@ -8928,6 +8928,10 @@ the data-access layer at all.
         "<div><span>IVA " + Number(oc.pct_iva || 0).toFixed(4) + "% +</span><b>" + formatoMoneda(iva) + "</b></div>" +
         "<div class=\"oc-total-final\"><span>Total general</span><b>" + formatoMoneda(total) + "</b></div>" +
         "</div>" +
+        "</div>" +
+        "<div style=\"display:flex;gap:24px;flex-wrap:wrap;margin-top:26px;\">" +
+        "<div style=\"flex:1;min-width:200px;\">" + bloqueFirma(null, "Entrega — " + (prov.nombre || "Proveedor"), true) + "</div>" +
+        "<div style=\"flex:1;min-width:200px;\">" + bloqueFirma(null, "Recibe — " + (taller.nombre_taller || "Taller Servi Motors"), true) + "</div>" +
         "</div>";
 
       abrirVentanaImpresion("Orden de compra N.º " + numeroFormateado, contenido, taller, null, ventanaExistente);
