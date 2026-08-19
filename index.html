@@ -464,15 +464,15 @@ the data-access layer at all.
           <div id="checklist-exteriores-grupo" class="grupo-sino"></div>
 
           <label>Daños en la carrocería — toca el dibujo donde haya un rayón, golpe o abolladura</label>
-          <svg id="checklist-diagrama-svg" viewBox="0 0 300 520" style="width:100%;max-width:280px;display:block;margin:0 auto;background:#f9fafb;border:1px solid var(--borde);border-radius:8px;cursor:crosshair;touch-action:none;">
-            <path d="M90,20 Q150,5 210,20 L230,60 Q245,80 245,110 L245,420 Q245,460 225,480 L220,495 Q150,510 80,495 L75,480 Q55,460 55,420 L55,110 Q55,80 70,60 Z" fill="#e5e7eb" stroke="#111827" stroke-width="2"></path>
-            <line x1="70" y1="130" x2="230" y2="130" stroke="#111827" stroke-width="1.5"></line>
-            <rect x="90" y="135" width="120" height="140" rx="14" fill="#f3f4f6" stroke="#111827" stroke-width="1.5"></rect>
-            <line x1="70" y1="390" x2="230" y2="390" stroke="#111827" stroke-width="1.5"></line>
-            <rect x="40" y="120" width="14" height="24" rx="4" fill="#9ca3af" stroke="#111827"></rect>
-            <rect x="246" y="120" width="14" height="24" rx="4" fill="#9ca3af" stroke="#111827"></rect>
-            <text x="150" y="45" text-anchor="middle" font-size="13" fill="#4b5563">FRENTE</text>
-            <text x="150" y="505" text-anchor="middle" font-size="13" fill="#4b5563">ATRÁS</text>
+          <svg id="checklist-diagrama-svg" viewBox="0 0 300 520" style="width:100%;max-width:280px;display:block;margin:0 auto;background:var(--gris-claro);border:1px solid var(--borde);border-radius:8px;cursor:crosshair;touch-action:none;">
+            <path d="M90,20 Q150,5 210,20 L230,60 Q245,80 245,110 L245,420 Q245,460 225,480 L220,495 Q150,510 80,495 L75,480 Q55,460 55,420 L55,110 Q55,80 70,60 Z" style="fill:var(--borde);stroke:var(--texto);" stroke-width="2"></path>
+            <line x1="70" y1="130" x2="230" y2="130" style="stroke:var(--texto);" stroke-width="1.5"></line>
+            <rect x="90" y="135" width="120" height="140" rx="14" style="fill:var(--tarjeta-bg);stroke:var(--texto);" stroke-width="1.5"></rect>
+            <line x1="70" y1="390" x2="230" y2="390" style="stroke:var(--texto);" stroke-width="1.5"></line>
+            <rect x="40" y="120" width="14" height="24" rx="4" style="fill:var(--gris);stroke:var(--texto);"></rect>
+            <rect x="246" y="120" width="14" height="24" rx="4" style="fill:var(--gris);stroke:var(--texto);"></rect>
+            <text x="150" y="45" text-anchor="middle" font-size="13" style="fill:var(--gris);">FRENTE</text>
+            <text x="150" y="505" text-anchor="middle" font-size="13" style="fill:var(--gris);">ATRÁS</text>
             <g id="checklist-marcadores-grupo"></g>
           </svg>
           <div id="checklist-danos-lista"></div>
@@ -481,17 +481,17 @@ the data-access layer at all.
           <label>Nivel de combustible</label>
           <div id="checklist-combustible-gauge" style="max-width:220px;margin:6px auto;">
             <svg viewBox="0 0 200 120" style="width:100%;display:block;">
-              <path d="M20,110 L60,20 L140,20 L180,110 Z" fill="#f9fafb" stroke="#111827" stroke-width="2"></path>
-              <line x1="100" y1="105" x2="35" y2="35" stroke="#9ca3af" stroke-width="1"></line>
-              <line x1="100" y1="105" x2="67" y2="25" stroke="#9ca3af" stroke-width="1"></line>
-              <line x1="100" y1="105" x2="100" y2="22" stroke="#9ca3af" stroke-width="1"></line>
-              <line x1="100" y1="105" x2="133" y2="25" stroke="#9ca3af" stroke-width="1"></line>
-              <line x1="100" y1="105" x2="165" y2="35" stroke="#9ca3af" stroke-width="1"></line>
-              <text x="26" y="32" font-size="9" fill="#4b5563">VACÍO</text>
-              <text x="174" y="32" font-size="9" text-anchor="end" fill="#4b5563">LLENO</text>
-              <text x="100" y="18" font-size="9" text-anchor="middle" fill="#4b5563">½</text>
-              <line id="checklist-combustible-aguja" x1="100" y1="105" x2="100" y2="30" stroke="#dc2626" stroke-width="3" style="transform-origin:100px 105px;transform:rotate(0deg);transition:transform .15s;"></line>
-              <circle cx="100" cy="105" r="5" fill="#111827"></circle>
+              <path d="M20,110 L60,20 L140,20 L180,110 Z" style="fill:var(--gris-claro);stroke:var(--texto);" stroke-width="2"></path>
+              <line x1="100" y1="105" x2="35" y2="35" style="stroke:var(--gris);" stroke-width="1"></line>
+              <line x1="100" y1="105" x2="67" y2="25" style="stroke:var(--gris);" stroke-width="1"></line>
+              <line x1="100" y1="105" x2="100" y2="22" style="stroke:var(--gris);" stroke-width="1"></line>
+              <line x1="100" y1="105" x2="133" y2="25" style="stroke:var(--gris);" stroke-width="1"></line>
+              <line x1="100" y1="105" x2="165" y2="35" style="stroke:var(--gris);" stroke-width="1"></line>
+              <text x="26" y="32" font-size="9" style="fill:var(--gris);">VACÍO</text>
+              <text x="174" y="32" font-size="9" text-anchor="end" style="fill:var(--gris);">LLENO</text>
+              <text x="100" y="18" font-size="9" text-anchor="middle" style="fill:var(--gris);">½</text>
+              <line id="checklist-combustible-aguja" x1="100" y1="105" x2="100" y2="30" style="stroke:var(--rojo);transform-origin:100px 105px;transform:rotate(0deg);transition:transform .15s;" stroke-width="3"></line>
+              <circle cx="100" cy="105" r="5" style="fill:var(--texto);"></circle>
             </svg>
             <div id="checklist-combustible-botones" style="display:flex;justify-content:space-between;gap:4px;margin-top:6px;"></div>
           </div>
@@ -2184,8 +2184,6 @@ the data-access layer at all.
   .tarjeta-orden-ancha { max-width: 100% !important; grid-column: 1 / -1; }
   .datos-orden-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-bottom: 6px; }
   .denominaciones-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; margin-bottom: 6px; }
-  .datos-orden-grid .bloque-datos { background: var(--gris-claro); border-radius: 8px; padding: 10px 12px; font-size: 13px; line-height: 1.6; }
-  .datos-orden-grid .bloque-datos b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--gris); margin-bottom: 3px; }
   /* Caja de datos del cliente/vehículo con el mismo look del presupuesto en
      papel (dos cajas con borde, una por cada lado) — se usa solo en la
      pantalla de edición de la orden, para que se sienta como llenar el
@@ -2311,6 +2309,9 @@ the data-access layer at all.
   .agenda-turno-cancelada { border-left-color: var(--rojo); opacity: .7; }
   .agenda-turno-completada { border-left-color: var(--gris); opacity: .7; }
   .agenda-turno-solicitada { border-left-color: #d97706; background: #fffbeb; }
+  @media (prefers-color-scheme: dark) {
+    .agenda-turno-solicitada { background: rgba(217, 119, 6, 0.15); }
+  }
   .agenda-turno-resumen { padding: 7px 8px; cursor: pointer; line-height: 1.5; }
   .agenda-turno-resumen b { display: inline; font-size: 12px; }
   .agenda-turno-acciones { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 8px 8px; }
@@ -2596,7 +2597,7 @@ the data-access layer at all.
   // =====================================================================
   var PAGINAS = ["inicio", "app", "agenda", "clientes", "vehiculos", "historial", "proveedores", "ordenescompra", "personal", "inventario", "servicios", "combos", "contabilidad", "facturacion", "caja", "cuentas", "egreso", "configuracion", "nomina", "reportes", "comunicaciones"];
   var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", agenda: "Agenda", clientes: "Clientes", vehiculos: "Vehículos", historial: "Historial del vehículo", proveedores: "Proveedores", personal: "Personal", inventario: "Inventario", servicios: "Servicios", combos: "Combos de servicio", contabilidad: "Contabilidad", facturacion: "Facturación", caja: "Caja", cuentas: "Cuentas por cobrar/pagar", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes", comunicaciones: "Comunicaciones" };
-  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", agenda: "agenda-error", clientes: "clientes-error", vehiculos: "vehiculos-error", historial: "historial-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", servicios: "servicios-error", combos: "combos-error", contabilidad: "contab-horas-error", facturacion: "facturacion-error", caja: "caja-error", cuentas: "cuentas-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error", comunicaciones: "comunicaciones-error" };
+  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", agenda: "agenda-error", clientes: "clientes-error", vehiculos: "vehiculos-error", historial: "historial-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", servicios: "servicios-error", combos: "combos-error", contabilidad: "contab-horas-error", facturacion: "facturacion-error", caja: "caja-error", cuentas: "cuentas-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error", comunicaciones: "comunicaciones-error", ordenescompra: "ordenescompra-error" };
 
   function mostrarPagina(nombre) {
     if (PAGINAS.indexOf(nombre) === -1) nombre = "inicio";
@@ -8814,8 +8815,8 @@ the data-access layer at all.
 
   function renderizarTablaExternos(filas) {
     var html = filas.map(function (f) {
-      return "<tr><td>" + f.items.nombre + "</td><td>" + formatoMoneda(f.costo_interno) + "</td><td>" + celdaDescuentoLinea(f) + "</td>" +
-        "<td class=\"celda-numero\">" + formatoMoneda(montoDescuentoLinea(f)) + "</td><td class=\"celda-numero\">" + formatoMoneda(totalLineaOrden(f)) + botonEditarPrecio(f) + botonEliminarLinea(f) + "</td><td>" + celdaEstadoLinea(f) + "</td></tr>";
+      return "<tr><td>" + f.items.nombre + "</td><td>" + celdaMonedaTecnico(f.costo_interno) + "</td><td>" + celdaDescuentoLinea(f) + "</td>" +
+        "<td class=\"celda-numero\">" + celdaMonedaTecnico(montoDescuentoLinea(f)) + "</td><td class=\"celda-numero\">" + celdaMonedaTecnico(totalLineaOrden(f)) + botonEditarPrecio(f) + botonEliminarLinea(f) + "</td><td>" + celdaEstadoLinea(f) + "</td></tr>";
     }).join("");
     $("cuerpo-externos").innerHTML = html || "<tr><td colspan=\"6\" class=\"tabla-vacia\">Sin trabajos externos todavía.</td></tr>";
   }
