@@ -314,8 +314,11 @@ the data-access layer at all.
       <h1>Órdenes</h1>
       <div id="tablero-error" class="mensaje-error"></div>
       <div id="tarjeta-tablero-ordenes" class="tarjeta">
-        <h2>Tablero de órdenes</h2>
-        <div class="nota-ayuda">Toca una orden para seguir trabajando en ella. Más recientes primero en cada columna.</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <h2 style="margin:0;">Tablero de órdenes</h2>
+          <button type="button" class="secundario" id="btn-actualizar-tablero" style="width:auto;padding:6px 12px;font-size:12px;">🔄 Actualizar ahora</button>
+        </div>
+        <div class="nota-ayuda">Toca una orden para seguir trabajando en ella. Más recientes primero en cada columna. Esta lista se actualiza sola cada pocos segundos.</div>
         <div id="tablero-ordenes" class="tablero-ordenes"></div>
       </div>
 
@@ -2688,11 +2691,13 @@ the data-access layer at all.
   // de datos, sin que nadie del taller tenga que hacer nada. Lo que faltaba
   // era que la pantalla que cada quien tiene abierta se enterara sola, sin
   // tener que salir a otro módulo y volver a entrar para forzar la recarga.
-  // Este intervalo revisa cada 5s, solo si hay sesión iniciada, la pestaña
+  // Este intervalo revisa cada 2s, solo si hay sesión iniciada, la pestaña
   // está visible y la persona está en Órdenes — y no toca nada si está en
   // otra pantalla (para no gastar peticiones de más). Además, al volver a
   // esta pestaña del navegador (por ejemplo, si la persona estuvo en otra
   // app un rato), se refresca de inmediato en vez de esperar al próximo tic.
+  // También hay un botón "Actualizar ahora" en el Tablero por si alguien
+  // no quiere ni esperar esos 2 segundos.
   function refrescarPantallaOrdenesSiAplica() {
     if (document.hidden) return;
     if (!accessToken) return;
@@ -2705,8 +2710,22 @@ the data-access layer at all.
       cargarTableroOrdenes().catch(function (err) { console.error(err); });
     }
   }
-  setInterval(refrescarPantallaOrdenesSiAplica, 5000);
+  setInterval(refrescarPantallaOrdenesSiAplica, 2000);
   document.addEventListener("visibilitychange", refrescarPantallaOrdenesSiAplica);
+
+  $("btn-actualizar-tablero").addEventListener("click", conManejoDeErrores(function () {
+    var btn = $("btn-actualizar-tablero");
+    btn.disabled = true;
+    btn.textContent = "Actualizando…";
+    return cargarTableroOrdenes().then(function () {
+      btn.disabled = false;
+      btn.textContent = "🔄 Actualizar ahora";
+    }).catch(function (err) {
+      btn.disabled = false;
+      btn.textContent = "🔄 Actualizar ahora";
+      throw err;
+    });
+  }, "tablero-error"));
 
   function abrirMenuMovil() {
     $("sidebar").classList.add("abierto");
