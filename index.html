@@ -479,8 +479,10 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       </div>
 
       <div id="tarjeta-items" class="tarjeta tarjeta-formulario tarjeta-orden-ancha oculto">
-        <h1>Ítems de la orden</h1>
-        <h2 id="items-subtitulo"></h2>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
+          <div><h1>Ítems de la orden</h1><h2 id="items-subtitulo"></h2></div>
+          <button type="button" class="secundario" id="btn-actualizar-items-orden" style="width:auto;padding:6px 12px;font-size:12px;margin-top:2px;">🔄 Actualizar ahora</button>
+        </div>
         <div id="estado-orden-info" class="nota-ayuda"></div>
         <div id="orden-responsables-info" class="nota-ayuda"></div>
         <div class="agenda-controles">
@@ -2974,7 +2976,15 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     }
   }
   setInterval(refrescarPantallaOrdenesSiAplica, 2000);
+  // En el celular, "visibilitychange" no siempre avisa a tiempo cuando se
+  // bloquea la pantalla o se cambia de app un rato y se vuelve — algunos
+  // navegadores móviles pausan los temporizadores de la página mientras
+  // tanto. "focus" y "pageshow" (esta última cubre cuando el navegador
+  // restaura la página desde su caché en vez de recargarla) son más
+  // confiables ahí, así que se refresca también con esos dos eventos.
   document.addEventListener("visibilitychange", refrescarPantallaOrdenesSiAplica);
+  window.addEventListener("focus", refrescarPantallaOrdenesSiAplica);
+  window.addEventListener("pageshow", refrescarPantallaOrdenesSiAplica);
 
   $("btn-actualizar-tablero").addEventListener("click", conManejoDeErrores(function () {
     var btn = $("btn-actualizar-tablero");
@@ -2989,6 +2999,20 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       throw err;
     });
   }, "tablero-error"));
+
+  $("btn-actualizar-items-orden").addEventListener("click", conManejoDeErrores(function () {
+    var btn = $("btn-actualizar-items-orden");
+    btn.disabled = true;
+    btn.textContent = "Actualizando…";
+    return cargarItemsDeOrden().then(function () {
+      btn.disabled = false;
+      btn.textContent = "🔄 Actualizar ahora";
+    }).catch(function (err) {
+      btn.disabled = false;
+      btn.textContent = "🔄 Actualizar ahora";
+      throw err;
+    });
+  }, "item-error"));
 
   function abrirMenuMovil() {
     $("sidebar").classList.add("abierto");
