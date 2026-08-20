@@ -708,7 +708,6 @@ the data-access layer at all.
 
         <button id="btn-ir-firma" class="secundario">Solicitar firma de autorización</button>
         <button id="btn-enviar-firma-whatsapp" class="secundario">Enviar enlace de firma por WhatsApp</button>
-        <button type="button" id="btn-generar-orden-compra" class="secundario oculto">Generar orden de compra a proveedor</button>
 
         </div>
       </div>
@@ -1129,8 +1128,10 @@ the data-access layer at all.
 
     <section id="pantalla-ordenescompra" class="pagina pagina-ancha oculto">
       <h1>Órdenes de compra</h1>
-      <div class="nota-ayuda">Se generan desde una orden de trabajo (pestaña Repuestos e insumos → "Generar orden de compra a proveedor"). Aquí puedes consultarlas y reimprimirlas.</div>
+      <div class="nota-ayuda">Elige la orden de trabajo que tiene los repuestos/insumos que quieres pedir — se cargan solos con sus cantidades y precios.</div>
       <div id="ordenescompra-error" class="mensaje-error"></div>
+
+      <button type="button" class="boton-agregar oculto" id="btn-nueva-orden-compra">+ Nueva orden de compra</button>
 
       <div class="tarjeta">
         <div class="tabla-scroll">
@@ -1151,6 +1152,17 @@ the data-access layer at all.
         </div>
       </div>
     </section>
+
+    <div id="fondo-form-selector-compra" class="fondo-modal oculto"></div>
+    <div class="tarjeta tarjeta-formulario tarjeta-modal oculto" id="tarjeta-form-selector-compra">
+      <h2>¿Para qué orden de trabajo es la compra?</h2>
+      <div class="nota-ayuda">Solo aparecen las órdenes abiertas que tienen repuestos o insumos pendientes de pedir.</div>
+      <label for="selector-compra-ot">Orden de trabajo</label>
+      <select id="selector-compra-ot"></select>
+      <button type="button" id="btn-continuar-selector-compra">Continuar</button>
+      <button type="button" class="secundario" id="btn-cancelar-selector-compra">Cancelar</button>
+      <div id="selector-compra-error" class="mensaje-error"></div>
+    </div>
 
     <section id="pantalla-personal" class="pagina pagina-ancha oculto">
       <h1>Gestión de Personal</h1>
@@ -2629,6 +2641,15 @@ the data-access layer at all.
     $("fondo-form-costofijo").classList.add("oculto");
     $("tarjeta-form-transferencia").classList.add("oculto");
     $("fondo-form-transferencia").classList.add("oculto");
+    $("tarjeta-form-compra").classList.add("oculto");
+    $("fondo-form-compra").classList.add("oculto");
+    $("tarjeta-form-selector-compra").classList.add("oculto");
+    $("fondo-form-selector-compra").classList.add("oculto");
+    if (huboSwapOrdenCompra) {
+      ordenActual = ordenActualAntesDeCompra;
+      ordenActualAntesDeCompra = null;
+      huboSwapOrdenCompra = false;
+    }
 
     var promesa = null;
     if (nombre === "inicio") promesa = cargarInicio();
@@ -8956,10 +8977,6 @@ the data-access layer at all.
       renderizarTablaExternos(filasExternos);
       renderizarTotalesOrden(filas);
 
-      var esAdminOAsesorOC = rolActual === "administrador" || rolActual === "asesor";
-      ordenActual.itemsPartesOC = filasPartes.filter(function (f) { return f.estado_autorizacion !== "rechazado"; });
-      $("btn-generar-orden-compra").classList.toggle("oculto", !esAdminOAsesorOC || ordenActual.itemsPartesOC.length === 0);
-
       var hayPendientes = false;
       var montoPendiente = 0;
       filas.forEach(function (f) {
@@ -9030,9 +9047,63 @@ the data-access layer at all.
     });
   }
 
+  // La orden de compra ya no se genera desde dentro de una orden de trabajo
+  // abierta — se elige la orden desde el módulo "Órdenes de compra", así que
+  // hay que "prestar" ordenActual solo mientras dura el modal y devolverlo
+  // a lo que fuera antes al cerrar (igual que ya se hace en otras pantallas,
+  // como el botón "Ver PDF" del historial).
+  var ordenActualAntesDeCompra = null;
+  var huboSwapOrdenCompra = false;
+
   function cerrarFormularioOrdenCompra() {
     $("tarjeta-form-compra").classList.add("oculto");
     $("fondo-form-compra").classList.add("oculto");
+    if (huboSwapOrdenCompra) {
+      ordenActual = ordenActualAntesDeCompra;
+      ordenActualAntesDeCompra = null;
+      huboSwapOrdenCompra = false;
+    }
+  }
+
+  var ordenesElegiblesParaCompra = [];
+
+  function cerrarSelectorOrdenCompra() {
+    $("tarjeta-form-selector-compra").classList.add("oculto");
+    $("fondo-form-selector-compra").classList.add("oculto");
+  }
+
+  function abrirSelectorOrdenCompra() {
+    ocultarError("selector-compra-error");
+    var query = "select=id_ot,numero_ot,vehiculos(placa),clientes(nombre),ot_detalle(id_detalle,cantidad,costo_interno,precio_aplicado_cliente,estado_autorizacion,codigo,id_item,items(nombre,tipo,costo))&estado=neq.cancelada&order=fecha_apertura.desc&limit=100";
+    return restRequest("GET", "ordenes_trabajo", { query: query }).then(function (ordenes) {
+      ordenesElegiblesParaCompra = (ordenes || []).map(function (o) {
+        var partes = (o.ot_detalle || []).filter(function (d) {
+          return d.estado_autorizacion !== "rechazado" && d.items && (d.items.tipo === "repuesto" || d.items.tipo === "insumo");
+        });
+        return { orden: o, partes: partes };
+      }).filter(function (x) { return x.partes.length > 0; });
+
+      var sel = $("selector-compra-ot");
+      sel.innerHTML = "";
+      if (!ordenesElegiblesParaCompra.length) {
+        var opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "No hay órdenes con repuestos/insumos pendientes de pedir";
+        sel.appendChild(opt);
+      } else {
+        ordenesElegiblesParaCompra.forEach(function (x) {
+          var o = x.orden;
+          var opt = document.createElement("option");
+          opt.value = o.id_ot;
+          var vehiculo = o.vehiculos ? o.vehiculos.placa : "";
+          var cliente = o.clientes ? o.clientes.nombre : "";
+          opt.textContent = prefijoOT + o.numero_ot + " · " + vehiculo + " · " + cliente + " (" + x.partes.length + " ítem" + (x.partes.length === 1 ? "" : "s") + ")";
+          sel.appendChild(opt);
+        });
+      }
+      $("tarjeta-form-selector-compra").classList.remove("oculto");
+      $("fondo-form-selector-compra").classList.remove("oculto");
+    });
   }
 
   function itemsSeleccionadosOrdenCompra() {
@@ -9070,7 +9141,27 @@ the data-access layer at all.
       "<br>TOTAL: " + formatoMoneda(total);
   }
 
-  $("btn-generar-orden-compra").addEventListener("click", conManejoDeErrores(abrirFormularioOrdenCompra, "item-error"));
+  $("btn-nueva-orden-compra").addEventListener("click", conManejoDeErrores(abrirSelectorOrdenCompra, "ordenescompra-error"));
+  $("btn-continuar-selector-compra").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("selector-compra-error");
+    var idOt = $("selector-compra-ot").value;
+    if (!idOt) {
+      mostrarError("selector-compra-error", "Elige una orden de trabajo.");
+      return;
+    }
+    var elegido = ordenesElegiblesParaCompra.filter(function (x) { return x.orden.id_ot === idOt; })[0];
+    if (!elegido) {
+      mostrarError("selector-compra-error", "No se encontró esa orden.");
+      return;
+    }
+    ordenActualAntesDeCompra = ordenActual;
+    huboSwapOrdenCompra = true;
+    ordenActual = { id_ot: elegido.orden.id_ot, numero_ot: elegido.orden.numero_ot, itemsPartesOC: elegido.partes };
+    cerrarSelectorOrdenCompra();
+    return abrirFormularioOrdenCompra();
+  }, "selector-compra-error"));
+  $("btn-cancelar-selector-compra").addEventListener("click", cerrarSelectorOrdenCompra);
+  $("fondo-form-selector-compra").addEventListener("click", cerrarSelectorOrdenCompra);
   $("btn-cancelar-orden-compra").addEventListener("click", cerrarFormularioOrdenCompra);
   $("fondo-form-compra").addEventListener("click", cerrarFormularioOrdenCompra);
   $("compra-es-credito").addEventListener("change", function () {
@@ -9260,6 +9351,7 @@ the data-access layer at all.
 
   function cargarOrdenesCompraPagina() {
     ocultarError("ordenescompra-error");
+    $("btn-nueva-orden-compra").classList.toggle("oculto", rolActual !== "administrador" && rolActual !== "asesor");
     var query = "select=id_orden_compra,numero_orden,fecha,es_credito,fecha_vencimiento,descuento,envio,pct_iva,proveedores(nombre),ordenes_trabajo(numero_ot),ordenes_compra_detalle(cantidad,precio)&order=numero_orden.desc&limit=200";
     return restRequest("GET", "ordenes_compra", { query: query }).then(function (filas) {
       var cuerpo = $("cuerpo-tabla-ordenescompra");
