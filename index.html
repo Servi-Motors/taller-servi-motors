@@ -410,7 +410,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
             <input id="nuevo-vehiculo-placa" type="text" style="text-transform:uppercase">
           </div>
           <div>
-            <label for="nuevo-vehiculo-vin">VIN (opcional, 17 caracteres)</label>
+            <label for="nuevo-vehiculo-vin">VIN / chasis (opcional)</label>
             <input id="nuevo-vehiculo-vin" type="text" maxlength="17">
           </div>
         </div>
@@ -1105,7 +1105,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         <select id="vehiculo-cliente"></select>
         <label for="vehiculo-placa">Placa</label>
         <input id="vehiculo-placa" type="text" style="text-transform:uppercase">
-        <label for="vehiculo-vin">VIN (opcional, 17 caracteres)</label>
+        <label for="vehiculo-vin">VIN / chasis (opcional)</label>
         <input id="vehiculo-vin" type="text" style="text-transform:uppercase">
         <label for="vehiculo-marca">Marca</label>
         <input id="vehiculo-marca" type="text">
@@ -4759,8 +4759,8 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       mostrarError("vehiculos-error", "Escribe la placa.");
       return;
     }
-    if (vin && vin.length !== 17) {
-      mostrarError("vehiculos-error", "El VIN debe tener 17 caracteres (o déjalo vacío).");
+    if (vin && (vin.length < 5 || vin.length > 17)) {
+      mostrarError("vehiculos-error", "El VIN/chasis debe tener entre 5 y 17 caracteres (o déjalo vacío). Los vehículos más antiguos suelen tener números de chasis más cortos que 17.");
       return;
     }
     var body = { id_cliente: idCliente, placa: placa, vin: vin || null, marca: marca || null, modelo: modelo || null, anio: anio, color: color || null, tipo_carroceria: tipoCarroceria || null, transmision: transmision || null, version: version || null, kilometraje: km, soat_vencimiento: soatVencimiento || null, tecnomecanica_vencimiento: tecnomecanicaVencimiento || null };
@@ -7325,12 +7325,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     }).then(function (res) {
       return res.text().then(function (text) {
         var data = text ? JSON.parse(text) : null;
-        if (!res.ok) {
-          var msj = (data && data.error) || "No se pudo consultar el RUNT.";
-          if (data && data.diagnostico) msj += " [diagnóstico: " + JSON.stringify(data.diagnostico) + "]";
-          if (data && data.huellaLlave) msj += " [huella: " + JSON.stringify(data.huellaLlave) + "]";
-          throw new Error(msj);
-        }
+        if (!res.ok) throw new Error((data && data.error) || "No se pudo consultar el RUNT.");
         return data;
       });
     }).then(function (datos) {
