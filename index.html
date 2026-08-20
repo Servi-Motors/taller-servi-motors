@@ -312,6 +312,7 @@ the data-access layer at all.
     <section id="pantalla-app" class="pagina pagina-ancha oculto">
 
       <h1>Órdenes</h1>
+      <button type="button" class="boton-agregar" id="btn-nueva-orden">+ Nueva orden</button>
       <div id="tablero-error" class="mensaje-error"></div>
       <div id="tarjeta-tablero-ordenes" class="tarjeta">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
@@ -322,7 +323,8 @@ the data-access layer at all.
         <div id="tablero-ordenes" class="tablero-ordenes"></div>
       </div>
 
-      <div id="tarjeta-buscar" class="tarjeta tarjeta-formulario">
+      <div id="fondo-form-nueva-orden" class="fondo-modal oculto"></div>
+      <div id="tarjeta-buscar" class="tarjeta tarjeta-formulario tarjeta-modal oculto">
         <h2>Abrir nueva orden</h2>
         <h3>Paso 1: busca el vehículo por placa</h3>
         <label for="buscar-placa">Placa</label>
@@ -330,17 +332,18 @@ the data-access layer at all.
         <datalist id="lista-placas-existentes"></datalist>
         <div class="nota-ayuda">Empieza a escribir y te mostramos las placas ya registradas para que elijas, sin tener que buscar de nuevo.</div>
         <button id="btn-buscar">Buscar vehículo</button>
+        <button type="button" class="secundario" id="btn-cancelar-nueva-orden">Cancelar</button>
         <div id="buscar-error" class="mensaje-error"></div>
       </div>
 
-      <div id="tarjeta-encontrado" class="tarjeta tarjeta-formulario oculto">
+      <div id="tarjeta-encontrado" class="tarjeta tarjeta-formulario tarjeta-modal oculto">
         <h2>Vehículo encontrado</h2>
         <div id="info-vehiculo-encontrado" class="info-vehiculo"></div>
         <button id="btn-usar-encontrado">Continuar con este vehículo</button>
         <button id="btn-no-es-este" class="secundario">No es este / registrar otro</button>
       </div>
 
-      <div id="tarjeta-nuevo" class="tarjeta tarjeta-formulario oculto">
+      <div id="tarjeta-nuevo" class="tarjeta tarjeta-formulario tarjeta-formulario-ancha tarjeta-modal oculto">
         <h2>Vehículo no registrado — datos del cliente y vehículo</h2>
 
         <h3>Cliente</h3>
@@ -349,45 +352,87 @@ the data-access layer at all.
         <datalist id="lista-clientes-orden"></datalist>
         <div id="nuevo-cliente-encontrado-nota" class="nota-ayuda oculto"></div>
 
-        <label for="nuevo-cliente-nombre">Nombre</label>
-        <input id="nuevo-cliente-nombre" type="text" placeholder="Nombre completo">
-        <label for="nuevo-cliente-documento">Cédula / NIT</label>
-        <input id="nuevo-cliente-documento" type="text" placeholder="Opcional">
-        <label for="nuevo-cliente-tipo">Tipo</label>
-        <select id="nuevo-cliente-tipo">
-          <option value="particular">Particular</option>
-          <option value="empresa">Empresa</option>
-        </select>
-        <label for="nuevo-cliente-telefono">Teléfono</label>
-        <input id="nuevo-cliente-telefono" type="tel" placeholder="300 000 0000">
-        <label for="nuevo-cliente-correo">Correo</label>
-        <input id="nuevo-cliente-correo" type="email" placeholder="cliente@correo.com">
-        <label for="nuevo-cliente-direccion">Dirección</label>
-        <input id="nuevo-cliente-direccion" type="text" placeholder="Opcional">
+        <div class="fila-2col">
+          <div>
+            <label for="nuevo-cliente-nombre">Nombre</label>
+            <input id="nuevo-cliente-nombre" type="text" placeholder="Nombre completo">
+          </div>
+          <div>
+            <label for="nuevo-cliente-documento">Cédula / NIT</label>
+            <input id="nuevo-cliente-documento" type="text" placeholder="Opcional">
+          </div>
+        </div>
+        <div class="fila-2col">
+          <div>
+            <label for="nuevo-cliente-tipo">Tipo</label>
+            <select id="nuevo-cliente-tipo">
+              <option value="particular">Particular</option>
+              <option value="empresa">Empresa</option>
+            </select>
+          </div>
+          <div>
+            <label for="nuevo-cliente-telefono">Teléfono</label>
+            <input id="nuevo-cliente-telefono" type="tel" placeholder="300 000 0000">
+          </div>
+        </div>
+        <div class="fila-2col">
+          <div>
+            <label for="nuevo-cliente-correo">Correo</label>
+            <input id="nuevo-cliente-correo" type="email" placeholder="cliente@correo.com">
+          </div>
+          <div>
+            <label for="nuevo-cliente-direccion">Dirección</label>
+            <input id="nuevo-cliente-direccion" type="text" placeholder="Opcional">
+          </div>
+        </div>
 
         <h3>Vehículo</h3>
-        <label for="nuevo-vehiculo-placa">Placa</label>
-        <input id="nuevo-vehiculo-placa" type="text" style="text-transform:uppercase">
-        <label for="nuevo-vehiculo-vin">VIN (opcional, 17 caracteres)</label>
-        <input id="nuevo-vehiculo-vin" type="text" maxlength="17">
-        <label for="nuevo-vehiculo-marca">Marca</label>
-        <input id="nuevo-vehiculo-marca" type="text">
-        <label for="nuevo-vehiculo-modelo">Modelo</label>
-        <input id="nuevo-vehiculo-modelo" type="text">
-        <label for="nuevo-vehiculo-anio">Año</label>
-        <input id="nuevo-vehiculo-anio" type="number" min="1950" max="2100">
-        <label for="nuevo-vehiculo-color">Color</label>
-        <input id="nuevo-vehiculo-color" type="text">
-        <label for="nuevo-vehiculo-tipo-carroceria">Tipo (ej. Sedán, Camioneta, Platón)</label>
-        <input id="nuevo-vehiculo-tipo-carroceria" type="text">
-        <label for="nuevo-vehiculo-km">Kilometraje actual</label>
-        <input id="nuevo-vehiculo-km" type="number" min="0">
+        <div class="fila-2col">
+          <div>
+            <label for="nuevo-vehiculo-placa">Placa</label>
+            <input id="nuevo-vehiculo-placa" type="text" style="text-transform:uppercase">
+          </div>
+          <div>
+            <label for="nuevo-vehiculo-vin">VIN (opcional, 17 caracteres)</label>
+            <input id="nuevo-vehiculo-vin" type="text" maxlength="17">
+          </div>
+        </div>
+        <div class="fila-2col">
+          <div>
+            <label for="nuevo-vehiculo-marca">Marca</label>
+            <input id="nuevo-vehiculo-marca" type="text">
+          </div>
+          <div>
+            <label for="nuevo-vehiculo-modelo">Modelo</label>
+            <input id="nuevo-vehiculo-modelo" type="text">
+          </div>
+        </div>
+        <div class="fila-2col">
+          <div>
+            <label for="nuevo-vehiculo-anio">Año</label>
+            <input id="nuevo-vehiculo-anio" type="number" min="1950" max="2100">
+          </div>
+          <div>
+            <label for="nuevo-vehiculo-color">Color</label>
+            <input id="nuevo-vehiculo-color" type="text">
+          </div>
+        </div>
+        <div class="fila-2col">
+          <div>
+            <label for="nuevo-vehiculo-tipo-carroceria">Tipo (ej. Sedán, Camioneta, Platón)</label>
+            <input id="nuevo-vehiculo-tipo-carroceria" type="text">
+          </div>
+          <div>
+            <label for="nuevo-vehiculo-km">Kilometraje actual</label>
+            <input id="nuevo-vehiculo-km" type="number" min="0">
+          </div>
+        </div>
 
         <button id="btn-registrar-nuevo">Guardar cliente y vehículo</button>
         <div id="nuevo-error" class="mensaje-error"></div>
       </div>
 
-      <div id="tarjeta-asignar" class="tarjeta tarjeta-formulario oculto">
+      <div id="tarjeta-asignar" class="tarjeta tarjeta-formulario tarjeta-modal oculto">
         <h2>Paso 2: asigna responsables y abre la orden</h2>
         <label for="select-asesor">Asesor</label>
         <select id="select-asesor"></select>
@@ -410,7 +455,7 @@ the data-access layer at all.
         <div id="orden-error" class="mensaje-error"></div>
       </div>
 
-      <div id="tarjeta-exito" class="tarjeta tarjeta-formulario oculto">
+      <div id="tarjeta-exito" class="tarjeta tarjeta-formulario tarjeta-modal oculto">
         <div id="texto-exito"></div>
         <button id="btn-ir-items">Agregar ítems a esta orden</button>
         <button id="btn-otra-orden" class="secundario">Abrir otra orden</button>
@@ -2770,6 +2815,15 @@ the data-access layer at all.
     $("fondo-form-compra").classList.add("oculto");
     $("tarjeta-form-selector-compra").classList.add("oculto");
     $("fondo-form-selector-compra").classList.add("oculto");
+    // El asistente de "Nueva orden" (buscar → cliente/vehículo → asignar →
+    // éxito) también es una ventana emergente: se cierra sola al cambiar de
+    // pantalla, salvo cuando la propia pantalla de Órdenes la está abriendo
+    // a propósito (ver btn-inicio-nueva-orden, que llama a mostrarPagina
+    // antes de reiniciarFlujoOrden).
+    $("fondo-form-nueva-orden").classList.add("oculto");
+    ["tarjeta-buscar", "tarjeta-encontrado", "tarjeta-nuevo", "tarjeta-asignar", "tarjeta-exito"].forEach(function (id) {
+      $(id).classList.add("oculto");
+    });
     if (huboSwapOrdenCompra) {
       ordenActual = ordenActualAntesDeCompra;
       ordenActualAntesDeCompra = null;
@@ -2899,8 +2953,24 @@ the data-access layer at all.
       $(id).classList.add("oculto");
     });
     $("tarjeta-buscar").classList.remove("oculto");
+    $("fondo-form-nueva-orden").classList.remove("oculto");
     cargarListaPlacasExistentes().catch(function (err) { console.error(err); });
   }
+
+  // El "Abrir nueva orden" (buscar placa → cliente/vehículo → asignar →
+  // éxito) es una ventana emergente fija y centrada, igual que el resto de
+  // formularios de la app, en vez de quedar siempre visible en la pantalla
+  // de Órdenes. Cerrar en cualquier paso (clic afuera o Cancelar) solo
+  // oculta el asistente; no borra órdenes ya creadas.
+  function cerrarWizardNuevaOrden() {
+    ["tarjeta-buscar", "tarjeta-encontrado", "tarjeta-nuevo", "tarjeta-asignar", "tarjeta-exito"].forEach(function (id) {
+      $(id).classList.add("oculto");
+    });
+    $("fondo-form-nueva-orden").classList.add("oculto");
+  }
+  $("btn-nueva-orden").addEventListener("click", reiniciarFlujoOrden);
+  $("btn-cancelar-nueva-orden").addEventListener("click", cerrarWizardNuevaOrden);
+  $("fondo-form-nueva-orden").addEventListener("click", cerrarWizardNuevaOrden);
 
   // Lista de placas ya registradas, para mostrarlas como sugerencia apenas
   // el usuario empieza a escribir en "buscar-placa" (autocompletar del
@@ -2986,6 +3056,7 @@ the data-access layer at all.
     ["tarjeta-buscar", "tarjeta-encontrado", "tarjeta-nuevo", "tarjeta-asignar", "tarjeta-exito", "tarjeta-firma", "tarjeta-firma-exito"].forEach(function (id) {
       $(id).classList.add("oculto");
     });
+    $("fondo-form-nueva-orden").classList.add("oculto");
     $("tarjeta-items").classList.remove("oculto");
     $("orden-responsables-editar").classList.add("oculto");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -2998,8 +3069,8 @@ the data-access layer at all.
   }
 
   $("btn-inicio-nueva-orden").addEventListener("click", function () {
-    reiniciarFlujoOrden();
     mostrarPagina("app");
+    reiniciarFlujoOrden();
   });
   $("btn-inicio-registrar-gasto").addEventListener("click", function () {
     mostrarPagina("egreso");
@@ -10194,6 +10265,7 @@ the data-access layer at all.
 
   $("btn-ir-items").addEventListener("click", conManejoDeErrores(function () {
     $("tarjeta-exito").classList.add("oculto");
+    $("fondo-form-nueva-orden").classList.add("oculto");
     $("tarjeta-items").classList.remove("oculto");
     $("orden-responsables-editar").classList.add("oculto");
     sugerenciaMantenimientoCalculada = false;
