@@ -7325,7 +7325,12 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     }).then(function (res) {
       return res.text().then(function (text) {
         var data = text ? JSON.parse(text) : null;
-        if (!res.ok) throw new Error((data && data.error) || "No se pudo consultar el RUNT.");
+        if (!res.ok) {
+          var msj = (data && data.error) || "No se pudo consultar el RUNT.";
+          if (data && data.diagnostico) msj += " [diagnóstico: " + JSON.stringify(data.diagnostico) + "]";
+          if (data && data.huellaLlave) msj += " [huella: " + JSON.stringify(data.huellaLlave) + "]";
+          throw new Error(msj);
+        }
         return data;
       });
     }).then(function (datos) {
