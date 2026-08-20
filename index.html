@@ -7746,23 +7746,57 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
 
   // El checklist de recepción se imprime dentro del MISMO documento de
   // presupuesto/orden/factura (no es un papel aparte) — así queda visible
-  // en cualquier versión que se le entregue al cliente.
-  // Resume un grupo "SÍ/NO" ({ítem: "si"|"no"}) como texto compacto para el
-  // impreso: "Sí: a, b · No: c". Si no se marcó nada, lo dice explícito.
-  function resumenGrupoSiNoImpresion(datos) {
+  // en cualquier versión que se le entregue al cliente. Se dibuja como la
+  // hoja de inspección física de toda la vida: una tabla por grupo con una
+  // casilla ☐/☑ en la columna SÍ o NO de cada ítem, no un resumen de texto.
+  function casillaImp(marcada) { return marcada ? "&#9745;" : "&#9744;"; }
+
+  function tablaSiNoImpresion(titulo, lista, datos) {
     datos = datos || {};
-    var claves = Object.keys(datos);
-    if (!claves.length) return "Sin marcar";
-    var si = claves.filter(function (k) { return datos[k] === "si"; });
-    var no = claves.filter(function (k) { return datos[k] === "no"; });
-    return (si.length ? "Sí: " + si.join(", ") : "") + (si.length && no.length ? " &nbsp;·&nbsp; " : "") + (no.length ? "No: " + no.join(", ") : "");
+    var filas = lista.map(function (nombre) {
+      var valor = datos[nombre];
+      return "<tr><td style=\"padding:1px 4px;border-bottom:1px dotted #d1d5db;\">" + nombre + "</td>" +
+        "<td style=\"width:20px;text-align:center;border-bottom:1px dotted #d1d5db;\">" + casillaImp(valor === "si") + "</td>" +
+        "<td style=\"width:20px;text-align:center;border-bottom:1px dotted #d1d5db;\">" + casillaImp(valor === "no") + "</td></tr>";
+    }).join("");
+    return "<table style=\"width:100%;border-collapse:collapse;font-size:9.5px;margin-bottom:8px;\">" +
+      "<thead><tr><th style=\"text-align:left;border-bottom:1px solid #6b7280;padding:1px 4px;\">" + titulo + "</th>" +
+      "<th style=\"width:20px;border-bottom:1px solid #6b7280;\">SÍ</th><th style=\"width:20px;border-bottom:1px solid #6b7280;\">NO</th></tr></thead>" +
+      "<tbody>" + filas + "</tbody></table>";
+  }
+
+  function testigosImpresion(lista, encendidos) {
+    encendidos = encendidos || [];
+    return "<div style=\"font-size:9.5px;margin-bottom:8px;\"><b>TESTIGOS ENCENDIDOS AL INGRESAR</b>" +
+      "<div style=\"display:flex;flex-wrap:wrap;gap:2px 10px;margin-top:2px;\">" +
+      lista.map(function (nombre) {
+        return "<span style=\"white-space:nowrap;\">" + casillaImp(encendidos.indexOf(nombre) !== -1) + " " + nombre + "</span>";
+      }).join("") + "</div></div>";
+  }
+
+  function siNoImpresionLinea(titulo, valor) {
+    return "<div style=\"font-size:9.5px;margin-bottom:3px;white-space:nowrap;\"><b>" + titulo + "</b> " +
+      casillaImp(valor === "si") + " SÍ &nbsp; " + casillaImp(valor === "no") + " NO</div>";
+  }
+
+  function gaugeCombustibleImpresion(nivelValor) {
+    var ANGULOS = { vacio: -60, cuarto: -30, mitad: 0, tres_cuartos: 30, lleno: 60 };
+    var angulo = ANGULOS.hasOwnProperty(nivelValor) ? ANGULOS[nivelValor] : 0;
+    var mostrarAguja = ANGULOS.hasOwnProperty(nivelValor);
+    return "<svg viewBox=\"0 0 200 120\" style=\"width:110px;display:block;margin:4px auto 0;\">" +
+      "<path d=\"M20,110 L60,20 L140,20 L180,110 Z\" fill=\"#f3f4f6\" stroke=\"#111827\" stroke-width=\"2\"></path>" +
+      "<text x=\"26\" y=\"32\" font-size=\"9\" fill=\"#4b5563\">VACÍO</text>" +
+      "<text x=\"174\" y=\"32\" font-size=\"9\" text-anchor=\"end\" fill=\"#4b5563\">LLENO</text>" +
+      "<text x=\"100\" y=\"18\" font-size=\"9\" text-anchor=\"middle\" fill=\"#4b5563\">½</text>" +
+      (mostrarAguja
+        ? "<line x1=\"100\" y1=\"105\" x2=\"100\" y2=\"30\" stroke=\"#dc2626\" stroke-width=\"3\" transform=\"rotate(" + angulo + " 100 105)\"></line><circle cx=\"100\" cy=\"105\" r=\"5\" fill=\"#111827\"></circle>"
+        : "") +
+      "</svg>";
   }
 
   function construirBloqueChecklistRecepcionImpresion(checklist, dataUrlFirma) {
     if (!checklist) return "";
-    var ETIQUETAS_COMBUSTIBLE = { vacio: "Vacío", cuarto: "1/4", mitad: "1/2", tres_cuartos: "3/4", lleno: "Lleno" };
     var ETIQUETAS_NIVEL = { ok: "Normal", bajo: "Bajo", no_aplica: "No aplica" };
-    var ETIQUETAS_SINO = { si: "Sí", no: "No" };
     var danos = checklist.danos || [];
     var marcadoresSvg = danos.map(function (d, i) {
       var vx = (Number(d.x) / 100) * 300, vy = (Number(d.y) / 100) * 520;
@@ -7782,27 +7816,29 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       ? "<ol style=\"margin:4px 0 0;padding-left:16px;font-size:10px;\">" + danos.map(function (d) { return "<li>" + (d.nota || "Sin nota") + "</li>"; }).join("") + "</ol>"
       : "<div style=\"font-size:10px;color:#4b5563;margin-top:4px;\">Sin daños marcados.</div>";
 
-    var niveles = "Combustible: " + (ETIQUETAS_COMBUSTIBLE[checklist.nivel_combustible] || "—") +
-      " &nbsp;·&nbsp; Aceite motor: " + (ETIQUETAS_NIVEL[checklist.nivel_aceite_motor] || "—") +
-      " &nbsp;·&nbsp; Refrigerante: " + (ETIQUETAS_NIVEL[checklist.nivel_refrigerante] || "—") +
-      " &nbsp;·&nbsp; Líquido de frenos: " + (ETIQUETAS_NIVEL[checklist.nivel_liquido_frenos] || "—") +
-      " &nbsp;·&nbsp; Birlos de seguridad: " + (ETIQUETAS_SINO[checklist.birlos_seguridad] || "—") +
-      " &nbsp;·&nbsp; Llave candado de birlo: " + (ETIQUETAS_SINO[checklist.llave_candado_birlo] || "—");
-
-    var testigos = checklist.testigos_encendidos || [];
+    var nivelesExtra = "<div style=\"font-size:9.5px;margin-bottom:3px;\"><b>Aceite motor:</b> " + (ETIQUETAS_NIVEL[checklist.nivel_aceite_motor] || "—") + "</div>" +
+      "<div style=\"font-size:9.5px;margin-bottom:3px;\"><b>Refrigerante:</b> " + (ETIQUETAS_NIVEL[checklist.nivel_refrigerante] || "—") + "</div>" +
+      "<div style=\"font-size:9.5px;margin-bottom:6px;\"><b>Líquido de frenos:</b> " + (ETIQUETAS_NIVEL[checklist.nivel_liquido_frenos] || "—") + "</div>";
 
     return "<div class=\"fila-datos-ancha\" style=\"page-break-inside:avoid;\"><b>Checklist de recepción del vehículo</b>" +
-      "<div style=\"display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;margin-top:6px;\">" +
-      "<div>" + diagramaSvg + listaDanos + "</div>" +
-      "<div style=\"flex:1;min-width:220px;font-size:11px;\">" +
-      "<div style=\"margin-bottom:6px;\">" + niveles + "</div>" +
-      "<div style=\"margin-bottom:6px;\"><b>Exteriores —</b> " + resumenGrupoSiNoImpresion(checklist.exteriores) + "</div>" +
-      "<div style=\"margin-bottom:6px;\"><b>Accesorios —</b> " + resumenGrupoSiNoImpresion(checklist.accesorios) + (checklist.accesorios_otros ? " &nbsp;·&nbsp; Otros: " + checklist.accesorios_otros : "") + "</div>" +
-      "<div style=\"margin-bottom:6px;\"><b>Interiores —</b> " + resumenGrupoSiNoImpresion(checklist.interiores) + "</div>" +
-      "<div style=\"margin-bottom:6px;\"><b>Testigos encendidos al ingresar:</b> " + (testigos.length ? testigos.join(", ") : "Ninguno") + "</div>" +
-      (checklist.objetos_valor ? "<div style=\"margin-bottom:6px;\"><b>Objetos de valor declarados:</b> " + checklist.objetos_valor + "</div>" : "") +
-      (checklist.observaciones ? "<div style=\"margin-bottom:6px;\"><b>Observaciones:</b> " + checklist.observaciones + "</div>" : "") +
-      "</div></div>" +
+      "<div style=\"display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-top:6px;\">" +
+      "<div style=\"flex:1 1 170px;min-width:150px;\">" + tablaSiNoImpresion("EXTERIORES", LISTA_EXTERIORES, checklist.exteriores) + "</div>" +
+      "<div style=\"flex:0 0 140px;text-align:center;\">" + diagramaSvg + listaDanos +
+      "<div style=\"font-size:9px;color:#4b5563;margin-top:6px;\">TANQUE DE GASOLINA</div>" + gaugeCombustibleImpresion(checklist.nivel_combustible) + "</div>" +
+      "<div style=\"flex:1 1 170px;min-width:150px;\">" +
+      tablaSiNoImpresion("ACCESORIOS", LISTA_ACCESORIOS_SINO, checklist.accesorios) +
+      (checklist.accesorios_otros ? "<div style=\"font-size:9.5px;margin:-4px 0 8px;\"><b>Otros:</b> " + checklist.accesorios_otros + "</div>" : "") +
+      tablaSiNoImpresion("INTERIORES", LISTA_INTERIORES, checklist.interiores) +
+      "</div>" +
+      "<div style=\"flex:1 1 170px;min-width:150px;\">" +
+      testigosImpresion(LISTA_TESTIGOS, checklist.testigos_encendidos) +
+      siNoImpresionLinea("BIRLOS DE SEGURIDAD", checklist.birlos_seguridad) +
+      siNoImpresionLinea("LLAVE CANDADO BIRLO", checklist.llave_candado_birlo) +
+      "<div style=\"margin-top:6px;\">" + nivelesExtra + "</div>" +
+      (checklist.objetos_valor ? "<div style=\"font-size:9.5px;margin-bottom:3px;\"><b>Objetos de valor:</b> " + checklist.objetos_valor + "</div>" : "") +
+      (checklist.observaciones ? "<div style=\"font-size:9.5px;\"><b>Observaciones:</b> " + checklist.observaciones + "</div>" : "") +
+      "</div>" +
+      "</div>" +
       bloqueFirma(checklist.nombre_quien_entrega ? { nombre: checklist.nombre_quien_entrega, fecha: checklist.creado_en, dataUrl: dataUrlFirma } : null, "Entrega el vehículo", true) +
       "</div>";
   }
