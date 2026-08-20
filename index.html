@@ -414,6 +414,10 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
             <input id="nuevo-vehiculo-vin" type="text" maxlength="17">
           </div>
         </div>
+        <div>
+          <button type="button" class="secundario" id="btn-consultar-runt" style="width:auto;padding:6px 14px;font-size:13px;">🔎 Autocompletar con placa (RUNT)</button>
+          <div id="runt-nota" class="nota-ayuda oculto"></div>
+        </div>
         <div class="fila-2col">
           <div>
             <label for="nuevo-vehiculo-marca">Marca</label>
@@ -2637,6 +2641,10 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     });
   }
   var vehiculoSeleccionado = null;
+  // Guarda vencimientos de SOAT/tecnomecánica que trajo la consulta RUNT
+  // (btn-consultar-runt), para incluirlos al guardar el vehículo nuevo sin
+  // tener que volver a pedirlos. Se reinicia en reiniciarFlujoOrden().
+  var datosRuntVehiculoActual = null;
   var ordenesGarantiaCache = [];
   var clientesCacheOrden = [];
   var clienteExistenteIdOrden = null;
@@ -3058,6 +3066,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   function reiniciarFlujoOrden() {
     vehiculoSeleccionado = null;
     ordenActual = null;
+    datosRuntVehiculoActual = null;
     $("buscar-placa").value = "";
     ["tarjeta-exito", "tarjeta-encontrado", "tarjeta-nuevo", "tarjeta-asignar", "tarjeta-items", "tarjeta-firma", "tarjeta-firma-exito"].forEach(function (id) {
       $(id).classList.add("oculto");
@@ -7277,6 +7286,70 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     }
   });
 
+  // Trae marca, línea, año, color, VIN y vencimientos de SOAT/tecnomecánica
+  // desde el RUNT (vía PlacApi) usando solo la placa + la cédula/NIT del
+  // dueño, para no tener que escribirlos a mano. El documento se manda tal
+  // cual se escribió; el tipo se infiere del campo "Tipo" (empresa → NIT,
+  // particular → CC), que cubre la gran mayoría de los casos.
+  $("btn-consultar-runt").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("nuevo-error");
+    $("runt-nota").classList.add("oculto");
+
+    var placa = $("nuevo-vehiculo-placa").value.trim().toUpperCase();
+    var documento = $("nuevo-cliente-documento").value.trim();
+    var tipoCliente = $("nuevo-cliente-tipo").value;
+
+    if (!placa) {
+      mostrarError("nuevo-error", "Escribe la placa antes de consultar el RUNT.");
+      return;
+    }
+    if (!documento) {
+      mostrarError("nuevo-error", "El RUNT exige la cédula o NIT del propietario del vehículo. Escríbela en \"Cédula / NIT\" antes de consultar.");
+      return;
+    }
+
+    var docType = tipoCliente === "empresa" ? "NIT" : "CC";
+    var btn = $("btn-consultar-runt");
+    var textoOriginal = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Consultando…";
+
+    return fetch(SUPABASE_URL + "/functions/v1/consulta-runt", {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": "Bearer " + accessToken,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ placa: placa, docType: docType, docNumber: documento })
+    }).then(function (res) {
+      return res.text().then(function (text) {
+        var data = text ? JSON.parse(text) : null;
+        if (!res.ok) throw new Error((data && data.error) || "No se pudo consultar el RUNT.");
+        return data;
+      });
+    }).then(function (datos) {
+      if (datos.marca) $("nuevo-vehiculo-marca").value = datos.marca;
+      if (datos.linea) $("nuevo-vehiculo-modelo").value = datos.linea;
+      if (datos.anio) $("nuevo-vehiculo-anio").value = datos.anio;
+      if (datos.color) $("nuevo-vehiculo-color").value = datos.color;
+      if (datos.vin) $("nuevo-vehiculo-vin").value = datos.vin;
+      if (datos.tipo_carroceria) $("nuevo-vehiculo-tipo-carroceria").value = datos.tipo_carroceria;
+      datosRuntVehiculoActual = {
+        soat_vencimiento: datos.soat_vencimiento || null,
+        tecnomecanica_vencimiento: datos.tecnomecanica_vencimiento || null
+      };
+      $("runt-nota").textContent = "✅ Datos traídos del RUNT. Revísalos y ajusta lo que haga falta antes de guardar.";
+      $("runt-nota").classList.remove("oculto");
+      btn.disabled = false;
+      btn.textContent = textoOriginal;
+    }).catch(function (err) {
+      btn.disabled = false;
+      btn.textContent = textoOriginal;
+      mostrarError("nuevo-error", err.message);
+    });
+  }, "nuevo-error"));
+
   $("btn-registrar-nuevo").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("nuevo-error");
 
@@ -7319,12 +7392,15 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         body: {
           id_cliente: idClienteFinal,
           placa: placa, vin: vin || null, marca: marca || null, modelo: modelo || null,
-          anio: anio, color: color || null, tipo_carroceria: tipoCarroceria || null, kilometraje: km
+          anio: anio, color: color || null, tipo_carroceria: tipoCarroceria || null, kilometraje: km,
+          soat_vencimiento: (datosRuntVehiculoActual && datosRuntVehiculoActual.soat_vencimiento) || null,
+          tecnomecanica_vencimiento: (datosRuntVehiculoActual && datosRuntVehiculoActual.tecnomecanica_vencimiento) || null
         }
       });
     }).then(function (vehiculos) {
       var vehiculoCreado = vehiculos[0];
       vehiculoSeleccionado = { id_vehiculo: vehiculoCreado.id_vehiculo, id_cliente: idClienteFinal, kilometraje: km };
+      datosRuntVehiculoActual = null;
       $("tarjeta-nuevo").classList.add("oculto");
       $("tarjeta-asignar").classList.remove("oculto");
       prepararPasoAsignar();
