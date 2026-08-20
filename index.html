@@ -8,6 +8,11 @@ external fonts. Zero external JS for data access — all Supabase calls are raw 
 API (no SDK), per the no-external-deps rule established after a fatal SDK naming collision. Exception: Chart.js
 is loaded from cdnjs for the two dashboard charts — hand-rolling charts isn't worth it, and this doesn't touch
 the data-access layer at all.
+Theme: dark/light follows the OS by default (prefers-color-scheme), but can be forced with the sun/moon button in
+the sidebar — the choice is remembered per browser via localStorage (key "tema_taller"), applied as a
+.tema-oscuro/.tema-claro class on <html>. Dark mode isn't a flat invert: accent colors (--azul/--rojo/--verde) get
+slightly lighter shades for contrast on dark backgrounds, and pale status backgrounds (badges, success/error
+banners) switch to translucent rgba washes instead of pastel hex, so they don't glare against the dark UI.
 -->
 <!DOCTYPE html>
 <html lang="es">
@@ -15,6 +20,17 @@ the data-access layer at all.
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Taller Servi Motors – Panel principal</title>
+<script>
+  // Aplica el tema guardado (si la persona ya lo eligió a mano) antes de que
+  // se pinte la página, para que no haya un parpadeo del tema equivocado.
+  (function () {
+    try {
+      var t = localStorage.getItem("tema_taller");
+      if (t === "oscuro") document.documentElement.classList.add("tema-oscuro");
+      else if (t === "claro") document.documentElement.classList.add("tema-claro");
+    } catch (e) {}
+  })();
+</script>
 </head>
 <body>
 
@@ -177,6 +193,7 @@ the data-access layer at all.
   <nav id="sidebar">
     <div class="sidebar-marca marca-flex"><img class="logo-taller" alt="Logo"> Taller Servi Motors</div>
     <div class="sidebar-usuario" id="usuario-actual"></div>
+    <button type="button" id="btn-tema" class="secundario boton-tema">🌙 Modo oscuro</button>
 
     <a href="#" class="nav-link" data-pagina="inicio">🏠 Inicio</a>
 
@@ -1541,7 +1558,7 @@ the data-access layer at all.
         </div>
         <button id="btn-agregar-egreso">Registrar egreso</button>
         <div id="egreso-error" class="mensaje-error"></div>
-        <div id="egreso-exito" class="mensaje-error oculto" style="background:#f0fdf4;color:var(--verde);border-color:#bbf7d0;"></div>
+        <div id="egreso-exito" class="mensaje-error mensaje-exito oculto"></div>
       </div>
     </section>
 
@@ -1606,7 +1623,7 @@ the data-access layer at all.
       <button id="btn-registrar-entrada">Registrar entrada</button>
       <button type="button" class="secundario" id="btn-cancelar-stock">Cancelar</button>
       <div id="stock-error" class="mensaje-error"></div>
-      <div id="stock-exito" class="mensaje-error oculto" style="background:#f0fdf4;color:var(--verde);border-color:#bbf7d0;"></div>
+      <div id="stock-exito" class="mensaje-error mensaje-exito oculto"></div>
     </div>
 
     <section id="pantalla-servicios" class="pagina pagina-ancha oculto">
@@ -2089,7 +2106,7 @@ the data-access layer at all.
           <input id="nomina-otras-deducciones" type="number" min="0" step="0.01" value="0">
           <div id="nomina-total" class="info-vehiculo"></div>
           <button id="btn-registrar-liquidacion">Registrar liquidación</button>
-          <div id="nomina-exito" class="mensaje-error oculto" style="background:#f0fdf4;color:var(--verde);border-color:#bbf7d0;"></div>
+          <div id="nomina-exito" class="mensaje-error mensaje-exito oculto"></div>
         </div>
       </div>
 
@@ -2217,14 +2234,35 @@ the data-access layer at all.
     --fondo: #f3f4f6;
     --tarjeta-bg: #ffffff;
   }
+  /* Modo oscuro: sigue la preferencia del sistema por defecto. Si la
+     persona elige un tema a mano con el botón de la barra lateral, se le
+     añade la clase .tema-oscuro o .tema-claro a <html> (ver localStorage
+     "tema_taller"), y esa elección manda sobre la preferencia del sistema.
+     Los colores de acento (azul/rojo/verde) quedan un poco más claros que
+     en modo claro porque un tono más suave se lee mejor sobre fondo oscuro. */
   @media (prefers-color-scheme: dark) {
-    :root {
-      --gris-claro: #1f2937;
-      --texto: #f3f4f6;
-      --fondo: #111827;
-      --tarjeta-bg: #1f2937;
-      --borde: #374151;
+    :root:not(.tema-claro) {
+      --azul: #3b82f6;
+      --azul-oscuro: #60a5fa;
+      --rojo: #ef4444;
+      --verde: #22c55e;
+      --gris-claro: #1e293b;
+      --texto: #e5e7eb;
+      --fondo: #0f172a;
+      --tarjeta-bg: #1e293b;
+      --borde: #334155;
     }
+  }
+  :root.tema-oscuro {
+    --azul: #3b82f6;
+    --azul-oscuro: #60a5fa;
+    --rojo: #ef4444;
+    --verde: #22c55e;
+    --gris-claro: #1e293b;
+    --texto: #e5e7eb;
+    --fondo: #0f172a;
+    --tarjeta-bg: #1e293b;
+    --borde: #334155;
   }
   * { box-sizing: border-box; }
   body {
@@ -2268,6 +2306,9 @@ the data-access layer at all.
     background: #fef2f2; color: var(--rojo); border: 1px solid #fecaca;
     padding: 10px 12px; border-radius: 8px; font-size: 14px; margin-top: 12px; display: none;
   }
+  /* Variante de éxito de la misma cajita: se usa junto con .mensaje-error
+     (que ya trae el padding/tamaño/display) solo para cambiarle el color. */
+  .mensaje-exito { background: #f0fdf4; color: var(--verde); border-color: #bbf7d0; }
   .alerta-flotante {
     position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
     z-index: 9999; background: #fef2f2; color: var(--rojo); border: 1px solid #fecaca;
@@ -2275,6 +2316,15 @@ the data-access layer at all.
     box-shadow: 0 10px 30px rgba(0,0,0,0.3); max-width: 90vw; width: 420px;
     font-size: 14px; font-weight: 600; line-height: 1.5; animation: alerta-flotante-aparecer .15s ease-out;
   }
+  /* En modo oscuro los fondos pastel (rosa/verde clarito) se ven fuera de
+     lugar sobre fondo oscuro — se cambian por un baño translúcido del mismo
+     color en vez de un color plano pastel. */
+  @media (prefers-color-scheme: dark) {
+    :root:not(.tema-claro) .mensaje-error, :root:not(.tema-claro) .alerta-flotante { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.35); }
+    :root:not(.tema-claro) .mensaje-exito { background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.35); }
+  }
+  :root.tema-oscuro .mensaje-error, :root.tema-oscuro .alerta-flotante { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.35); }
+  :root.tema-oscuro .mensaje-exito { background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.35); }
   #alerta-flotante-cerrar {
     position: absolute; top: 6px; right: 8px; width: auto; margin: 0; padding: 2px 7px;
     background: transparent; color: inherit; border: none; font-size: 18px; line-height: 1; cursor: pointer;
@@ -2289,6 +2339,10 @@ the data-access layer at all.
   #tarjeta-exito {
     background: #f0fdf4; color: var(--verde); border: 1px solid #bbf7d0; text-align: center;
   }
+  @media (prefers-color-scheme: dark) {
+    :root:not(.tema-claro) #tarjeta-exito { background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.35); }
+  }
+  :root.tema-oscuro #tarjeta-exito { background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.35); }
   .oculto { display: none !important; }
   .nota-ayuda { font-size: 13px; color: var(--gris); margin: -4px 0 8px; }
   .info-vehiculo { background: var(--gris-claro); border-radius: 8px; padding: 10px 12px; font-size: 14px; margin-top: 6px; }
@@ -2325,6 +2379,7 @@ the data-access layer at all.
   .nav-link:hover { background: var(--gris-claro); }
   .nav-link.activo { background: var(--azul); color: #fff; }
   .nav-logout { width: auto; margin: 16px 10px 0; padding: 8px 12px; font-size: 13px; background: transparent; color: var(--rojo); border: 1px solid var(--rojo); }
+  .boton-tema { width: auto; margin: 0 10px 14px; padding: 7px 12px; font-size: 12.5px; }
 
   #contenido-principal { flex: 1; padding: 16px 20px; min-width: 0; }
   /* Todas las pantallas quedan centradas dentro del área de trabajo: si la
@@ -2435,6 +2490,12 @@ the data-access layer at all.
   .kpi-flecha-igual { color: var(--gris); }
   .etiqueta-garantia { display: inline-block; font-size: 12px; font-weight: 700; color: #7c3aed; background: #ede9fe; border-radius: 6px; padding: 2px 8px; vertical-align: middle; }
   .etiqueta-devuelta { display: inline-block; font-size: 12px; font-weight: 700; color: #b45309; background: #fef3c7; border-radius: 6px; padding: 2px 8px; vertical-align: middle; }
+  @media (prefers-color-scheme: dark) {
+    :root:not(.tema-claro) .etiqueta-garantia { color: #c4b5fd; background: rgba(124,58,237,0.22); }
+    :root:not(.tema-claro) .etiqueta-devuelta { color: #fcd34d; background: rgba(180,83,9,0.22); }
+  }
+  :root.tema-oscuro .etiqueta-garantia { color: #c4b5fd; background: rgba(124,58,237,0.22); }
+  :root.tema-oscuro .etiqueta-devuelta { color: #fcd34d; background: rgba(180,83,9,0.22); }
   .grid-graficos { display: grid; grid-template-columns: 1.3fr 1fr; gap: 12px; }
   .grafico-cont { position: relative; height: 150px; }
 
@@ -2495,8 +2556,9 @@ the data-access layer at all.
   .agenda-turno-completada { border-left-color: var(--gris); opacity: .7; }
   .agenda-turno-solicitada { border-left-color: #d97706; background: #fffbeb; }
   @media (prefers-color-scheme: dark) {
-    .agenda-turno-solicitada { background: rgba(217, 119, 6, 0.15); }
+    :root:not(.tema-claro) .agenda-turno-solicitada { background: rgba(217, 119, 6, 0.15); }
   }
+  :root.tema-oscuro .agenda-turno-solicitada { background: rgba(217, 119, 6, 0.15); }
   .agenda-turno-resumen { padding: 7px 8px; cursor: pointer; line-height: 1.5; }
   .agenda-turno-resumen b { display: inline; font-size: 12px; }
   .agenda-turno-acciones { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 8px 8px; }
@@ -2939,6 +3001,29 @@ the data-access layer at all.
     if ($("sidebar").classList.contains("abierto")) cerrarMenuMovil(); else abrirMenuMovil();
   });
   $("fondo-menu-movil").addEventListener("click", cerrarMenuMovil);
+
+  // Tema claro/oscuro: por defecto sigue el sistema (ver el script chiquito
+  // en <head> que evita el parpadeo). El botón fuerza una elección manual
+  // que se recuerda en este navegador; volver a tocarlo alterna entre los
+  // dos. No hay un tercer estado "seguir al sistema" desde el botón una vez
+  // se elige a mano — es lo más simple de entender para quien no es
+  // programador.
+  function modoOscuroActivo() {
+    if (document.documentElement.classList.contains("tema-oscuro")) return true;
+    if (document.documentElement.classList.contains("tema-claro")) return false;
+    return !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  }
+  function actualizarBotonTema() {
+    $("btn-tema").textContent = modoOscuroActivo() ? "☀️ Modo claro" : "🌙 Modo oscuro";
+  }
+  $("btn-tema").addEventListener("click", function () {
+    var nuevoOscuro = !modoOscuroActivo();
+    document.documentElement.classList.toggle("tema-oscuro", nuevoOscuro);
+    document.documentElement.classList.toggle("tema-claro", !nuevoOscuro);
+    try { localStorage.setItem("tema_taller", nuevoOscuro ? "oscuro" : "claro"); } catch (e) {}
+    actualizarBotonTema();
+  });
+  actualizarBotonTema();
 
   $("alerta-flotante-cerrar").addEventListener("click", function () {
     $("alerta-flotante").classList.add("oculto");
