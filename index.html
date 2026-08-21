@@ -9667,6 +9667,17 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       f.id_detalle + '\', ' + f.precio_aplicado_cliente + ', \'' + f.estado_autorizacion + '\')">' + texto + '</button>';
   }
 
+  // Editar el costo interno no necesita firma nueva del cliente (no cambia
+  // lo que él ve ni autoriza), así que se puede hacer aunque el ítem ya esté
+  // autorizado o pendiente. Solo se oculta si está rechazado.
+  function botonEditarCosto(f) {
+    if (f.estado_autorizacion === "rechazado") return "";
+    var esAdminOAsesor = rolActual === "administrador" || rolActual === "asesor";
+    if (!esAdminOAsesor) return "";
+    return ' <button type="button" style="width:auto;margin:4px 0 0;padding:4px 8px;font-size:11px;" onclick="window.editarCostoLinea(\'' +
+      f.id_detalle + '\', ' + f.costo_interno + ')">Editar costo</button>';
+  }
+
   // Igual que arriba: si ya estaba autorizado, "eliminar" no borra de una vez
   // — primero lo regresa a "pendiente" para pedir una firma nueva. Ya en
   // pendiente, un segundo clic sí lo elimina de verdad (y devuelve el stock).
@@ -9721,7 +9732,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   function renderizarTablaPartes(filas) {
     var html = filas.map(function (f) {
       return "<tr><td>" + (f.codigo || "—") + "</td><td>" + (ETIQUETAS_TIPO_ITEM[f.items.tipo] || f.items.tipo) + "</td><td>" + f.cantidad + "</td><td>" + f.items.nombre + "</td><td>—</td>" +
-        "<td>" + celdaMonedaTecnico(f.costo_interno) + "</td><td>" + celdaDescuentoLinea(f) + "</td><td class=\"celda-numero\">" + celdaMonedaTecnico(montoDescuentoLinea(f)) + "</td>" +
+        "<td>" + celdaMonedaTecnico(f.costo_interno) + botonEditarCosto(f) + "</td><td>" + celdaDescuentoLinea(f) + "</td><td class=\"celda-numero\">" + celdaMonedaTecnico(montoDescuentoLinea(f)) + "</td>" +
         "<td class=\"celda-numero\">" + celdaMonedaTecnico(totalLineaOrden(f)) + botonEditarPrecio(f) + botonEliminarLinea(f) + "</td><td>" + celdaEstadoLinea(f) + "</td></tr>";
     }).join("");
     $("cuerpo-partes").innerHTML = html || "<tr><td colspan=\"10\" class=\"tabla-vacia\">Sin repuestos ni insumos todavía.</td></tr>";
@@ -9729,7 +9740,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
 
   function renderizarTablaExternos(filas) {
     var html = filas.map(function (f) {
-      return "<tr><td>" + f.items.nombre + "</td><td>" + celdaMonedaTecnico(f.costo_interno) + "</td><td>" + celdaDescuentoLinea(f) + "</td>" +
+      return "<tr><td>" + f.items.nombre + "</td><td>" + celdaMonedaTecnico(f.costo_interno) + botonEditarCosto(f) + "</td><td>" + celdaDescuentoLinea(f) + "</td>" +
         "<td class=\"celda-numero\">" + celdaMonedaTecnico(montoDescuentoLinea(f)) + "</td><td class=\"celda-numero\">" + celdaMonedaTecnico(totalLineaOrden(f)) + botonEditarPrecio(f) + botonEliminarLinea(f) + "</td><td>" + celdaEstadoLinea(f) + "</td></tr>";
     }).join("");
     $("cuerpo-externos").innerHTML = html || "<tr><td colspan=\"6\" class=\"tabla-vacia\">Sin trabajos externos todavía.</td></tr>";
@@ -10737,6 +10748,27 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         return cargarItemsDeOrden();
       }).catch(function (err) {
         mostrarError("item-error", "No se pudo actualizar el precio: " + err.message);
+      });
+  };
+
+  // Editar el COSTO interno de una línea ya agregada (lo que le cuesta al
+  // taller, no lo que se le cobra al cliente) — para repuestos/insumos y
+  // trabajos externos, sea que se hayan agregado a mano o por un combo.
+  // No pide firma nueva del cliente porque no cambia lo que él ve ni lo que
+  // autorizó; solo afecta la utilidad interna que calcula la app.
+  window.editarCostoLinea = function (idDetalle, costoActual) {
+    var nuevo = window.prompt("Nuevo costo interno de esta línea (lo que le cuesta al taller):", costoActual);
+    if (nuevo === null) return;
+    var nuevoCosto = parseFloat(nuevo);
+    if (!(nuevoCosto >= 0)) {
+      mostrarError("item-error", "El costo debe ser un número válido.");
+      return;
+    }
+    restRequest("PATCH", "ot_detalle?id_detalle=eq." + idDetalle, { body: { costo_interno: nuevoCosto } })
+      .then(function () {
+        return cargarItemsDeOrden();
+      }).catch(function (err) {
+        mostrarError("item-error", "No se pudo actualizar el costo: " + err.message);
       });
   };
 
