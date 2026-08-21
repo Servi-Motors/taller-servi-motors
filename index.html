@@ -7372,8 +7372,8 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       mostrarError("nuevo-error", "El nombre del cliente y la placa son obligatorios.");
       return;
     }
-    if (vin && vin.length !== 17) {
-      mostrarError("nuevo-error", "El VIN debe tener 17 caracteres (o déjalo vacío).");
+    if (vin && (vin.length < 5 || vin.length > 17)) {
+      mostrarError("nuevo-error", "El VIN/chasis debe tener entre 5 y 17 caracteres (o déjalo vacío). Los vehículos más antiguos suelen tener números de chasis más cortos que 17.");
       return;
     }
 
