@@ -10890,15 +10890,23 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         : Promise.resolve();
 
       return descontarStock.then(function () {
-        // El precio de mano de obra NUNCA se envía desde aquí: lo calcula la
-        // base de datos a partir del precio hora de equilibrio configurado
-        // por el administrador, para que no se pueda alterar por línea.
+        // El "costo" de esta línea SIEMPRE se manda explícito (costo_interno),
+        // así se agregue un ítem nuevo o uno que ya existía en el catálogo.
+        // Antes, si el nombre coincidía con un ítem ya guardado, se ignoraba
+        // por completo lo que la persona acababa de escribir en "Costo" y la
+        // base de datos usaba el costo viejo guardado en el catálogo — por
+        // eso un trabajo externo/repuesto repetido "se quedaba" con el precio
+        // de la primera vez, aunque se escribiera uno distinto. El precio que
+        // se le cobra al cliente sí lo sigue calculando la base de datos
+        // (precio_aplicado_cliente), y el % variable de mano de obra nunca
+        // se manda desde aquí — solo su costo interno real por hora.
         var detalle = {
           id_ot: ordenActual.id_ot,
           id_item: idItem,
           cantidad: opts.cantidad,
           codigo: opts.codigo || null,
-          pct_descuento: opts.descuento || 0
+          pct_descuento: opts.descuento || 0,
+          costo_interno: (typeof opts.costo === "number" && !isNaN(opts.costo)) ? opts.costo : null
         };
         return restRequest("POST", "ot_detalle", { body: detalle });
       });
