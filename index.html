@@ -1473,7 +1473,19 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
 
       <div class="tarjeta">
         <h2>Costos fijos mensuales</h2>
-        <div id="lista-costos-fijos"></div>
+        <div class="tabla-scroll">
+          <table class="tabla-datos" id="tabla-costos-fijos">
+            <thead>
+              <tr>
+                <th>Concepto</th>
+                <th>Monto mensual</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="cuerpo-tabla-costos-fijos"></tbody>
+          </table>
+        </div>
         <button type="button" id="btn-abrir-costofijo">+ Agregar costo fijo</button>
       </div>
 
@@ -5585,30 +5597,41 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       $("btn-agregar-costo-fijo").classList.toggle("oculto", !esAdministrador);
       $("costos-fijos-solo-admin-nota").classList.toggle("oculto", esAdministrador);
 
-      var listaCF = $("lista-costos-fijos");
-      listaCF.innerHTML = costosFijos.length ? "" : "<p class=\"nota-ayuda\">Todavía no has agregado costos fijos.</p>";
+      var cuerpoCF = $("cuerpo-tabla-costos-fijos");
+      cuerpoCF.innerHTML = "";
+      if (!costosFijos.length) {
+        var trVacioCF = document.createElement("tr");
+        var tdVacioCF = document.createElement("td");
+        tdVacioCF.colSpan = 4;
+        tdVacioCF.className = "tabla-vacia";
+        tdVacioCF.textContent = "Todavía no has agregado costos fijos.";
+        trVacioCF.appendChild(tdVacioCF);
+        cuerpoCF.appendChild(trVacioCF);
+      }
       costosFijos.forEach(function (cf) {
-        var fila = document.createElement("div");
-        fila.className = "fila-renglon";
+        var tr = document.createElement("tr");
+        var tdConcepto = document.createElement("td");
+        var tdMonto = document.createElement("td");
+        var tdEstado = document.createElement("td");
+        var tdAcciones = document.createElement("td");
 
         if (esAdministrador && costoFijoEditandoId === cf.id_costo_fijo) {
-          // Modo edición: la fila se convierte en un mini-formulario en línea.
-          var contenedorInputs = document.createElement("span");
-          contenedorInputs.className = "fila-renglon-editar";
-
+          // Modo edición: esta fila se convierte en un mini-formulario en línea.
           var inputConcepto = document.createElement("input");
           inputConcepto.type = "text";
           inputConcepto.value = cf.concepto;
+          inputConcepto.style.width = "100%";
+          tdConcepto.appendChild(inputConcepto);
 
           var inputMonto = document.createElement("input");
           inputMonto.type = "number";
           inputMonto.min = "0";
           inputMonto.step = "0.01";
           inputMonto.value = cf.monto_mensual;
+          inputMonto.style.width = "100%";
+          tdMonto.appendChild(inputMonto);
 
-          contenedorInputs.appendChild(inputConcepto);
-          contenedorInputs.appendChild(inputMonto);
-          fila.appendChild(contenedorInputs);
+          tdEstado.innerHTML = cf.activo ? "Activo" : "<span class=\"fila-detalle\">Inactivo</span>";
 
           var accionesEdicionCF = document.createElement("span");
           accionesEdicionCF.className = "fila-renglon-acciones";
@@ -5643,12 +5666,11 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
 
           accionesEdicionCF.appendChild(btnGuardarCF);
           accionesEdicionCF.appendChild(btnCancelarCF);
-          fila.appendChild(accionesEdicionCF);
+          tdAcciones.appendChild(accionesEdicionCF);
         } else {
-          var textoCF = document.createElement("span");
-          textoCF.innerHTML =
-            "<b>" + cf.concepto + "</b>" + (cf.activo ? "" : " <span class=\"fila-detalle\">(inactivo)</span>") + "<br><span class=\"fila-detalle\">" + formatoMoneda(cf.monto_mensual) + " / mes</span>";
-          fila.appendChild(textoCF);
+          tdConcepto.textContent = cf.concepto;
+          tdMonto.textContent = formatoMoneda(cf.monto_mensual);
+          tdEstado.innerHTML = cf.activo ? "Activo" : "<span class=\"fila-detalle\">Inactivo</span>";
 
           if (esAdministrador) {
             var accionesCF = document.createElement("span");
@@ -5675,11 +5697,15 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
             }, "costo-fijo-error"));
             accionesCF.appendChild(btn);
 
-            fila.appendChild(accionesCF);
+            tdAcciones.appendChild(accionesCF);
           }
         }
 
-        listaCF.appendChild(fila);
+        tr.appendChild(tdConcepto);
+        tr.appendChild(tdMonto);
+        tr.appendChild(tdEstado);
+        tr.appendChild(tdAcciones);
+        cuerpoCF.appendChild(tr);
       });
 
       var listaEg = $("lista-egresos");
