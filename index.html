@@ -1099,34 +1099,116 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       </div>
 
       <div id="fondo-form-vehiculo" class="fondo-modal oculto"></div>
-      <div class="tarjeta tarjeta-formulario tarjeta-modal oculto" id="tarjeta-form-vehiculo">
+      <div class="tarjeta tarjeta-formulario tarjeta-formulario-ancha tarjeta-modal oculto" id="tarjeta-form-vehiculo">
         <h2 id="vehiculos-form-titulo">Agregar vehículo</h2>
         <label for="vehiculo-cliente">Cliente dueño</label>
         <select id="vehiculo-cliente"></select>
-        <label for="vehiculo-placa">Placa</label>
-        <input id="vehiculo-placa" type="text" style="text-transform:uppercase">
-        <label for="vehiculo-vin">VIN / chasis (opcional)</label>
-        <input id="vehiculo-vin" type="text" style="text-transform:uppercase">
-        <label for="vehiculo-marca">Marca</label>
-        <input id="vehiculo-marca" type="text">
-        <label for="vehiculo-modelo">Modelo</label>
-        <input id="vehiculo-modelo" type="text">
-        <label for="vehiculo-anio">Año</label>
-        <input id="vehiculo-anio" type="number" min="1900" max="2100">
-        <label for="vehiculo-color">Color</label>
-        <input id="vehiculo-color" type="text">
-        <label for="vehiculo-tipo-carroceria">Tipo (ej. Sedán, Camioneta, Platón)</label>
-        <input id="vehiculo-tipo-carroceria" type="text">
-        <label for="vehiculo-transmision">Transmisión (opcional)</label>
-        <input id="vehiculo-transmision" type="text" placeholder="Ej. Automática, Mecánica">
-        <label for="vehiculo-version">Versión (opcional)</label>
-        <input id="vehiculo-version" type="text" placeholder="Ej. TX, LX, Sport">
-        <label for="vehiculo-km">Kilometraje</label>
-        <input id="vehiculo-km" type="number" min="0" value="0">
-        <label for="vehiculo-soat">Vencimiento SOAT (opcional)</label>
-        <input id="vehiculo-soat" type="date">
-        <label for="vehiculo-tecnomecanica">Vencimiento Tecnomecánica (opcional)</label>
-        <input id="vehiculo-tecnomecanica" type="date">
+
+        <div class="fila-2col">
+          <div>
+            <label for="vehiculo-placa">Placa</label>
+            <input id="vehiculo-placa" type="text" style="text-transform:uppercase">
+          </div>
+          <div>
+            <label for="vehiculo-vin">VIN / chasis (opcional)</label>
+            <input id="vehiculo-vin" type="text" style="text-transform:uppercase">
+          </div>
+        </div>
+        <div>
+          <button type="button" class="secundario" id="btn-consultar-runt-vehiculo" style="width:auto;padding:6px 14px;font-size:13px;">🔎 Autocompletar con placa (RUNT)</button>
+          <div id="runt-nota-vehiculo" class="nota-ayuda oculto"></div>
+        </div>
+
+        <div class="fila-2col">
+          <div>
+            <label for="vehiculo-marca">Marca</label>
+            <input id="vehiculo-marca" type="text">
+          </div>
+          <div>
+            <label for="vehiculo-modelo">Línea / modelo</label>
+            <input id="vehiculo-modelo" type="text">
+          </div>
+        </div>
+        <div class="fila-2col">
+          <div>
+            <label for="vehiculo-anio">Año</label>
+            <input id="vehiculo-anio" type="number" min="1900" max="2100">
+          </div>
+          <div>
+            <label for="vehiculo-color">Color</label>
+            <input id="vehiculo-color" type="text">
+          </div>
+        </div>
+        <div class="fila-2col">
+          <div>
+            <label for="vehiculo-tipo-carroceria">Tipo (ej. Sedán, Camioneta, Platón)</label>
+            <input id="vehiculo-tipo-carroceria" type="text">
+          </div>
+          <div>
+            <label for="vehiculo-transmision">Transmisión (opcional)</label>
+            <input id="vehiculo-transmision" type="text" placeholder="Ej. Automática, Mecánica">
+          </div>
+        </div>
+        <div class="fila-2col">
+          <div>
+            <label for="vehiculo-version">Versión (opcional)</label>
+            <input id="vehiculo-version" type="text" placeholder="Ej. TX, LX, Sport">
+          </div>
+          <div>
+            <label for="vehiculo-km">Kilometraje</label>
+            <input id="vehiculo-km" type="number" min="0" value="0">
+          </div>
+        </div>
+
+        <h3>Datos del RUNT (se llenan solos con "Autocompletar")</h3>
+        <div class="fila-3col">
+          <div>
+            <label for="vehiculo-cilindraje">Cilindraje (cc)</label>
+            <input id="vehiculo-cilindraje" type="number" min="0">
+          </div>
+          <div>
+            <label for="vehiculo-combustible">Combustible</label>
+            <input id="vehiculo-combustible" type="text" placeholder="Ej. Gasolina, Diésel">
+          </div>
+          <div>
+            <label for="vehiculo-puertas">Puertas</label>
+            <input id="vehiculo-puertas" type="number" min="0">
+          </div>
+        </div>
+        <div class="fila-2col">
+          <div>
+            <label for="vehiculo-numero-motor">Número de motor</label>
+            <input id="vehiculo-numero-motor" type="text">
+          </div>
+          <div>
+            <label for="vehiculo-tipo-servicio">Tipo de servicio</label>
+            <input id="vehiculo-tipo-servicio" type="text" placeholder="Ej. Particular, Público">
+          </div>
+        </div>
+        <div class="fila-2col">
+          <div>
+            <label for="vehiculo-estado-runt">Estado en el RUNT</label>
+            <input id="vehiculo-estado-runt" type="text" placeholder="Ej. Activo">
+          </div>
+          <div>
+            <label for="vehiculo-fecha-matricula">Fecha de matrícula</label>
+            <input id="vehiculo-fecha-matricula" type="date">
+          </div>
+        </div>
+        <label for="vehiculo-organismo-transito">Organismo de tránsito</label>
+        <input id="vehiculo-organismo-transito" type="text">
+
+        <div class="fila-2col">
+          <div>
+            <label for="vehiculo-soat">Vencimiento SOAT (opcional)</label>
+            <input id="vehiculo-soat" type="date">
+          </div>
+          <div>
+            <label for="vehiculo-tecnomecanica">Vencimiento Tecnomecánica (opcional)</label>
+            <input id="vehiculo-tecnomecanica" type="date">
+          </div>
+        </div>
+
         <button id="btn-guardar-vehiculo">Agregar vehículo</button>
         <button id="btn-cancelar-edicion-vehiculo" class="secundario">Cancelar</button>
       </div>
@@ -4672,14 +4754,22 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     textoExtra: "Historial"
   });
 
+  // Documento/tipo de cada cliente, para poder consultar el RUNT del
+  // vehículo (placa + cédula/NIT del dueño) sin pedirle ese dato otra vez
+  // en este formulario: ya se seleccionó al cliente en el <select>.
+  var clientesInfoPorIdVehiculo = {};
+
   function cargarVehiculos() {
     ocultarError("vehiculos-error");
     return Promise.all([
       restRequest("GET", "vehiculos", { query: "select=*,clientes(nombre)&order=placa.asc&limit=500" }),
-      restRequest("GET", "clientes", { query: "select=id_cliente,nombre&order=nombre.asc&limit=500" })
+      restRequest("GET", "clientes", { query: "select=id_cliente,nombre,documento,tipo&order=nombre.asc&limit=500" })
     ]).then(function (r) {
       todosVehiculos = r[0] || [];
       var clientesParaSelect = r[1] || [];
+
+      clientesInfoPorIdVehiculo = {};
+      clientesParaSelect.forEach(function (c) { clientesInfoPorIdVehiculo[c.id_cliente] = c; });
 
       var sel = $("vehiculo-cliente");
       var valorPrevio = sel.value;
@@ -4717,6 +4807,14 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     $("vehiculo-transmision").value = v.transmision || "";
     $("vehiculo-version").value = v.version || "";
     $("vehiculo-km").value = v.kilometraje || 0;
+    $("vehiculo-cilindraje").value = v.cilindraje || "";
+    $("vehiculo-combustible").value = v.combustible || "";
+    $("vehiculo-puertas").value = v.puertas || "";
+    $("vehiculo-numero-motor").value = v.numero_motor || "";
+    $("vehiculo-tipo-servicio").value = v.tipo_servicio || "";
+    $("vehiculo-estado-runt").value = v.estado_runt || "";
+    $("vehiculo-fecha-matricula").value = v.fecha_matricula || "";
+    $("vehiculo-organismo-transito").value = v.organismo_transito || "";
     $("vehiculo-soat").value = v.soat_vencimiento || "";
     $("vehiculo-tecnomecanica").value = v.tecnomecanica_vencimiento || "";
     $("vehiculos-form-titulo").textContent = "Editar vehículo";
@@ -4726,8 +4824,14 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
 
   function reiniciarFormularioVehiculo() {
     vehiculoEditando = null;
-    ["vehiculo-placa", "vehiculo-vin", "vehiculo-marca", "vehiculo-modelo", "vehiculo-anio", "vehiculo-color", "vehiculo-tipo-carroceria", "vehiculo-transmision", "vehiculo-version", "vehiculo-soat", "vehiculo-tecnomecanica"].forEach(function (id) { $(id).value = ""; });
+    [
+      "vehiculo-placa", "vehiculo-vin", "vehiculo-marca", "vehiculo-modelo", "vehiculo-anio", "vehiculo-color",
+      "vehiculo-tipo-carroceria", "vehiculo-transmision", "vehiculo-version", "vehiculo-soat", "vehiculo-tecnomecanica",
+      "vehiculo-cilindraje", "vehiculo-combustible", "vehiculo-puertas", "vehiculo-numero-motor",
+      "vehiculo-tipo-servicio", "vehiculo-estado-runt", "vehiculo-fecha-matricula", "vehiculo-organismo-transito"
+    ].forEach(function (id) { $(id).value = ""; });
     $("vehiculo-km").value = "0";
+    $("runt-nota-vehiculo").classList.add("oculto");
     $("vehiculos-form-titulo").textContent = "Agregar vehículo";
     $("btn-guardar-vehiculo").textContent = "Agregar vehículo";
     $("tarjeta-form-vehiculo").classList.add("oculto");
@@ -4735,6 +4839,78 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   }
   $("btn-cancelar-edicion-vehiculo").addEventListener("click", reiniciarFormularioVehiculo);
   $("fondo-form-vehiculo").addEventListener("click", reiniciarFormularioVehiculo);
+
+  // Mismo autocompletado por RUNT que en "Nueva orden", pero aquí el
+  // documento del dueño se toma del cliente ya seleccionado en el <select>
+  // (no hay que volver a escribirlo).
+  $("btn-consultar-runt-vehiculo").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("vehiculos-error");
+    $("runt-nota-vehiculo").classList.add("oculto");
+
+    var idCliente = $("vehiculo-cliente").value;
+    var placa = $("vehiculo-placa").value.trim().toUpperCase();
+    var infoCliente = clientesInfoPorIdVehiculo[idCliente];
+
+    if (!placa) {
+      mostrarError("vehiculos-error", "Escribe la placa antes de consultar el RUNT.");
+      return;
+    }
+    if (!idCliente || !infoCliente) {
+      mostrarError("vehiculos-error", "Primero elige el cliente dueño del vehículo (arriba), para poder usar su cédula/NIT en la consulta.");
+      return;
+    }
+    if (!infoCliente.documento) {
+      mostrarError("vehiculos-error", "El cliente \"" + infoCliente.nombre + "\" no tiene cédula/NIT registrada. Agrégala en la pantalla Clientes antes de consultar el RUNT.");
+      return;
+    }
+
+    var docType = infoCliente.tipo === "empresa" ? "NIT" : "CC";
+    var btn = $("btn-consultar-runt-vehiculo");
+    var textoOriginal = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Consultando…";
+
+    return fetch(SUPABASE_URL + "/functions/v1/consulta-runt", {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": "Bearer " + accessToken,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ placa: placa, docType: docType, docNumber: infoCliente.documento })
+    }).then(function (res) {
+      return res.text().then(function (text) {
+        var data = text ? JSON.parse(text) : null;
+        if (!res.ok) throw new Error((data && data.error) || "No se pudo consultar el RUNT.");
+        return data;
+      });
+    }).then(function (datos) {
+      if (datos.marca) $("vehiculo-marca").value = datos.marca;
+      if (datos.linea) $("vehiculo-modelo").value = datos.linea;
+      if (datos.anio) $("vehiculo-anio").value = datos.anio;
+      if (datos.color) $("vehiculo-color").value = datos.color;
+      if (datos.vin) $("vehiculo-vin").value = datos.vin;
+      if (datos.tipo_carroceria) $("vehiculo-tipo-carroceria").value = datos.tipo_carroceria;
+      if (datos.cilindraje) $("vehiculo-cilindraje").value = datos.cilindraje;
+      if (datos.combustible) $("vehiculo-combustible").value = datos.combustible;
+      if (datos.puertas) $("vehiculo-puertas").value = datos.puertas;
+      if (datos.numero_motor) $("vehiculo-numero-motor").value = datos.numero_motor;
+      if (datos.tipo_servicio) $("vehiculo-tipo-servicio").value = datos.tipo_servicio;
+      if (datos.estado_runt) $("vehiculo-estado-runt").value = datos.estado_runt;
+      if (datos.fecha_matricula) $("vehiculo-fecha-matricula").value = datos.fecha_matricula;
+      if (datos.organismo_transito) $("vehiculo-organismo-transito").value = datos.organismo_transito;
+      if (datos.soat_vencimiento) $("vehiculo-soat").value = datos.soat_vencimiento;
+      if (datos.tecnomecanica_vencimiento) $("vehiculo-tecnomecanica").value = datos.tecnomecanica_vencimiento;
+      $("runt-nota-vehiculo").textContent = "✅ Datos traídos del RUNT. Revísalos y ajusta lo que haga falta antes de guardar.";
+      $("runt-nota-vehiculo").classList.remove("oculto");
+      btn.disabled = false;
+      btn.textContent = textoOriginal;
+    }).catch(function (err) {
+      btn.disabled = false;
+      btn.textContent = textoOriginal;
+      mostrarError("vehiculos-error", err.message);
+    });
+  }, "vehiculos-error"));
 
   $("btn-guardar-vehiculo").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("vehiculos-error");
@@ -4751,6 +4927,14 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     var km = $("vehiculo-km").value ? parseInt($("vehiculo-km").value, 10) : 0;
     var soatVencimiento = $("vehiculo-soat").value;
     var tecnomecanicaVencimiento = $("vehiculo-tecnomecanica").value;
+    var cilindraje = $("vehiculo-cilindraje").value ? parseInt($("vehiculo-cilindraje").value, 10) : null;
+    var combustible = $("vehiculo-combustible").value.trim();
+    var puertas = $("vehiculo-puertas").value ? parseInt($("vehiculo-puertas").value, 10) : null;
+    var numeroMotor = $("vehiculo-numero-motor").value.trim();
+    var tipoServicio = $("vehiculo-tipo-servicio").value.trim();
+    var estadoRunt = $("vehiculo-estado-runt").value.trim();
+    var fechaMatricula = $("vehiculo-fecha-matricula").value;
+    var organismoTransito = $("vehiculo-organismo-transito").value.trim();
     if (!idCliente) {
       mostrarError("vehiculos-error", "Agrega primero un cliente en la pantalla Clientes.");
       return;
@@ -4759,11 +4943,23 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       mostrarError("vehiculos-error", "Escribe la placa.");
       return;
     }
+    if (!marca) {
+      mostrarError("vehiculos-error", "Falta la marca del vehículo. Escríbela a mano o usa \"Autocompletar con placa (RUNT)\" antes de guardar — no se puede registrar un vehículo con solo la placa.");
+      return;
+    }
     if (vin && (vin.length < 5 || vin.length > 17)) {
       mostrarError("vehiculos-error", "El VIN/chasis debe tener entre 5 y 17 caracteres (o déjalo vacío). Los vehículos más antiguos suelen tener números de chasis más cortos que 17.");
       return;
     }
-    var body = { id_cliente: idCliente, placa: placa, vin: vin || null, marca: marca || null, modelo: modelo || null, anio: anio, color: color || null, tipo_carroceria: tipoCarroceria || null, transmision: transmision || null, version: version || null, kilometraje: km, soat_vencimiento: soatVencimiento || null, tecnomecanica_vencimiento: tecnomecanicaVencimiento || null };
+    var body = {
+      id_cliente: idCliente, placa: placa, vin: vin || null, marca: marca || null, modelo: modelo || null,
+      anio: anio, color: color || null, tipo_carroceria: tipoCarroceria || null, transmision: transmision || null,
+      version: version || null, kilometraje: km, soat_vencimiento: soatVencimiento || null,
+      tecnomecanica_vencimiento: tecnomecanicaVencimiento || null,
+      cilindraje: cilindraje, combustible: combustible || null, puertas: puertas,
+      numero_motor: numeroMotor || null, tipo_servicio: tipoServicio || null, estado_runt: estadoRunt || null,
+      fecha_matricula: fechaMatricula || null, organismo_transito: organismoTransito || null
+    };
     var pedido = vehiculoEditando
       ? restRequest("PATCH", "vehiculos", { query: "id_vehiculo=eq." + vehiculoEditando, body: body })
       : restRequest("POST", "vehiculos", { body: body });
@@ -7337,7 +7533,15 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       if (datos.tipo_carroceria) $("nuevo-vehiculo-tipo-carroceria").value = datos.tipo_carroceria;
       datosRuntVehiculoActual = {
         soat_vencimiento: datos.soat_vencimiento || null,
-        tecnomecanica_vencimiento: datos.tecnomecanica_vencimiento || null
+        tecnomecanica_vencimiento: datos.tecnomecanica_vencimiento || null,
+        cilindraje: datos.cilindraje || null,
+        combustible: datos.combustible || null,
+        puertas: datos.puertas || null,
+        numero_motor: datos.numero_motor || null,
+        tipo_servicio: datos.tipo_servicio || null,
+        estado_runt: datos.estado_runt || null,
+        fecha_matricula: datos.fecha_matricula || null,
+        organismo_transito: datos.organismo_transito || null
       };
       $("runt-nota").textContent = "✅ Datos traídos del RUNT. Revísalos y ajusta lo que haga falta antes de guardar.";
       $("runt-nota").classList.remove("oculto");
@@ -7372,6 +7576,10 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       mostrarError("nuevo-error", "El nombre del cliente y la placa son obligatorios.");
       return;
     }
+    if (!marca) {
+      mostrarError("nuevo-error", "Falta la marca del vehículo. Escríbela a mano o usa \"Autocompletar con placa (RUNT)\" antes de guardar — no se puede registrar un vehículo con solo la placa.");
+      return;
+    }
     if (vin && (vin.length < 5 || vin.length > 17)) {
       mostrarError("nuevo-error", "El VIN/chasis debe tener entre 5 y 17 caracteres (o déjalo vacío). Los vehículos más antiguos suelen tener números de chasis más cortos que 17.");
       return;
@@ -7394,7 +7602,15 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
           placa: placa, vin: vin || null, marca: marca || null, modelo: modelo || null,
           anio: anio, color: color || null, tipo_carroceria: tipoCarroceria || null, kilometraje: km,
           soat_vencimiento: (datosRuntVehiculoActual && datosRuntVehiculoActual.soat_vencimiento) || null,
-          tecnomecanica_vencimiento: (datosRuntVehiculoActual && datosRuntVehiculoActual.tecnomecanica_vencimiento) || null
+          tecnomecanica_vencimiento: (datosRuntVehiculoActual && datosRuntVehiculoActual.tecnomecanica_vencimiento) || null,
+          cilindraje: (datosRuntVehiculoActual && datosRuntVehiculoActual.cilindraje) || null,
+          combustible: (datosRuntVehiculoActual && datosRuntVehiculoActual.combustible) || null,
+          puertas: (datosRuntVehiculoActual && datosRuntVehiculoActual.puertas) || null,
+          numero_motor: (datosRuntVehiculoActual && datosRuntVehiculoActual.numero_motor) || null,
+          tipo_servicio: (datosRuntVehiculoActual && datosRuntVehiculoActual.tipo_servicio) || null,
+          estado_runt: (datosRuntVehiculoActual && datosRuntVehiculoActual.estado_runt) || null,
+          fecha_matricula: (datosRuntVehiculoActual && datosRuntVehiculoActual.fecha_matricula) || null,
+          organismo_transito: (datosRuntVehiculoActual && datosRuntVehiculoActual.organismo_transito) || null
         }
       });
     }).then(function (vehiculos) {
