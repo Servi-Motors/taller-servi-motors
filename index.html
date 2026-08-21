@@ -1580,10 +1580,16 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     <div class="tarjeta tarjeta-formulario tarjeta-modal oculto" id="tarjeta-form-costofijo">
       <h2>Agregar costo fijo</h2>
       <div id="costos-fijos-solo-admin-nota" class="nota-ayuda oculto">Solo el administrador puede agregar o modificar costos fijos.</div>
-      <label for="costo-fijo-concepto">Concepto</label>
-      <input id="costo-fijo-concepto" type="text" placeholder="Ej. Arriendo">
-      <label for="costo-fijo-monto">Monto mensual</label>
-      <input id="costo-fijo-monto" type="number" min="0" step="0.01">
+      <div class="fila-2col">
+        <div>
+          <label for="costo-fijo-concepto">Concepto</label>
+          <input id="costo-fijo-concepto" type="text" placeholder="Ej. Arriendo">
+        </div>
+        <div>
+          <label for="costo-fijo-monto">Monto mensual</label>
+          <input id="costo-fijo-monto" type="number" min="0" step="0.01">
+        </div>
+      </div>
       <button id="btn-agregar-costo-fijo">Agregar</button>
       <button type="button" class="secundario" id="btn-cancelar-costofijo">Cancelar</button>
       <div id="costo-fijo-error" class="mensaje-error"></div>
@@ -1592,14 +1598,26 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     <div id="fondo-form-transferencia" class="fondo-modal oculto"></div>
     <div class="tarjeta tarjeta-formulario tarjeta-modal oculto" id="tarjeta-form-transferencia">
       <h2>Transferir entre mis cuentas</h2>
-      <label for="transf-origen">De la cuenta</label>
-      <select id="transf-origen"></select>
-      <label for="transf-destino">A la cuenta</label>
-      <select id="transf-destino"></select>
-      <label for="transf-monto">Monto</label>
-      <input id="transf-monto" type="number" min="0" step="0.01">
-      <label for="transf-fecha">Fecha</label>
-      <input id="transf-fecha" type="date">
+      <div class="fila-2col">
+        <div>
+          <label for="transf-origen">De la cuenta</label>
+          <select id="transf-origen"></select>
+        </div>
+        <div>
+          <label for="transf-destino">A la cuenta</label>
+          <select id="transf-destino"></select>
+        </div>
+      </div>
+      <div class="fila-2col">
+        <div>
+          <label for="transf-monto">Monto</label>
+          <input id="transf-monto" type="number" min="0" step="0.01">
+        </div>
+        <div>
+          <label for="transf-fecha">Fecha</label>
+          <input id="transf-fecha" type="date">
+        </div>
+      </div>
       <label for="transf-nota">Nota (opcional)</label>
       <input id="transf-nota" type="text">
       <button id="btn-registrar-transferencia">Registrar transferencia</button>
@@ -2436,12 +2454,20 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   .nota-ayuda { font-size: 14px; color: var(--gris); margin: -4px 0 8px; }
   .info-vehiculo { background: var(--gris-claro); border-radius: 8px; padding: 10px 12px; font-size: 15px; margin-top: 6px; }
   .info-vehiculo b { display: block; margin-bottom: 4px; }
-  .fila-renglon { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--borde); font-size: 15px; }
+  .fila-renglon { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--borde); font-size: 15px; flex-wrap: wrap; }
   .fila-renglon:last-child { border-bottom: none; }
   .fila-renglon .fila-detalle { color: var(--gris); font-size: 13px; }
   .fila-renglon button { width: auto; margin: 0; padding: 5px 10px; font-size: 13px; }
   .fila-renglon.alerta-stock { color: var(--rojo); }
   .fila-renglon.alerta-stock .fila-detalle { color: var(--rojo); }
+  /* Agrupa los botones de acción de una fila (ej. Editar + Activar/Desactivar)
+     para que queden pegados entre sí, a la derecha, y con el mismo ancho en
+     todas las filas de la lista — así las columnas de botones quedan
+     alineadas sin importar qué tan largo sea el texto de cada fila. */
+  .fila-renglon-acciones { display: flex; gap: 8px; flex-shrink: 0; margin-left: auto; }
+  .fila-renglon-acciones button { min-width: 92px; }
+  .fila-renglon-editar { display: flex; gap: 8px; flex-wrap: wrap; flex: 1 1 260px; min-width: 220px; }
+  .fila-renglon-editar input { width: auto; flex: 1; min-width: 110px; }
 
   /* ---------------------------------------------------------------
      SHELL: menú lateral + contenido
@@ -5568,29 +5594,24 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         if (esAdministrador && costoFijoEditandoId === cf.id_costo_fijo) {
           // Modo edición: la fila se convierte en un mini-formulario en línea.
           var contenedorInputs = document.createElement("span");
-          contenedorInputs.style.display = "flex";
-          contenedorInputs.style.gap = "6px";
-          contenedorInputs.style.flexWrap = "wrap";
-          contenedorInputs.style.flex = "1";
+          contenedorInputs.className = "fila-renglon-editar";
 
           var inputConcepto = document.createElement("input");
           inputConcepto.type = "text";
           inputConcepto.value = cf.concepto;
-          inputConcepto.style.width = "auto";
-          inputConcepto.style.flex = "1";
-          inputConcepto.style.minWidth = "120px";
 
           var inputMonto = document.createElement("input");
           inputMonto.type = "number";
           inputMonto.min = "0";
           inputMonto.step = "0.01";
           inputMonto.value = cf.monto_mensual;
-          inputMonto.style.width = "auto";
-          inputMonto.style.minWidth = "110px";
 
           contenedorInputs.appendChild(inputConcepto);
           contenedorInputs.appendChild(inputMonto);
           fila.appendChild(contenedorInputs);
+
+          var accionesEdicionCF = document.createElement("span");
+          accionesEdicionCF.className = "fila-renglon-acciones";
 
           var btnGuardarCF = document.createElement("button");
           btnGuardarCF.textContent = "Guardar";
@@ -5620,13 +5641,19 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
             cargarContabilidad().catch(function (err) { console.error(err); });
           });
 
-          fila.appendChild(btnGuardarCF);
-          fila.appendChild(btnCancelarCF);
+          accionesEdicionCF.appendChild(btnGuardarCF);
+          accionesEdicionCF.appendChild(btnCancelarCF);
+          fila.appendChild(accionesEdicionCF);
         } else {
-          fila.innerHTML =
-            "<span>" + cf.concepto + (cf.activo ? "" : " <span class=\"fila-detalle\">(inactivo)</span>") + "<br><span class=\"fila-detalle\">" + formatoMoneda(cf.monto_mensual) + " / mes</span></span>";
+          var textoCF = document.createElement("span");
+          textoCF.innerHTML =
+            "<b>" + cf.concepto + "</b>" + (cf.activo ? "" : " <span class=\"fila-detalle\">(inactivo)</span>") + "<br><span class=\"fila-detalle\">" + formatoMoneda(cf.monto_mensual) + " / mes</span>";
+          fila.appendChild(textoCF);
 
           if (esAdministrador) {
+            var accionesCF = document.createElement("span");
+            accionesCF.className = "fila-renglon-acciones";
+
             var btnEditarCF = document.createElement("button");
             btnEditarCF.type = "button";
             btnEditarCF.className = "secundario";
@@ -5635,7 +5662,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
               costoFijoEditandoId = cf.id_costo_fijo;
               cargarContabilidad().catch(function (err) { console.error(err); });
             });
-            fila.appendChild(btnEditarCF);
+            accionesCF.appendChild(btnEditarCF);
 
             var btn = document.createElement("button");
             btn.className = "secundario";
@@ -5646,7 +5673,9 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
                 body: { activo: !cf.activo }
               }).then(cargarContabilidad);
             }, "costo-fijo-error"));
-            fila.appendChild(btn);
+            accionesCF.appendChild(btn);
+
+            fila.appendChild(accionesCF);
           }
         }
 
