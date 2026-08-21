@@ -5494,6 +5494,9 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   // CONTABILIDAD
   // =====================================================================
   var precioEquilibrioActualContab = null;
+  // id del costo fijo que se está editando en línea (null = ninguno). Se usa
+  // para volver a dibujar esa fila como formulario en vez de texto plano.
+  var costoFijoEditandoId = null;
 
   function cargarContabilidad() {
     return Promise.all([
@@ -5561,20 +5564,92 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       costosFijos.forEach(function (cf) {
         var fila = document.createElement("div");
         fila.className = "fila-renglon";
-        fila.innerHTML =
-          "<span>" + cf.concepto + (cf.activo ? "" : " <span class=\"fila-detalle\">(inactivo)</span>") + "<br><span class=\"fila-detalle\">" + formatoMoneda(cf.monto_mensual) + " / mes</span></span>";
-        if (esAdministrador) {
-          var btn = document.createElement("button");
-          btn.className = "secundario";
-          btn.textContent = cf.activo ? "Desactivar" : "Activar";
-          btn.addEventListener("click", conManejoDeErrores(function () {
+
+        if (esAdministrador && costoFijoEditandoId === cf.id_costo_fijo) {
+          // Modo edición: la fila se convierte en un mini-formulario en línea.
+          var contenedorInputs = document.createElement("span");
+          contenedorInputs.style.display = "flex";
+          contenedorInputs.style.gap = "6px";
+          contenedorInputs.style.flexWrap = "wrap";
+          contenedorInputs.style.flex = "1";
+
+          var inputConcepto = document.createElement("input");
+          inputConcepto.type = "text";
+          inputConcepto.value = cf.concepto;
+          inputConcepto.style.width = "auto";
+          inputConcepto.style.flex = "1";
+          inputConcepto.style.minWidth = "120px";
+
+          var inputMonto = document.createElement("input");
+          inputMonto.type = "number";
+          inputMonto.min = "0";
+          inputMonto.step = "0.01";
+          inputMonto.value = cf.monto_mensual;
+          inputMonto.style.width = "auto";
+          inputMonto.style.minWidth = "110px";
+
+          contenedorInputs.appendChild(inputConcepto);
+          contenedorInputs.appendChild(inputMonto);
+          fila.appendChild(contenedorInputs);
+
+          var btnGuardarCF = document.createElement("button");
+          btnGuardarCF.textContent = "Guardar";
+          btnGuardarCF.addEventListener("click", conManejoDeErrores(function () {
+            ocultarError("costo-fijo-error");
+            var nuevoConcepto = inputConcepto.value.trim();
+            var nuevoMonto = parseFloat(inputMonto.value);
+            if (!nuevoConcepto || !(nuevoMonto >= 0)) {
+              mostrarError("costo-fijo-error", "Escribe un concepto y un monto válido.");
+              return;
+            }
             return restRequest("PATCH", "costos_fijos_mensuales", {
               query: "id_costo_fijo=eq." + cf.id_costo_fijo,
-              body: { activo: !cf.activo }
-            }).then(cargarContabilidad);
+              body: { concepto: nuevoConcepto, monto_mensual: nuevoMonto }
+            }).then(function () {
+              costoFijoEditandoId = null;
+              return cargarContabilidad();
+            });
           }, "costo-fijo-error"));
-          fila.appendChild(btn);
+
+          var btnCancelarCF = document.createElement("button");
+          btnCancelarCF.type = "button";
+          btnCancelarCF.className = "secundario";
+          btnCancelarCF.textContent = "Cancelar";
+          btnCancelarCF.addEventListener("click", function () {
+            costoFijoEditandoId = null;
+            cargarContabilidad().catch(function (err) { console.error(err); });
+          });
+
+          fila.appendChild(btnGuardarCF);
+          fila.appendChild(btnCancelarCF);
+        } else {
+          fila.innerHTML =
+            "<span>" + cf.concepto + (cf.activo ? "" : " <span class=\"fila-detalle\">(inactivo)</span>") + "<br><span class=\"fila-detalle\">" + formatoMoneda(cf.monto_mensual) + " / mes</span></span>";
+
+          if (esAdministrador) {
+            var btnEditarCF = document.createElement("button");
+            btnEditarCF.type = "button";
+            btnEditarCF.className = "secundario";
+            btnEditarCF.textContent = "Editar";
+            btnEditarCF.addEventListener("click", function () {
+              costoFijoEditandoId = cf.id_costo_fijo;
+              cargarContabilidad().catch(function (err) { console.error(err); });
+            });
+            fila.appendChild(btnEditarCF);
+
+            var btn = document.createElement("button");
+            btn.className = "secundario";
+            btn.textContent = cf.activo ? "Desactivar" : "Activar";
+            btn.addEventListener("click", conManejoDeErrores(function () {
+              return restRequest("PATCH", "costos_fijos_mensuales", {
+                query: "id_costo_fijo=eq." + cf.id_costo_fijo,
+                body: { activo: !cf.activo }
+              }).then(cargarContabilidad);
+            }, "costo-fijo-error"));
+            fila.appendChild(btn);
+          }
         }
+
         listaCF.appendChild(fila);
       });
 
