@@ -2726,6 +2726,14 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   document.querySelectorAll(".logo-taller").forEach(function (img) { img.src = LOGO_TALLER_BASE64; });
 
   var accessToken = null;
+  // La sesión de Supabase caduca sola pasada una hora (es normal, por
+  // seguridad). Antes la app no se daba cuenta y cualquier acción fallaba
+  // con "JWT expired" a mitad del día. Ahora se guarda también el
+  // refresh_token y el momento en que vence, para poder renovar la sesión
+  // sola (sin que la persona tenga que volver a escribir su clave) tanto
+  // de forma preventiva como apenas algo falle por sesión vencida.
+  var refreshToken = null;
+  var sesionExpiraEn = null;
   var usuarioActualId = null;
   var rolActual = null;
   var prefijoOT = "";
@@ -2850,7 +2858,38 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     });
   }
 
-  function restRequest(method, tabla, opts) {
+  // Guarda la sesión (token de acceso + token de refresco) en este
+  // navegador, para no tener que iniciar sesión de nuevo cada vez que se
+  // abre la app en el celular. Si algo falla al guardar (modo privado,
+  // almacenamiento lleno, etc.) simplemente no se persiste — no rompe nada.
+  function guardarSesionLocal() {
+    try {
+      localStorage.setItem("sm_sesion", JSON.stringify({
+        access_token: accessToken, refresh_token: refreshToken, expira_en: sesionExpiraEn
+      }));
+    } catch (e) {}
+  }
+  function borrarSesionLocal() {
+    try { localStorage.removeItem("sm_sesion"); } catch (e) {}
+  }
+
+  // Pide un access_token nuevo usando el refresh_token guardado, sin pedirle
+  // la clave a la persona otra vez. Se usa tanto de forma preventiva (cada
+  // pocos minutos, si falta poco para que venza) como apenas una petición
+  // falle por sesión vencida.
+  function refrescarSesion() {
+    if (!refreshToken) return Promise.reject(new Error("No hay sesión para renovar."));
+    return authFetch("token?grant_type=refresh_token", { refresh_token: refreshToken })
+      .then(function (data) {
+        accessToken = data.access_token;
+        if (data.refresh_token) refreshToken = data.refresh_token;
+        sesionExpiraEn = Date.now() + (data.expires_in || 3600) * 1000;
+        guardarSesionLocal();
+        return data;
+      });
+  }
+
+  function restRequest(method, tabla, opts, _yaReintentado) {
     opts = opts || {};
     var url = SUPABASE_URL + "/rest/v1/" + tabla + (opts.query ? "?" + opts.query : "");
     var headers = {
@@ -2869,6 +2908,19 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         var data = text ? JSON.parse(text) : null;
         if (!res.ok) {
           var msg = (data && (data.message || data.hint || data.details)) || res.statusText;
+          // Si la sesión venció a mitad de una acción, se renueva sola UNA
+          // vez y se repite la misma petición — la persona ni se entera.
+          // Solo si el refresh_token también falló (p. ej. lleva días sin
+          // entrar) se cierra la sesión pidiendo que vuelva a iniciarla.
+          var pareceSesionVencida = res.status === 401 || /jwt expired|invalid jwt|jwtexpired/i.test(msg || "");
+          if (pareceSesionVencida && !_yaReintentado && refreshToken) {
+            return refrescarSesion().then(function () {
+              return restRequest(method, tabla, opts, true);
+            }).catch(function () {
+              cerrarSesion();
+              throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");
+            });
+          }
           throw new Error(msg);
         }
         return data;
@@ -2887,7 +2939,10 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     return authFetch("token?grant_type=password", { email: correo, password: clave })
       .then(function (data) {
         accessToken = data.access_token;
+        refreshToken = data.refresh_token;
+        sesionExpiraEn = Date.now() + (data.expires_in || 3600) * 1000;
         usuarioActualId = data.user.id;
+        guardarSesionLocal();
         entrarAlApp(data.user.email);
       })
       .catch(function (err) {
@@ -2897,11 +2952,43 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
 
   function cerrarSesion() {
     accessToken = null;
+    refreshToken = null;
+    sesionExpiraEn = null;
     usuarioActualId = null;
     rolActual = null;
+    borrarSesionLocal();
     location.reload();
   }
   $("btn-logout").addEventListener("click", cerrarSesion);
+
+  // Al abrir la app (o recargar la página), si hay una sesión guardada en
+  // este navegador se intenta renovar sola y entrar directo, sin pedir la
+  // clave de nuevo. Si el refresh_token guardado ya no sirve (p. ej. llevaba
+  // mucho tiempo sin abrir la app), simplemente se borra y se muestra el
+  // formulario de inicio de sesión normal.
+  (function intentarRestaurarSesion() {
+    var guardada;
+    try { guardada = JSON.parse(localStorage.getItem("sm_sesion") || "null"); } catch (e) { guardada = null; }
+    if (!guardada || !guardada.refresh_token) return;
+    refreshToken = guardada.refresh_token;
+    accessToken = guardada.access_token;
+    sesionExpiraEn = guardada.expira_en;
+    refrescarSesion().then(function (data) {
+      usuarioActualId = data.user.id;
+      entrarAlApp(data.user.email);
+    }).catch(function () {
+      borrarSesionLocal();
+    });
+  })();
+
+  // Cada 5 minutos revisa si falta poco para que venza la sesión y, si es
+  // así, la renueva de forma preventiva — para que la renovación "de
+  // emergencia" en restRequest casi nunca tenga que activarse.
+  setInterval(function () {
+    if (accessToken && refreshToken && sesionExpiraEn && (sesionExpiraEn - Date.now() < 10 * 60 * 1000)) {
+      refrescarSesion().catch(function (err) { console.error("No se pudo renovar la sesión de forma preventiva:", err); });
+    }
+  }, 5 * 60 * 1000);
 
   // El técnico solo puede cargar mano de obra (nombre + tiempo) y repuestos/
   // insumos (nombre + cantidad), sin precio. Los trabajos externos y la
@@ -7442,10 +7529,33 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     var idCombo = $("combo-seleccionar").value;
     if (!idCombo) { mostrarError("combo-aplicar-error", "Elige un combo primero."); return; }
     return restRequest("GET", "combo_items", {
-      query: "select=*,items(nombre,tipo,costo,stock_gestionado)&id_combo=eq." + idCombo + "&order=orden.asc"
+      query: "select=*,items(nombre,tipo,costo,stock_gestionado,stock_actual)&id_combo=eq." + idCombo + "&order=orden.asc"
     }).then(function (lineas) {
       lineas = lineas || [];
       if (!lineas.length) { mostrarError("combo-aplicar-error", "Este combo no tiene líneas."); return; }
+
+      // Antes de agregar nada, se revisa que haya stock suficiente de TODOS
+      // los ítems del combo que llevan control de inventario. Antes, si un
+      // ítem a mitad del combo no tenía stock, la base de datos rechazaba
+      // esa línea pero las anteriores ya habían quedado agregadas — el combo
+      // quedaba "a medias" sin avisar cuál faltó. Ahora se revisa todo primero
+      // y, si falta algo, no se agrega ninguna línea.
+      var faltantes = [];
+      lineas.forEach(function (linea) {
+        var it = linea.items;
+        if (it && it.stock_gestionado) {
+          var disponible = Number(it.stock_actual || 0);
+          var necesario = Number(linea.cantidad);
+          if (disponible < necesario) {
+            faltantes.push(it.nombre + " (hay " + disponible + ", se necesita" + (necesario === 1 ? "" : "n") + " " + necesario + ")");
+          }
+        }
+      });
+      if (faltantes.length) {
+        mostrarError("combo-aplicar-error", "No se cargó el combo: falta stock de " + faltantes.join(", ") + ". Agrega ese stock (Inventario o una orden de compra) e inténtalo de nuevo.");
+        return;
+      }
+
       if (!window.confirm("¿Agregar las " + lineas.length + " línea(s) de este combo a la orden actual?")) return;
       var esTecnico = rolActual === "tecnico";
       var promesa = Promise.resolve();
