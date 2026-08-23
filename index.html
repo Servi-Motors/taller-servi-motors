@@ -1312,6 +1312,8 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         <h2 id="proveedores-form-titulo">Agregar proveedor</h2>
         <label for="proveedor-nombre">Nombre</label>
         <input id="proveedor-nombre" type="text">
+        <label for="proveedor-nit">NIT (opcional)</label>
+        <input id="proveedor-nit" type="text" placeholder="Ej. 900123456-7">
         <label for="proveedor-contacto">Contacto (teléfono/correo)</label>
         <input id="proveedor-contacto" type="text">
         <label for="proveedor-condiciones">Condiciones de pago</label>
@@ -5452,6 +5454,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   function cargarProveedorEnFormulario(p) {
     proveedorEditando = p.id_proveedor;
     $("proveedor-nombre").value = p.nombre || "";
+    $("proveedor-nit").value = p.nit || "";
     $("proveedor-contacto").value = p.contacto || "";
     $("proveedor-condiciones").value = p.condiciones_pago || "";
     $("proveedor-direccion").value = p.direccion || "";
@@ -5464,6 +5467,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   function reiniciarFormularioProveedor() {
     proveedorEditando = null;
     $("proveedor-nombre").value = "";
+    $("proveedor-nit").value = "";
     $("proveedor-contacto").value = "";
     $("proveedor-condiciones").value = "";
     $("proveedor-direccion").value = "";
@@ -5479,6 +5483,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   $("btn-agregar-proveedor").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("proveedor-error");
     var nombre = $("proveedor-nombre").value.trim();
+    var nit = $("proveedor-nit").value.trim();
     var contacto = $("proveedor-contacto").value.trim();
     var condiciones = $("proveedor-condiciones").value.trim();
     var direccion = $("proveedor-direccion").value.trim();
@@ -5487,7 +5492,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       mostrarError("proveedor-error", "Escribe el nombre del proveedor.");
       return;
     }
-    var body = { nombre: nombre, contacto: contacto || null, condiciones_pago: condiciones || null, direccion: direccion || null, ciudad: ciudad || null };
+    var body = { nombre: nombre, nit: nit || null, contacto: contacto || null, condiciones_pago: condiciones || null, direccion: direccion || null, ciudad: ciudad || null };
     var pedido = proveedorEditando
       ? restRequest("PATCH", "proveedores", { query: "id_proveedor=eq." + proveedorEditando, body: body })
       : restRequest("POST", "proveedores", { body: body });
@@ -10491,7 +10496,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
 
   function imprimirOrdenCompra(idOrdenCompra, idError, ventanaExistente) {
     idError = idError || "compra-error";
-    var query = "select=*,proveedores(nombre,contacto,direccion,ciudad),ordenes_trabajo(numero_ot,vehiculos(placa,marca,modelo,anio,transmision,version,tipo_carroceria,vin))&id_orden_compra=eq." + idOrdenCompra;
+    var query = "select=*,proveedores(nombre,nit,contacto,direccion,ciudad),ordenes_trabajo(numero_ot,vehiculos(placa,marca,modelo,anio,transmision,version,tipo_carroceria,vin))&id_orden_compra=eq." + idOrdenCompra;
     return Promise.all([
       restRequest("GET", "ordenes_compra", { query: query }),
       restRequest("GET", "ordenes_compra_detalle", { query: "select=*&id_orden_compra=eq." + idOrdenCompra + "&order=codigo.asc" }),
@@ -10545,7 +10550,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         "<div class=\"oc-etq\">Orden No.</div><div>" + numeroFormateado + "</div></div>" +
         "<div class=\"oc-cajas\">" +
         "<div class=\"oc-caja\"><div class=\"oc-caja-titulo\">Proveedor</div><div class=\"oc-caja-cuerpo\"><b>" + (prov.nombre || "—") + "</b>" +
-        (prov.direccion ? "<br>" + prov.direccion : "") + (prov.ciudad ? "<br>" + prov.ciudad : "") + (prov.contacto ? "<br>" + prov.contacto : "") + "</div></div>" +
+        (prov.nit ? "<br>NIT: " + prov.nit : "") + (prov.direccion ? "<br>" + prov.direccion : "") + (prov.ciudad ? "<br>" + prov.ciudad : "") + (prov.contacto ? "<br>" + prov.contacto : "") + "</div></div>" +
         "<div class=\"oc-caja\"><div class=\"oc-caja-titulo\">Enviar a</div><div class=\"oc-caja-cuerpo\"><b>" + (taller.nombre_taller || "Taller Servi Motors") + "</b>" +
         (taller.direccion ? "<br>" + taller.direccion : "") + (taller.telefono ? "<br>" + taller.telefono : "") + "</div></div>" +
         "</div>" +
