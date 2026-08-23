@@ -671,7 +671,17 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
 
         <div id="orden-diagnostico-bloque" class="oculto">
           <h3>Diagnóstico técnico</h3>
-          <label for="orden-hallazgos">Hallazgos del técnico</label>
+
+          <h3 style="margin-top:4px;">Inspección multipunto</h3>
+          <div class="nota-ayuda">Revisa cada sistema del vehículo y marca su estado: verde = bien, amarillo = revisar pronto, rojo = atender ya. Sirve para recomendarle al cliente servicios adicionales con criterio, y queda como respaldo de lo que se revisó.</div>
+          <div id="inspeccion-multipunto-grupo"></div>
+          <label for="inspeccion-multipunto-observaciones">Observaciones generales (opcional)</label>
+          <textarea id="inspeccion-multipunto-observaciones" rows="2" placeholder="Ej. Se recomienda revisar de nuevo en el próximo mantenimiento"></textarea>
+          <div id="inspeccion-multipunto-guardado" class="nota-ayuda oculto" style="color:var(--verde);"></div>
+          <button type="button" class="secundario" id="btn-guardar-inspeccion-multipunto">Guardar inspección multipunto</button>
+          <div id="inspeccion-multipunto-error" class="mensaje-error"></div>
+
+          <label for="orden-hallazgos" style="margin-top:16px;">Hallazgos del técnico</label>
           <textarea id="orden-hallazgos" rows="2" placeholder="Ej. Se encontró desgaste en discos delanteros"></textarea>
           <button type="button" class="secundario" id="btn-guardar-hallazgos">Guardar hallazgos</button>
           <div class="nota-ayuda">Agrega abajo los ítems necesarios y, cuando el presupuesto esté listo, envíalo a autorización.</div>
@@ -1712,6 +1722,12 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       </div>
 
       <div class="tarjeta">
+        <h2>Sugerencia de pedido (stock bajo)</h2>
+        <div class="nota-ayuda">Ítems marcados ⚠️ arriba, agrupados por proveedor. Revisa cantidades y envía por WhatsApp — tú decides cuándo y qué pedir, esto solo te evita tener que acordarte de revisar el inventario.</div>
+        <div id="lista-sugerencia-pedido"></div>
+      </div>
+
+      <div class="tarjeta">
         <h2>Importar repuestos/insumos por Excel (varios a la vez)</h2>
         <div class="nota-ayuda">Descarga la plantilla, complétala en Excel y súbela de nuevo (también acepta CSV). Columnas: nombre, tipo (repuesto o insumo), categoria (opcional, ej. Frenos/Motor/Eléctrico), costo, precio_sugerido (opcional), stock_actual (opcional), stock_minimo (opcional).</div>
         <button id="btn-plantilla-repuestos" type="button" class="secundario">Descargar plantilla Excel</button>
@@ -2350,9 +2366,21 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       </div>
 
       <div class="tarjeta">
+        <h2>Servicios que el cliente no autorizó</h2>
+        <div class="nota-ayuda">Ítems que quedaron rechazados en alguna orden — para volver a ofrecerlos en la próxima visita. Si el cliente ya no quiere saber nada de ese servicio (ej. vendió el vehículo), descártalo para que deje de aparecer.</div>
+        <div id="lista-recordatorios-rechazados"></div>
+      </div>
+
+      <div class="tarjeta">
         <h2>Próximo mantenimiento</h2>
         <div class="nota-ayuda">Vehículos con fecha o kilometraje de próximo mantenimiento ya cumplidos (se sugieren solos al cerrar la orden, según la frecuencia configurada en Servicios, o se escriben a mano), o sin visita hace más tiempo del configurado en Configuración → Datos del taller si no se dejó ninguno de los dos. Al enviar el WhatsApp, el vehículo deja de aparecer aquí hasta el siguiente mantenimiento.</div>
         <div id="lista-recordatorios-mantenimiento"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Garantías vigentes por ítem</h2>
+        <div class="nota-ayuda">Repuestos o servicios con garantía definida, cuya fecha límite todavía no ha pasado. Se calcula desde la fecha de cierre de la orden más los meses de garantía que le pusiste a cada ítem.</div>
+        <div id="lista-garantias-vigentes"></div>
       </div>
 
       <div class="tarjeta">
@@ -2621,6 +2649,21 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   .grupo-testigos { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 6px 0 14px; }
   .grupo-testigos label { display: flex; align-items: center; gap: 6px; font-weight: 400; min-width: 140px; font-size: 14px; }
   .grupo-testigos label input { width: auto; margin: 0; }
+
+  /* Inspección multipunto: una fila por sistema del vehículo, con 3 botones
+     circulares (verde/amarillo/rojo) para marcar su estado y una nota corta. */
+  .grupo-semaforo-fila { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 4px; border-top: 1px solid var(--borde); }
+  .grupo-semaforo-fila:first-child { border-top: none; }
+  .grupo-semaforo-nombre { flex: 1 1 170px; font-size: 14px; }
+  .grupo-semaforo-botones { display: flex; gap: 6px; flex-shrink: 0; }
+  .btn-semaforo { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--borde); cursor: pointer; padding: 0; background: transparent; }
+  .btn-semaforo-verde { background: #dcfce7; }
+  .btn-semaforo-amarillo { background: #fef3c7; }
+  .btn-semaforo-rojo { background: #fee2e2; }
+  .btn-semaforo.activo.btn-semaforo-verde { background: var(--verde); border-color: var(--verde); }
+  .btn-semaforo.activo.btn-semaforo-amarillo { background: #f59e0b; border-color: #f59e0b; }
+  .btn-semaforo.activo.btn-semaforo-rojo { background: var(--rojo); border-color: var(--rojo); }
+  .grupo-semaforo-nota { flex: 1 1 150px; min-width: 130px; margin: 0; }
 
   /* En pantallas anchas (PC / tablet en horizontal), aprovecha el espacio:
      las páginas de listas y formularios pasan a 2 columnas. */
@@ -3621,14 +3664,58 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   }
   $("stock-filtro-categoria").addEventListener("change", renderizarListaStock);
 
+  // Sugerencia automática de pedido: agrupa por proveedor los ítems que ya
+  // están marcados con stock bajo (stock_actual <= stock_minimo) arriba, y
+  // arma un mensaje de WhatsApp listo para enviar — no reemplaza una
+  // integración real con el proveedor (no existe una así en el mercado local),
+  // pero evita tener que acordarse de revisar el inventario a mano.
+  function renderizarSugerenciaPedido(itemsStock, proveedores) {
+    var proveedoresPorId = {};
+    (proveedores || []).forEach(function (p) { proveedoresPorId[p.id_proveedor] = p; });
+
+    var bajos = (itemsStock || []).filter(function (it) { return Number(it.stock_actual) <= Number(it.stock_minimo); });
+    var cont = $("lista-sugerencia-pedido");
+    if (!bajos.length) {
+      cont.innerHTML = "<p class=\"nota-ayuda\">No hay ítems con stock bajo por ahora.</p>";
+      return;
+    }
+
+    var grupos = {};
+    bajos.forEach(function (it) {
+      var clave = it.id_proveedor || "__sin_proveedor__";
+      if (!grupos[clave]) grupos[clave] = [];
+      grupos[clave].push(it);
+    });
+
+    cont.innerHTML = "";
+    Object.keys(grupos).forEach(function (clave) {
+      var proveedor = proveedoresPorId[clave];
+      var items = grupos[clave];
+      var listaTexto = items.map(function (it) { return it.nombre + " (hay " + it.stock_actual + ", mínimo " + it.stock_minimo + ")"; }).join(", ");
+      var mensaje = aplicarPlantilla("pedido_repuestos_stock_bajo", {
+        proveedor: proveedor ? proveedor.nombre : "",
+        items: listaTexto
+      });
+      var fila = document.createElement("div");
+      fila.className = "fila-renglon";
+      fila.style.flexWrap = "wrap";
+      fila.innerHTML =
+        "<span><b>" + (proveedor ? proveedor.nombre : "Sin proveedor asignado") + "</b><br>" +
+        "<span class=\"fila-detalle\">" + items.map(function (it) { return it.nombre + " (hay " + it.stock_actual + ", mín. " + it.stock_minimo + ")"; }).join(" · ") + "</span></span>";
+      fila.appendChild(crearBotonWhatsApp(proveedor && proveedor.contacto, mensaje));
+      cont.appendChild(fila);
+    });
+  }
+
   function cargarInventario() {
     return Promise.all([
-      restRequest("GET", "items", { query: "select=id_item,nombre,tipo,categoria,stock_actual,stock_minimo&stock_gestionado=eq.true&order=nombre.asc" }),
+      restRequest("GET", "items", { query: "select=id_item,nombre,tipo,categoria,stock_actual,stock_minimo,id_proveedor&stock_gestionado=eq.true&order=nombre.asc" }),
       restRequest("GET", "proveedores", { query: "select=*&order=nombre.asc" })
     ]).then(function (r) {
       var itemsStock = r[0] || [];
       var proveedores = r[1] || [];
       itemsStockActual = itemsStock;
+      renderizarSugerenciaPedido(itemsStock, proveedores);
 
       var categorias = Array.from(new Set(itemsStock.map(function (it) { return it.categoria; }).filter(Boolean))).sort();
       var selFiltroCategoria = $("stock-filtro-categoria");
@@ -4376,7 +4463,9 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       restRequest("GET", "clientes", { query: "select=id_cliente,nombre,telefono&order=nombre.asc&limit=500" }),
       restRequest("GET", "vista_proximos_mantenimientos", { query: "select=*&limit=50" }),
       restRequest("GET", "parametros_taller", { query: "select=enlace_resenas&id=eq.1" }),
-      restRequest("GET", "vista_vencimientos_documentos", { query: "select=*&limit=50" })
+      restRequest("GET", "vista_vencimientos_documentos", { query: "select=*&limit=50" }),
+      restRequest("GET", "ot_detalle", { query: "select=id_detalle,items(nombre),ordenes_trabajo(numero_ot,clientes(nombre,telefono),vehiculos(placa,marca,modelo))&estado_autorizacion=eq.rechazado&seguimiento_descartado=eq.false&order=creado_en.desc&limit=100" }),
+      restRequest("GET", "vista_garantias_activas", { query: "select=*&fecha_limite_garantia=gte." + aFechaISO(ahora) + "&order=fecha_limite_garantia.asc&limit=100" })
     ]).then(function (r) {
       var ordenesCerradasRecientes = r[1] || [];
       renderizarRecordatoriosCitas(r[0] || []);
@@ -4384,6 +4473,8 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       poblarSelectorClientesComunicaciones(r[2] || []);
       renderizarRecordatoriosMantenimiento(r[3] || []);
       renderizarRecordatoriosDocumentos(r[5] || []);
+      renderizarRecordatoriosRechazados(r[6] || []);
+      renderizarGarantiasVigentes(r[7] || []);
       var enlaceResenas = (r[4] && r[4][0] && r[4][0].enlace_resenas) || "";
       var ordenesParaResena = ordenesCerradasRecientes.filter(function (o) {
         return o.fecha_cierre && new Date(o.fecha_cierre) >= hace7dias;
@@ -4523,6 +4614,54 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         "<span class=\"fila-detalle\" style=\"color:" + (vencido ? "#dc2626" : "#b45309") + ";font-weight:600;\">" +
         a.tipo + (vencido ? " VENCIDO el " : " vence el ") + fechaTexto + "</span></span>";
       fila.appendChild(crearBotonWhatsApp(v.cliente_telefono, mensaje));
+      cont.appendChild(fila);
+    });
+  }
+
+  function renderizarRecordatoriosRechazados(filas) {
+    var cont = $("lista-recordatorios-rechazados");
+    cont.innerHTML = filas.length ? "" : "<p class=\"nota-ayuda\">No hay servicios rechazados pendientes de seguimiento.</p>";
+    filas.forEach(function (d) {
+      var ot = d.ordenes_trabajo || {};
+      var cliente = ot.clientes || {};
+      var veh = ot.vehiculos || {};
+      var nombreServicio = d.items ? d.items.nombre : "—";
+      var mensaje = aplicarPlantilla("servicio_rechazado_seguimiento", {
+        cliente: cliente.nombre || "",
+        placa: veh.placa || "",
+        servicio: nombreServicio
+      });
+      var fila = document.createElement("div");
+      fila.className = "fila-renglon";
+      fila.style.flexWrap = "wrap";
+      fila.innerHTML =
+        "<span><b>" + (cliente.nombre || "Sin cliente") + "</b> <span class=\"fila-detalle\">OT #" + ot.numero_ot + (veh.placa ? " · " + veh.placa : "") + "</span><br>" +
+        "<span class=\"fila-detalle\">No autorizó: " + nombreServicio + "</span></span>";
+      fila.appendChild(crearBotonWhatsApp(cliente.telefono, mensaje));
+      var btnDescartar = document.createElement("button");
+      btnDescartar.type = "button";
+      btnDescartar.className = "secundario";
+      btnDescartar.textContent = "Descartar";
+      btnDescartar.addEventListener("click", conManejoDeErrores(function () {
+        return restRequest("PATCH", "ot_detalle", { query: "id_detalle=eq." + d.id_detalle, body: { seguimiento_descartado: true } })
+          .then(function () { fila.remove(); });
+      }, "comunicaciones-error"));
+      fila.appendChild(btnDescartar);
+      cont.appendChild(fila);
+    });
+  }
+
+  function renderizarGarantiasVigentes(filas) {
+    var cont = $("lista-garantias-vigentes");
+    cont.innerHTML = filas.length ? "" : "<p class=\"nota-ayuda\">No hay garantías vigentes por ahora.</p>";
+    filas.forEach(function (g) {
+      var fechaLimite = formatoFechaCorta(new Date(g.fecha_limite_garantia + "T00:00:00"));
+      var fila = document.createElement("div");
+      fila.className = "fila-renglon";
+      fila.innerHTML =
+        "<span><b>" + (g.cliente_nombre || "Sin cliente") + "</b> <span class=\"fila-detalle\">OT #" + g.numero_ot + (g.vehiculo_placa ? " · " + g.vehiculo_placa : "") + "</span><br>" +
+        "<span class=\"fila-detalle\">" + g.servicio + " — " + g.meses_garantia + " mes" + (Number(g.meses_garantia) === 1 ? "" : "es") + "</span></span>" +
+        "<span>Vence " + fechaLimite + "</span>";
       cont.appendChild(fila);
     });
   }
@@ -8550,6 +8689,27 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       "</div>";
   }
 
+  function construirBloqueInspeccionMultipuntoImpresion(inspeccion) {
+    if (!inspeccion || !(inspeccion.sistemas || []).length) return "";
+    var COLOR_ESTADO = { verde: "#16a34a", amarillo: "#f59e0b", rojo: "#dc2626" };
+    var ETIQUETA_ESTADO = { verde: "Bien", amarillo: "Revisar pronto", rojo: "Atender ya" };
+    var filas = (inspeccion.sistemas || []).map(function (s) {
+      var color = COLOR_ESTADO[s.estado] || "#9ca3af";
+      var etiqueta = ETIQUETA_ESTADO[s.estado] || "—";
+      return "<tr>" +
+        "<td style=\"padding:2px 6px;font-size:9.5px;\">" + s.sistema + "</td>" +
+        "<td style=\"padding:2px 6px;font-size:9.5px;white-space:nowrap;\"><span style=\"display:inline-block;width:9px;height:9px;border-radius:50%;background:" + color + ";margin-right:4px;vertical-align:middle;\"></span>" + etiqueta + "</td>" +
+        "<td style=\"padding:2px 6px;font-size:9.5px;\">" + (s.nota || "") + "</td>" +
+        "</tr>";
+    }).join("");
+    return "<div class=\"fila-datos-ancha\" style=\"page-break-inside:avoid;\"><b>Inspección multipunto</b>" +
+      "<table style=\"width:100%;border-collapse:collapse;margin-top:4px;\">" +
+      "<thead><tr><th style=\"text-align:left;font-size:9px;padding:2px 6px;\">Sistema</th><th style=\"text-align:left;font-size:9px;padding:2px 6px;\">Estado</th><th style=\"text-align:left;font-size:9px;padding:2px 6px;\">Nota</th></tr></thead>" +
+      "<tbody>" + filas + "</tbody></table>" +
+      (inspeccion.observaciones ? "<div style=\"font-size:9.5px;margin-top:4px;\"><b>Observaciones:</b> " + inspeccion.observaciones + "</div>" : "") +
+      "</div>";
+  }
+
   function imprimirOrdenActual(modo, idError) {
     idError = idError || "item-error";
     ocultarError(idError);
@@ -8558,6 +8718,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     var queryAutorizacionInicial = "select=fecha_hora,nombre_firmante,firma_imagen,autorizacion_verbal,notas_verbal,usuario_registro:usuarios!autorizaciones_ot_id_usuario_registro_fkey(nombre)&id_ot=eq." + ordenActual.id_ot + "&tipo=eq.inicial&order=fecha_hora.desc&limit=1";
     var queryEntrega = "select=nombre_recibe,firma_tecnico_imagen,firma_cliente_imagen,creado_en&id_ot=eq." + ordenActual.id_ot + "&limit=1";
     var queryChecklistRecepcion = "select=*&id_ot=eq." + ordenActual.id_ot + "&limit=1";
+    var queryInspeccionMultipunto = "select=*&id_ot=eq." + ordenActual.id_ot + "&limit=1";
 
     return Promise.all([
       restRequest("GET", "ordenes_trabajo", { query: queryOrden }),
@@ -8565,7 +8726,8 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       obtenerDatosTaller(),
       restRequest("GET", "autorizaciones_ot", { query: queryAutorizacionInicial }),
       restRequest("GET", "entregas_ot", { query: queryEntrega }),
-      restRequest("GET", "checklist_recepcion_ot", { query: queryChecklistRecepcion })
+      restRequest("GET", "checklist_recepcion_ot", { query: queryChecklistRecepcion }),
+      restRequest("GET", "inspeccion_multipunto_ot", { query: queryInspeccionMultipunto })
     ]).then(function (r) {
       var orden = r[0] && r[0][0];
       var items = (r[1] || []).filter(function (it) { return it.estado_autorizacion !== "rechazado"; });
@@ -8573,6 +8735,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       var autorizacionInicial = r[3] && r[3][0];
       var entrega = r[4] && r[4][0];
       var checklistRecepcion = r[5] && r[5][0];
+      var inspeccionMultipunto = r[6] && r[6][0];
       if (!orden) {
         mostrarError(idError, "No se pudo cargar la orden para imprimir.");
         return;
@@ -8618,6 +8781,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         var titulo = modo === "factura" ? "Factura — " + prefijoOT + orden.numero_ot : "Presupuesto / Cotización — " + prefijoOT + orden.numero_ot;
         var contenido = construirEncabezadoDocImpresion(orden, modo, fechaEntregaEstimada, fechaAutorizacionInicial) +
           construirBloqueChecklistRecepcionImpresion(checklistRecepcion, urlsFirma[3]) +
+          construirBloqueInspeccionMultipuntoImpresion(inspeccionMultipunto) +
           construirTablaManoObraImpresion(itemsMO) +
           construirTablaPartesImpresion(itemsPartes) +
           construirTablaExternosImpresion(itemsExternos) +
@@ -9841,10 +10005,36 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       f.id_detalle + '\')">' + texto + '</button>';
   }
 
+  // Garantía por ítem específico (no por toda la orden): meses ofrecidos para
+  // ese repuesto/servicio puntual. No pide firma nueva del cliente (es una
+  // condición del taller, no cambia lo que se le cobra), así que se puede
+  // editar aunque el ítem ya esté autorizado. Se oculta si está rechazado.
+  function celdaGarantiaLinea(f) {
+    if (f.estado_autorizacion === "rechazado") return "";
+    var texto = f.meses_garantia ? (f.meses_garantia + " mes" + (Number(f.meses_garantia) === 1 ? "" : "es") + " de garantía") : "Sin garantía";
+    var esAdminOAsesor = rolActual === "administrador" || rolActual === "asesor";
+    if (!esAdminOAsesor) return "<br><span class=\"fila-detalle\">" + texto + "</span>";
+    var valorActual = (f.meses_garantia === null || f.meses_garantia === undefined) ? "null" : f.meses_garantia;
+    return "<br><span class=\"fila-detalle\">" + texto + "</span> <button type=\"button\" style=\"width:auto;margin:2px 0 0;padding:2px 6px;font-size:10px;\" onclick=\"window.editarGarantiaLinea('" + f.id_detalle + "', " + valorActual + ")\">Editar garantía</button>";
+  }
+
+  window.editarGarantiaLinea = function (idDetalle, mesesActual) {
+    var nuevo = window.prompt("Meses de garantía para este ítem (déjalo vacío para quitarla):", mesesActual === null ? "" : mesesActual);
+    if (nuevo === null) return;
+    var meses = nuevo.trim() === "" ? null : parseInt(nuevo, 10);
+    if (meses !== null && !(meses >= 0)) {
+      mostrarError("item-error", "Escribe un número de meses válido (0 o mayor), o déjalo vacío.");
+      return;
+    }
+    restRequest("PATCH", "ot_detalle?id_detalle=eq." + idDetalle, { body: { meses_garantia: meses } })
+      .then(function () { return cargarItemsDeOrden(); })
+      .catch(function (err) { mostrarError("item-error", "No se pudo actualizar la garantía: " + err.message); });
+  };
+
   function renderizarTablaManoObra(filas) {
     var html = filas.map(function (f) {
       return "<tr><td>" + (f.codigo || "—") + "</td><td>" + f.items.nombre + "</td><td>" + celdaMonedaTecnico(f.precio_aplicado_cliente) + "</td><td>" + f.cantidad + "</td>" +
-        "<td>" + celdaDescuentoLinea(f) + "</td><td class=\"celda-numero\">" + celdaMonedaTecnico(montoDescuentoLinea(f)) + "</td><td class=\"celda-numero\">" + celdaMonedaTecnico(totalLineaOrden(f)) + "</td><td>" + celdaEstadoLinea(f) + botonEliminarLinea(f) + "</td>" +
+        "<td>" + celdaDescuentoLinea(f) + "</td><td class=\"celda-numero\">" + celdaMonedaTecnico(montoDescuentoLinea(f)) + "</td><td class=\"celda-numero\">" + celdaMonedaTecnico(totalLineaOrden(f)) + "</td><td>" + celdaEstadoLinea(f) + botonEliminarLinea(f) + celdaGarantiaLinea(f) + "</td>" +
         "<td>" + celdaAvanceLinea(f) + "</td></tr>";
     }).join("");
     $("cuerpo-mano-obra").innerHTML = html || "<tr><td colspan=\"9\" class=\"tabla-vacia\">Sin ítems de mano de obra todavía.</td></tr>";
@@ -9884,7 +10074,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     var html = filas.map(function (f) {
       return "<tr><td>" + (f.codigo || "—") + "</td><td>" + (ETIQUETAS_TIPO_ITEM[f.items.tipo] || f.items.tipo) + "</td><td>" + f.cantidad + "</td><td>" + f.items.nombre + "</td><td>—</td>" +
         "<td>" + celdaMonedaTecnico(f.costo_interno) + botonEditarCosto(f) + "</td><td>" + celdaDescuentoLinea(f) + "</td><td class=\"celda-numero\">" + celdaMonedaTecnico(montoDescuentoLinea(f)) + "</td>" +
-        "<td class=\"celda-numero\">" + celdaMonedaTecnico(totalLineaOrden(f)) + botonEditarPrecio(f) + botonEliminarLinea(f) + "</td><td>" + celdaEstadoLinea(f) + "</td></tr>";
+        "<td class=\"celda-numero\">" + celdaMonedaTecnico(totalLineaOrden(f)) + botonEditarPrecio(f) + botonEliminarLinea(f) + "</td><td>" + celdaEstadoLinea(f) + celdaGarantiaLinea(f) + "</td></tr>";
     }).join("");
     $("cuerpo-partes").innerHTML = html || "<tr><td colspan=\"10\" class=\"tabla-vacia\">Sin repuestos ni insumos todavía.</td></tr>";
   }
@@ -9892,7 +10082,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   function renderizarTablaExternos(filas) {
     var html = filas.map(function (f) {
       return "<tr><td>" + f.items.nombre + "</td><td>" + celdaMonedaTecnico(f.costo_interno) + botonEditarCosto(f) + "</td><td>" + celdaDescuentoLinea(f) + "</td>" +
-        "<td class=\"celda-numero\">" + celdaMonedaTecnico(montoDescuentoLinea(f)) + "</td><td class=\"celda-numero\">" + celdaMonedaTecnico(totalLineaOrden(f)) + botonEditarPrecio(f) + botonEliminarLinea(f) + "</td><td>" + celdaEstadoLinea(f) + "</td></tr>";
+        "<td class=\"celda-numero\">" + celdaMonedaTecnico(montoDescuentoLinea(f)) + "</td><td class=\"celda-numero\">" + celdaMonedaTecnico(totalLineaOrden(f)) + botonEditarPrecio(f) + botonEliminarLinea(f) + "</td><td>" + celdaEstadoLinea(f) + celdaGarantiaLinea(f) + "</td></tr>";
     }).join("");
     $("cuerpo-externos").innerHTML = html || "<tr><td colspan=\"6\" class=\"tabla-vacia\">Sin trabajos externos todavía.</td></tr>";
   }
@@ -9943,7 +10133,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   }
 
   function cargarItemsDeOrden() {
-    var queryItems = "select=id_detalle,id_item,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,fecha_inicio_real,fecha_fin_real,items(nombre,tipo,costo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
+    var queryItems = "select=id_detalle,id_item,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,fecha_inicio_real,fecha_fin_real,meses_garantia,items(nombre,tipo,costo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
     var queryOrden = "select=estado,tipo_orden,token_consulta,fecha_apertura,fecha_cierre,diagnostico,presupuesto_tentativo,hallazgos_diagnostico,veces_devuelta_calidad,motivo_devolucion_calidad,fecha_devolucion_calidad,id_asesor,id_tecnico,asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre),clientes(nombre,telefono,documento,direccion),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,transmision,version,vin,kilometraje)&id_ot=eq." + ordenActual.id_ot;
     return Promise.all([
       restRequest("GET", "ot_detalle", { query: queryItems }),
@@ -10003,6 +10193,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         // ahora mismo — es la única galería visible y la única que se exige.
         if (ETAPAS_EVIDENCIA.indexOf(orden.estado) !== -1) cargarEvidencias(orden.estado);
         if (orden.estado === "recepcion") cargarChecklistRecepcion();
+        if (orden.estado === "diagnostico") cargarInspeccionMultipunto();
       }
 
       var filasMO = filas.filter(function (f) { return f.items.tipo === "mano_obra"; });
@@ -10636,6 +10827,106 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       if (otro !== cb) otro.checked = false;
     });
   }
+
+  // Inspección multipunto: una fila por sistema del vehículo, con semáforo
+  // verde/amarillo/rojo y una nota opcional (ej. "pastillas al 30%").
+  var SISTEMAS_INSPECCION = ["Frenos", "Llantas y neumáticos", "Suspensión y dirección", "Batería y sistema eléctrico", "Luces", "Niveles de fluidos", "Correas y mangueras", "Filtros (aire, aceite, cabina)", "Sistema de escape", "Amortiguadores"];
+  var inspeccionMultipuntoActual = null;
+  var inspeccionMultipuntoIdOtCargado = null;
+  var inspeccionMultipuntoTocada = false;
+  function marcarInspeccionMultipuntoTocada() { inspeccionMultipuntoTocada = true; }
+
+  function renderizarGrupoSemaforo() {
+    $("inspeccion-multipunto-grupo").innerHTML = SISTEMAS_INSPECCION.map(function (nombre) {
+      return "<div class=\"grupo-semaforo-fila\" data-sistema=\"" + nombre.replace(/"/g, "&quot;") + "\">" +
+        "<span class=\"grupo-semaforo-nombre\">" + nombre + "</span>" +
+        "<span class=\"grupo-semaforo-botones\">" +
+        "<button type=\"button\" class=\"btn-semaforo btn-semaforo-verde\" data-valor=\"verde\" title=\"Bien\"></button>" +
+        "<button type=\"button\" class=\"btn-semaforo btn-semaforo-amarillo\" data-valor=\"amarillo\" title=\"Revisar pronto\"></button>" +
+        "<button type=\"button\" class=\"btn-semaforo btn-semaforo-rojo\" data-valor=\"rojo\" title=\"Atender ya\"></button>" +
+        "</span>" +
+        "<input type=\"text\" class=\"grupo-semaforo-nota\" placeholder=\"Nota (opcional)\">" +
+        "</div>";
+    }).join("");
+  }
+  renderizarGrupoSemaforo();
+
+  function leerGrupoSemaforo() {
+    var resultado = [];
+    document.querySelectorAll("#inspeccion-multipunto-grupo .grupo-semaforo-fila").forEach(function (fila) {
+      var btnActivo = fila.querySelector(".btn-semaforo.activo");
+      var estado = btnActivo ? btnActivo.getAttribute("data-valor") : null;
+      var nota = fila.querySelector(".grupo-semaforo-nota").value.trim();
+      if (estado || nota) {
+        resultado.push({ sistema: fila.getAttribute("data-sistema"), estado: estado, nota: nota || null });
+      }
+    });
+    return resultado;
+  }
+
+  function fijarGrupoSemaforo(sistemas) {
+    var porNombre = {};
+    (sistemas || []).forEach(function (s) { porNombre[s.sistema] = s; });
+    document.querySelectorAll("#inspeccion-multipunto-grupo .grupo-semaforo-fila").forEach(function (fila) {
+      var s = porNombre[fila.getAttribute("data-sistema")];
+      fila.querySelectorAll(".btn-semaforo").forEach(function (b) {
+        b.classList.toggle("activo", !!(s && s.estado === b.getAttribute("data-valor")));
+      });
+      fila.querySelector(".grupo-semaforo-nota").value = (s && s.nota) || "";
+    });
+  }
+
+  $("inspeccion-multipunto-grupo").addEventListener("click", function (e) {
+    var btn = e.target.closest(".btn-semaforo");
+    if (!btn) return;
+    marcarInspeccionMultipuntoTocada();
+    var fila = btn.closest(".grupo-semaforo-fila");
+    var yaActivo = btn.classList.contains("activo");
+    fila.querySelectorAll(".btn-semaforo").forEach(function (b) { b.classList.remove("activo"); });
+    if (!yaActivo) btn.classList.add("activo");
+  });
+  $("inspeccion-multipunto-grupo").addEventListener("input", function (e) {
+    if (e.target.classList.contains("grupo-semaforo-nota")) marcarInspeccionMultipuntoTocada();
+  });
+  $("inspeccion-multipunto-observaciones").addEventListener("input", marcarInspeccionMultipuntoTocada);
+
+  function cargarInspeccionMultipunto() {
+    ocultarError("inspeccion-multipunto-error");
+    if (inspeccionMultipuntoIdOtCargado !== ordenActual.id_ot) inspeccionMultipuntoTocada = false;
+    return restRequest("GET", "inspeccion_multipunto_ot", { query: "select=*&id_ot=eq." + ordenActual.id_ot + "&limit=1" }).then(function (filas) {
+      var ins = filas && filas[0];
+      inspeccionMultipuntoActual = ins || null;
+      inspeccionMultipuntoIdOtCargado = ordenActual.id_ot;
+      if (inspeccionMultipuntoTocada) return;
+      renderizarGrupoSemaforo();
+      fijarGrupoSemaforo(ins ? ins.sistemas : []);
+      $("inspeccion-multipunto-observaciones").value = (ins && ins.observaciones) || "";
+      $("inspeccion-multipunto-guardado").classList.toggle("oculto", !ins);
+      if (ins) $("inspeccion-multipunto-guardado").textContent = "✓ Esta inspección ya está guardada — puedes actualizarla si algo cambia.";
+    }).catch(function (err) {
+      mostrarError("inspeccion-multipunto-error", "No se pudo cargar la inspección multipunto: " + err.message);
+    });
+  }
+
+  $("btn-guardar-inspeccion-multipunto").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("inspeccion-multipunto-error");
+    var cuerpo = {
+      id_ot: ordenActual.id_ot,
+      sistemas: leerGrupoSemaforo(),
+      observaciones: $("inspeccion-multipunto-observaciones").value.trim() || null,
+      id_usuario_registro: usuarioActualId,
+      actualizado_en: new Date().toISOString()
+    };
+    var pedido = (inspeccionMultipuntoActual && inspeccionMultipuntoActual.id_inspeccion)
+      ? restRequest("PATCH", "inspeccion_multipunto_ot", { query: "id_inspeccion=eq." + inspeccionMultipuntoActual.id_inspeccion, body: cuerpo })
+      : restRequest("POST", "inspeccion_multipunto_ot", { body: cuerpo });
+    return pedido.then(function () {
+      inspeccionMultipuntoTocada = false;
+      $("inspeccion-multipunto-guardado").textContent = "✓ Inspección multipunto guardada.";
+      $("inspeccion-multipunto-guardado").classList.remove("oculto");
+      return cargarInspeccionMultipunto();
+    });
+  }, "inspeccion-multipunto-error"));
 
   renderizarGrupoSiNo("checklist-exteriores-grupo", LISTA_EXTERIORES);
   renderizarGrupoSiNo("checklist-accesorios-grupo", LISTA_ACCESORIOS_SINO);
