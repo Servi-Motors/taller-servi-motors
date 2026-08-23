@@ -2973,6 +2973,38 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     };
   }
 
+  // En una conexión lenta, un botón de "Agregar/Guardar" que no cambia de
+  // aspecto mientras espera la respuesta hace que la persona piense que la
+  // app "se bloqueó" — y muchas veces reacciona haciendo clic otra vez, lo
+  // que puede terminar creando el mismo registro dos veces. Este envoltorio
+  // deja el botón deshabilitado con un texto de "Guardando…" mientras dura
+  // la petición, y lo devuelve a su estado normal al terminar (haya salido
+  // bien o mal).
+  function conBotonOcupado(boton, textoOcupado, fn) {
+    return function () {
+      var args = arguments;
+      var textoOriginal = boton.textContent;
+      boton.disabled = true;
+      boton.textContent = textoOcupado;
+      function restaurar() {
+        boton.disabled = false;
+        boton.textContent = textoOriginal;
+      }
+      var resultado;
+      try {
+        resultado = fn.apply(null, args);
+      } catch (e) {
+        restaurar();
+        throw e;
+      }
+      if (resultado && typeof resultado.then === "function") {
+        return resultado.then(function (v) { restaurar(); return v; }, function (err) { restaurar(); throw err; });
+      }
+      restaurar();
+      return resultado;
+    };
+  }
+
   function formatoMoneda(numero) {
     return "$" + Number(numero || 0).toLocaleString("es-CO", { maximumFractionDigits: 0 });
   }
@@ -4968,7 +5000,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   $("btn-cancelar-edicion-cliente").addEventListener("click", reiniciarFormularioCliente);
   $("fondo-form-cliente").addEventListener("click", reiniciarFormularioCliente);
 
-  $("btn-guardar-cliente").addEventListener("click", conManejoDeErrores(function () {
+  $("btn-guardar-cliente").addEventListener("click", conManejoDeErrores(conBotonOcupado($("btn-guardar-cliente"), "Guardando…", function () {
     ocultarError("clientes-error");
     var nombre = $("cliente-nombre").value.trim();
     var documento = $("cliente-documento").value.trim();
@@ -4989,7 +5021,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       reiniciarFormularioCliente();
       return cargarClientes();
     });
-  }, "clientes-error"));
+  }), "clientes-error"));
 
   // --- Importación masiva de clientes y vehículos por Excel/CSV ---
   $("btn-plantilla-clientes").addEventListener("click", function () {
@@ -5364,7 +5396,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     });
   }, "vehiculos-error"));
 
-  $("btn-guardar-vehiculo").addEventListener("click", conManejoDeErrores(function () {
+  $("btn-guardar-vehiculo").addEventListener("click", conManejoDeErrores(conBotonOcupado($("btn-guardar-vehiculo"), "Guardando…", function () {
     ocultarError("vehiculos-error");
     var idCliente = $("vehiculo-cliente").value;
     var placa = $("vehiculo-placa").value.trim().toUpperCase();
@@ -5420,7 +5452,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       reiniciarFormularioVehiculo();
       return cargarVehiculos();
     });
-  }, "vehiculos-error"));
+  }), "vehiculos-error"));
 
   // =====================================================================
   // HISTORIAL DEL VEHÍCULO — búsqueda por placa (órdenes abiertas y
@@ -5626,7 +5658,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   $("btn-cancelar-edicion-proveedor").addEventListener("click", reiniciarFormularioProveedor);
   $("fondo-form-proveedor").addEventListener("click", reiniciarFormularioProveedor);
 
-  $("btn-agregar-proveedor").addEventListener("click", conManejoDeErrores(function () {
+  $("btn-agregar-proveedor").addEventListener("click", conManejoDeErrores(conBotonOcupado($("btn-agregar-proveedor"), "Guardando…", function () {
     ocultarError("proveedor-error");
     var nombre = $("proveedor-nombre").value.trim();
     var nit = $("proveedor-nit").value.trim();
@@ -5646,7 +5678,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       reiniciarFormularioProveedor();
       return cargarProveedoresPagina();
     });
-  }, "proveedor-error"));
+  }), "proveedor-error"));
 
   var personalUsuarioEditando = null;
   var personalEmpleadoEditando = null;
@@ -8333,7 +8365,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     });
   }, "nuevo-error"));
 
-  $("btn-registrar-nuevo").addEventListener("click", conManejoDeErrores(function () {
+  $("btn-registrar-nuevo").addEventListener("click", conManejoDeErrores(conBotonOcupado($("btn-registrar-nuevo"), "Guardando…", function () {
     ocultarError("nuevo-error");
 
     var nombre = $("nuevo-cliente-nombre").value.trim();
@@ -8404,7 +8436,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     }).catch(function (err) {
       mostrarError("nuevo-error", "No se pudo guardar: " + err.message);
     });
-  }, "nuevo-error"));
+  }), "nuevo-error"));
 
   $("btn-abrir-orden").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("orden-error");
