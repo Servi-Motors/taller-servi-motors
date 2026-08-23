@@ -11154,6 +11154,15 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     return obtenerDataUrlImagenPrivada("firmas", valor).catch(function () { return null; });
   }
 
+  // El auto-refresco de la orden (cada 2s) vuelve a llamar cargarEvidencias
+  // aunque no haya fotos nuevas. Antes eso borraba la galería completa y
+  // volvía a descargar todas las fotos desde cero cada vez — se veía como
+  // un parpadeo constante y además desperdiciaba datos móviles. Ahora se
+  // guarda qué fotos (por id) están ya pintadas en cada etapa, y solo se
+  // reconstruye la galería cuando de verdad cambió algo (se agregó o se
+  // borró una foto).
+  var evidenciasEstadoPorEtapa = {}; // etapa -> { ids: [...], urls: [...] } (urls = blob URLs a liberar después)
+
   function cargarEvidencias(etapa) {
     var ui = UI_EVIDENCIAS[etapa];
     return restRequest("GET", "evidencias_ot", {
@@ -11161,6 +11170,18 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     }).then(function (filas) {
       filas = filas || [];
       conteoEvidenciasPorEtapa[etapa] = filas.length;
+
+      var idsNuevos = filas.map(function (f) { return f.id_evidencia; });
+      var estadoPrevio = evidenciasEstadoPorEtapa[etapa];
+      var mismasFotos = estadoPrevio && estadoPrevio.ids.length === idsNuevos.length &&
+        estadoPrevio.ids.every(function (id, i) { return id === idsNuevos[i]; });
+      if (mismasFotos) return;
+
+      // Se libera la memoria de las fotos anteriores antes de reemplazarlas.
+      if (estadoPrevio) estadoPrevio.urls.forEach(function (url) { URL.revokeObjectURL(url); });
+      var urlsNuevas = [];
+      evidenciasEstadoPorEtapa[etapa] = { ids: idsNuevos, urls: urlsNuevas };
+
       var galeria = $(ui.galeria);
       galeria.innerHTML = "";
       var esAdminOAsesor = rolActual === "administrador" || rolActual === "asesor";
@@ -11168,6 +11189,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         var mini = document.createElement("div");
         mini.className = "miniatura-evidencia";
         obtenerUrlImagenPrivada(f.ruta_imagen).then(function (url) {
+          urlsNuevas.push(url);
           var img = document.createElement("img");
           img.src = url;
           mini.appendChild(img);
