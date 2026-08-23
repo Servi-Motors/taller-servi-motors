@@ -1674,7 +1674,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         <h2>Regístralo apenas ocurra, para no olvidarlo</h2>
         <label for="egreso-fecha">Fecha</label>
         <input id="egreso-fecha" type="date">
-        <label for="egreso-proveedor">Proveedor (opcional)</label>
+        <label for="egreso-proveedor">Proveedor</label>
         <input id="egreso-proveedor" type="text" list="lista-gastos-proveedores">
         <div class="fila-2col">
           <div>
@@ -5129,14 +5129,21 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   // Mismo mecanismo de autocompletado, pero para proveedor/concepto del
   // formulario de Registrar gasto (egresos).
   var datosListasGasto = null;
-  function llenarDatalistsGasto(filas) {
-    llenarDatalist("lista-gastos-proveedores", valoresUnicosOrdenados(filas, "proveedor"));
-    llenarDatalist("lista-gastos-conceptos", valoresUnicosOrdenados(filas, "concepto"));
+  function llenarDatalistsGasto(datos) {
+    // Proveedores: se combinan los ya registrados en el módulo Proveedores
+    // (para que aparezcan aunque nunca se les haya registrado un gasto)
+    // con los nombres sueltos que se hayan escrito antes en gastos.
+    var nombresProveedores = (datos.proveedores || []).map(function (p) { return { proveedor: p.nombre }; });
+    llenarDatalist("lista-gastos-proveedores", valoresUnicosOrdenados(nombresProveedores.concat(datos.egresos || []), "proveedor"));
+    llenarDatalist("lista-gastos-conceptos", valoresUnicosOrdenados(datos.egresos || [], "concepto"));
   }
   function cargarListasGasto() {
     if (datosListasGasto) { llenarDatalistsGasto(datosListasGasto); return Promise.resolve(datosListasGasto); }
-    return restRequest("GET", "egresos", { query: "select=proveedor,concepto&limit=3000" }).then(function (filas) {
-      datosListasGasto = filas || [];
+    return Promise.all([
+      restRequest("GET", "proveedores", { query: "select=nombre&order=nombre.asc" }),
+      restRequest("GET", "egresos", { query: "select=proveedor,concepto&limit=3000" })
+    ]).then(function (r) {
+      datosListasGasto = { proveedores: r[0] || [], egresos: r[1] || [] };
       llenarDatalistsGasto(datosListasGasto);
       return datosListasGasto;
     });
@@ -5832,6 +5839,10 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     var formaPago = $("egreso-forma-pago").value;
     var vencimiento = $("egreso-vencimiento").value || null;
     var idCuenta = $("egreso-cuenta").value || null;
+    if (!proveedor) {
+      mostrarError("egreso-error", "Escribe el proveedor.");
+      return;
+    }
     if (!concepto || !(monto >= 0)) {
       mostrarError("egreso-error", "Escribe el concepto y un monto válido.");
       return;
