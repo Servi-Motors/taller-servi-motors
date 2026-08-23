@@ -43,6 +43,9 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
 <datalist id="lista-transmisiones"></datalist>
 <datalist id="lista-versiones"></datalist>
 <datalist id="lista-combustibles"></datalist>
+<datalist id="lista-gastos-proveedores"></datalist>
+<datalist id="lista-gastos-conceptos"></datalist>
+<datalist id="lista-servicios-catalogo"></datalist>
 
 <div id="alerta-flotante" class="alerta-flotante oculto" role="alert">
   <span id="alerta-flotante-texto"></span>
@@ -1672,7 +1675,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         <label for="egreso-fecha">Fecha</label>
         <input id="egreso-fecha" type="date">
         <label for="egreso-proveedor">Proveedor (opcional)</label>
-        <input id="egreso-proveedor" type="text">
+        <input id="egreso-proveedor" type="text" list="lista-gastos-proveedores">
         <div class="fila-2col">
           <div>
             <label for="egreso-nit-proveedor">NIT/documento del proveedor (opcional)</label>
@@ -1685,7 +1688,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         </div>
         <div class="nota-ayuda">Si tienes la factura o documento soporte del proveedor, guarda aquí su NIT y número — así este gasto queda mejor sustentado ante una eventual revisión de la DIAN.</div>
         <label for="egreso-concepto">Concepto</label>
-        <input id="egreso-concepto" type="text" placeholder="Ej. Compra de repuestos">
+        <input id="egreso-concepto" type="text" placeholder="Ej. Compra de repuestos" list="lista-gastos-conceptos">
         <label for="egreso-categoria">Categoría</label>
         <select id="egreso-categoria">
           <option value="compra">Compra (repuesto/insumo cargado a una orden)</option>
@@ -1820,7 +1823,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     <div class="tarjeta tarjeta-formulario tarjeta-modal oculto" id="tarjeta-form-servicio">
       <h2 id="servicio-form-titulo">Nuevo servicio</h2>
       <label for="servicio-nombre">Nombre del servicio</label>
-      <input id="servicio-nombre" type="text" placeholder="Ej. Cambio de pastillas de freno">
+      <input id="servicio-nombre" type="text" placeholder="Ej. Cambio de pastillas de freno" list="lista-servicios-catalogo">
       <label for="servicio-descripcion">Descripción (opcional)</label>
       <textarea id="servicio-descripcion" rows="2" placeholder="Ej. Incluye revisión de discos y limpieza de mordazas"></textarea>
       <div class="fila-3col">
@@ -3242,6 +3245,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       $("grupo-egreso-cuenta").classList.remove("oculto");
       $("egreso-vencimiento").value = "";
       $("grupo-egreso-vencimiento").classList.add("oculto");
+      cargarListasGasto();
       promesa = cargarOrdenesParaEgreso();
     }
 
@@ -5122,6 +5126,23 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   }
   function invalidarListasVehiculo() { datosListasVehiculo = null; }
 
+  // Mismo mecanismo de autocompletado, pero para proveedor/concepto del
+  // formulario de Registrar gasto (egresos).
+  var datosListasGasto = null;
+  function llenarDatalistsGasto(filas) {
+    llenarDatalist("lista-gastos-proveedores", valoresUnicosOrdenados(filas, "proveedor"));
+    llenarDatalist("lista-gastos-conceptos", valoresUnicosOrdenados(filas, "concepto"));
+  }
+  function cargarListasGasto() {
+    if (datosListasGasto) { llenarDatalistsGasto(datosListasGasto); return Promise.resolve(datosListasGasto); }
+    return restRequest("GET", "egresos", { query: "select=proveedor,concepto&limit=3000" }).then(function (filas) {
+      datosListasGasto = filas || [];
+      llenarDatalistsGasto(datosListasGasto);
+      return datosListasGasto;
+    });
+  }
+  function invalidarListasGasto() { datosListasGasto = null; }
+
   function cargarVehiculos() {
     ocultarError("vehiculos-error");
     return Promise.all([
@@ -5843,6 +5864,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         id_usuario_registro: usuarioActualId
       }
     }).then(function () {
+      invalidarListasGasto();
       $("egreso-proveedor").value = "";
       $("egreso-nit-proveedor").value = "";
       $("egreso-numero-soporte").value = "";
@@ -7443,7 +7465,9 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     ocultarError("servicios-error");
     return restRequest("GET", "servicios_catalogo", { query: "select=*&order=nombre.asc" })
       .then(function (servicios) {
-        renderizarListaServicios(servicios || []);
+        servicios = servicios || [];
+        renderizarListaServicios(servicios);
+        llenarDatalist("lista-servicios-catalogo", valoresUnicosOrdenados(servicios, "nombre"));
       });
   }
 
