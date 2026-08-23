@@ -1359,6 +1359,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
                 <th>Orden relacionada</th>
                 <th>Total</th>
                 <th>Forma de pago</th>
+                <th>Estado de pago</th>
                 <th>Acciones</th>
               </tr>
             </thead>
@@ -2950,8 +2951,32 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     return "$" + Number(numero || 0).toLocaleString("es-CO", { maximumFractionDigits: 0 });
   }
 
+  // Si internet se cae o queda muy lento a mitad de una petición, el
+  // navegador puede tardar minutos en avisar (o nunca) — mientras tanto el
+  // botón que se apretó queda "cargando" para siempre y parece que la app
+  // se "bloqueó". Con este límite de tiempo, a los 20s se cancela sola y se
+  // muestra un mensaje claro, en vez de quedarse colgada.
+  function fetchConTiempoLimite(url, opciones, msTiempoLimite) {
+    msTiempoLimite = msTiempoLimite || 20000;
+    var tieneControlador = typeof AbortController !== "undefined";
+    var controlador = tieneControlador ? new AbortController() : null;
+    var opcionesFinal = opciones || {};
+    if (controlador) opcionesFinal = Object.assign({}, opcionesFinal, { signal: controlador.signal });
+    var idTiempo = controlador ? setTimeout(function () { controlador.abort(); }, msTiempoLimite) : null;
+    return fetch(url, opcionesFinal).then(function (res) {
+      if (idTiempo) clearTimeout(idTiempo);
+      return res;
+    }).catch(function (err) {
+      if (idTiempo) clearTimeout(idTiempo);
+      if (err && err.name === "AbortError") {
+        throw new Error("No se pudo conectar con el servidor (la conexión tardó demasiado). Revisa tu internet e intenta de nuevo.");
+      }
+      throw err;
+    });
+  }
+
   function authFetch(path, body) {
-    return fetch(SUPABASE_URL + "/auth/v1/" + path, {
+    return fetchConTiempoLimite(SUPABASE_URL + "/auth/v1/" + path, {
       method: "POST",
       headers: { "apikey": SUPABASE_KEY, "Content-Type": "application/json" },
       body: JSON.stringify(body)
@@ -3007,7 +3032,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     if (accessToken) headers["Authorization"] = "Bearer " + accessToken;
     if (method === "POST") headers["Prefer"] = "return=representation";
 
-    return fetch(url, {
+    return fetchConTiempoLimite(url, {
       method: method,
       headers: headers,
       body: opts.body ? JSON.stringify(opts.body) : undefined
@@ -10038,7 +10063,13 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     if (ordenActual.estado === "en_proceso") {
       agregarBotonEstado(cont, "Enviar a control de calidad", function () {
         if (!exigirEvidencias("en_proceso")) return;
-        return cambiarEstadoOrden("control_calidad", "Orden enviada a control de calidad");
+        return verificarAvanceCompleto().then(function (faltantes) {
+          if (faltantes.length) {
+            mostrarError("item-error", "No se puede enviar a control de calidad: falta iniciar o terminar el avance del técnico en: " + faltantes.join(", ") + ".");
+            return;
+          }
+          return cambiarEstadoOrden("control_calidad", "Orden enviada a control de calidad");
+        });
       });
     }
     if (ordenActual.estado === "control_calidad" && esAdminOAsesor) {
@@ -10220,6 +10251,21 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     var horas = Math.floor(totalMin / 60);
     var min = totalMin % 60;
     return (horas > 0 ? horas + "h " : "") + min + "min";
+  }
+
+  // Antes de mandar la orden a control de calidad, confirma que cada
+  // servicio de mano de obra (no rechazado) ya tenga Iniciar Y Terminar
+  // registrados — si no, se puede estar cerrando trabajo que en realidad
+  // nunca se marcó como empezado o como terminado.
+  function verificarAvanceCompleto() {
+    return restRequest("GET", "ot_detalle", {
+      query: "select=fecha_inicio_real,fecha_fin_real,estado_autorizacion,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot
+    }).then(function (filas) {
+      return (filas || [])
+        .filter(function (f) { return f.items.tipo === "mano_obra" && f.estado_autorizacion !== "rechazado"; })
+        .filter(function (f) { return !f.fecha_inicio_real || !f.fecha_fin_real; })
+        .map(function (f) { return f.items.nombre; });
+    });
   }
 
   function celdaAvanceLinea(f) {
@@ -10751,18 +10797,36 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   function cargarOrdenesCompraPagina() {
     ocultarError("ordenescompra-error");
     $("btn-nueva-orden-compra").classList.toggle("oculto", rolActual !== "administrador" && rolActual !== "asesor");
-    var query = "select=id_orden_compra,numero_orden,fecha,es_credito,fecha_vencimiento,descuento,envio,pct_iva,proveedores(nombre),ordenes_trabajo(numero_ot),ordenes_compra_detalle(cantidad,precio)&order=numero_orden.desc&limit=200";
+    var query = "select=id_orden_compra,numero_orden,fecha,es_credito,fecha_vencimiento,descuento,envio,pct_iva,id_egreso,proveedores(nombre),ordenes_trabajo(numero_ot),ordenes_compra_detalle(cantidad,precio),egresos(estado_pago,monto,abonos_cuentas_pagar(monto))&order=numero_orden.desc&limit=200";
     return restRequest("GET", "ordenes_compra", { query: query }).then(function (filas) {
       var cuerpo = $("cuerpo-tabla-ordenescompra");
       cuerpo.innerHTML = "";
       if (!filas || !filas.length) {
-        cuerpo.innerHTML = "<tr><td colspan=\"7\">Todavía no has generado ninguna orden de compra.</td></tr>";
+        cuerpo.innerHTML = "<tr><td colspan=\"8\">Todavía no has generado ninguna orden de compra.</td></tr>";
         return;
       }
       filas.forEach(function (oc) {
         var subtotal = (oc.ordenes_compra_detalle || []).reduce(function (a, d) { return a + d.cantidad * d.precio; }, 0);
         var iva = (subtotal - Number(oc.descuento || 0) + Number(oc.envio || 0)) * (Number(oc.pct_iva) || 0) / 100;
         var total = subtotal - Number(oc.descuento || 0) + Number(oc.envio || 0) + iva;
+
+        // Estado real de pago: si no quedó ligada a un egreso (dato viejo) no
+        // se puede saber; si no es a crédito, contado se registra pagada de
+        // una vez; si es a crédito, se mira si ya se abonó todo el saldo.
+        var eg = oc.egresos || null;
+        var estadoPagoHtml;
+        if (!eg) {
+          estadoPagoHtml = "<span style=\"color:var(--gris);\">—</span>";
+        } else if (!oc.es_credito || eg.estado_pago === "pagado") {
+          estadoPagoHtml = "<span style=\"color:var(--verde);font-weight:600;\">✅ Pagada</span>";
+        } else {
+          var abonado = (eg.abonos_cuentas_pagar || []).reduce(function (a, ab) { return a + Number(ab.monto || 0); }, 0);
+          var saldo = Math.max(0, Number(eg.monto || 0) - abonado);
+          estadoPagoHtml = abonado > 0
+            ? "<span style=\"color:#b45309;font-weight:600;\">🟡 Abonada, saldo " + formatoMoneda(saldo) + "</span>"
+            : "<span style=\"color:var(--rojo);font-weight:600;\">⏳ Pendiente de pago</span>";
+        }
+
         var tr = document.createElement("tr");
         tr.innerHTML =
           "<td>" + String(oc.numero_orden).padStart(7, "0") + "</td>" +
@@ -10770,7 +10834,8 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
           "<td>" + (oc.proveedores ? oc.proveedores.nombre : "—") + "</td>" +
           "<td>" + (oc.ordenes_trabajo ? prefijoOT + oc.ordenes_trabajo.numero_ot : "—") + "</td>" +
           "<td>" + formatoMoneda(total) + "</td>" +
-          "<td>" + (oc.es_credito ? "Crédito" + (oc.fecha_vencimiento ? " (vence " + formatoFechaCorta(new Date(oc.fecha_vencimiento + "T00:00:00")) + ")" : "") : "Contado") + "</td>";
+          "<td>" + (oc.es_credito ? "Crédito" + (oc.fecha_vencimiento ? " (vence " + formatoFechaCorta(new Date(oc.fecha_vencimiento + "T00:00:00")) + ")" : "") : "Contado") + "</td>" +
+          "<td>" + estadoPagoHtml + "</td>";
         var tdAcciones = document.createElement("td");
         var btnVer = document.createElement("button");
         btnVer.type = "button";
