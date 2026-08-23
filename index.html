@@ -90,8 +90,9 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         <div id="fr-fotos-galeria" class="galeria-evidencias"></div>
       </div>
 
+      <p class="nota-ayuda">Desmarca los servicios que <b>no</b> autorizas. Los que dejes marcados se cobran; los que desmarques quedan rechazados y no se cobran ni se realizan.</p>
       <table>
-        <thead><tr><th>Descripción</th><th>Cant.</th><th>Precio</th></tr></thead>
+        <thead><tr><th>Autorizo</th><th>Descripción</th><th>Cant.</th><th>Precio</th></tr></thead>
         <tbody id="fr-items-cuerpo"></tbody>
       </table>
       <p><b>Total a autorizar: <span id="fr-total"></span></b></p>
@@ -12452,6 +12453,17 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   // FIRMA REMOTA POR WHATSAPP (página pública, sin login, activada por ?firmar=token)
   // =====================================================================
   var canvasRemota, ctxRemota, dibujandoRemota = false, tokenFirmaRemotaActual = null;
+  var itemsFirmaRemotaActual = [];
+
+  // Recalcula "Total a autorizar" según lo que el cliente vaya dejando
+  // marcado (lo desmarcado no se cobra ni se autoriza).
+  function actualizarTotalFirmaRemota() {
+    var total = 0;
+    document.querySelectorAll(".fr-item-check").forEach(function (chk) {
+      if (chk.checked) total += Number(chk.dataset.precio) || 0;
+    });
+    $("fr-total").textContent = formatoMoneda(total);
+  }
 
   function inicializarCanvasRemota() {
     canvasRemota = $("firma-remota-canvas");
@@ -12514,22 +12526,33 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
           }).catch(function () {});
           galeriaFotos.appendChild(mini);
         });
+        itemsFirmaRemotaActual = resumen.items || [];
         var cuerpo = $("fr-items-cuerpo");
         cuerpo.innerHTML = "";
-        (resumen.items || []).forEach(function (it) {
+        itemsFirmaRemotaActual.forEach(function (it) {
           var tr = document.createElement("tr");
+          var tdCheck = document.createElement("td");
+          var chk = document.createElement("input");
+          chk.type = "checkbox";
+          chk.checked = true;
+          chk.className = "fr-item-check";
+          chk.dataset.idDetalle = it.id_detalle;
+          chk.dataset.precio = it.cantidad * it.precio;
+          chk.addEventListener("change", actualizarTotalFirmaRemota);
+          tdCheck.appendChild(chk);
           var tdNombre = document.createElement("td");
           tdNombre.textContent = it.nombre || "";
           var tdCantidad = document.createElement("td");
           tdCantidad.textContent = it.cantidad;
           var tdPrecio = document.createElement("td");
           tdPrecio.textContent = formatoMoneda(it.precio);
+          tr.appendChild(tdCheck);
           tr.appendChild(tdNombre);
           tr.appendChild(tdCantidad);
           tr.appendChild(tdPrecio);
           cuerpo.appendChild(tr);
         });
-        $("fr-total").textContent = formatoMoneda(resumen.total);
+        actualizarTotalFirmaRemota();
         inicializarCanvasRemota();
       })
       .catch(function (err) {
@@ -12556,13 +12579,20 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       mostrarError("firma-remota-error", "No se capturó ninguna firma. Dibújala en el recuadro.");
       return;
     }
+    var idsRechazados = Array.prototype.slice.call(document.querySelectorAll(".fr-item-check"))
+      .filter(function (chk) { return !chk.checked; })
+      .map(function (chk) { return chk.dataset.idDetalle; });
+    if (idsRechazados.length && !window.confirm("Vas a rechazar " + idsRechazados.length + " de los " + itemsFirmaRemotaActual.length + " servicios cotizados. Esos no se van a realizar ni cobrar. ¿Confirmas?")) {
+      return;
+    }
     var firmaDataUrl = canvasRemota.toDataURL("image/png");
     return restRequest("POST", "rpc/registrar_autorizacion_remota", {
       body: {
         p_token: tokenFirmaRemotaActual,
         p_nombre_firmante: nombreFirmante,
         p_documento_firmante: documento || null,
-        p_firma_imagen: firmaDataUrl
+        p_firma_imagen: firmaDataUrl,
+        p_ids_rechazados: idsRechazados
       }
     }).then(function () {
       $("firma-remota-contenido").classList.add("oculto");
