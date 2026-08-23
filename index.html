@@ -5946,7 +5946,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       restRequest("POST", "rpc/calcular_precio_hora_equilibrio", { body: {} }),
       restRequest("GET", "parametros_taller", { query: "select=horas_disponibles_mes,pct_variable_tecnico,pct_comisiones,pct_datafono,precio_mano_obra,tramo_horas_tecnico,tarifa_hora_tecnico_base,tarifa_hora_tecnico_extra,tramo_horas_ticket_asesor,pct_comision_mo_baja,pct_comision_mo_alta,pct_comision_margen_otros,valor_uvt_actual&id=eq.1" }),
       restRequest("GET", "costos_fijos_mensuales", { query: "select=*&order=creado_en.desc" }),
-      restRequest("GET", "egresos", { query: "select=*,ordenes_trabajo(numero_ot)&order=fecha.desc,creado_en.desc&limit=20" }),
+      restRequest("GET", "egresos", { query: "select=*,ordenes_trabajo(numero_ot),abonos_cuentas_pagar(monto,fecha,forma_pago,cuentas_taller(nombre))&order=fecha.desc,creado_en.desc&limit=20" }),
       restRequest("GET", "vista_resultado_mensual", { query: "select=*&limit=1" }),
       restRequest("GET", "cuentas_taller", { query: "select=id_cuenta,nombre&activa=eq.true&order=orden.asc" }),
       restRequest("GET", "vista_saldo_cuentas", { query: "select=*" }),
@@ -6134,8 +6134,35 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         var soporte = (eg.nit_proveedor || eg.numero_soporte)
           ? " · soporte: " + [eg.nit_proveedor, eg.numero_soporte].filter(Boolean).join(" / ")
           : "";
+
+        // Evidencia de pago: si se registró de contado, el pago fue la
+        // misma fecha del gasto. Si fue a crédito, se listan los abonos
+        // (fecha, monto, forma de pago y cuenta) hasta quedar saldado —
+        // así el historial de gastos deja rastro completo de cuándo y
+        // cómo se pagó, no solo de cuándo se generó la compra.
+        var abonos = eg.abonos_cuentas_pagar || [];
+        var htmlPago;
+        if (eg.forma_pago !== "credito") {
+          htmlPago = "<span class=\"fila-detalle\" style=\"color:var(--verde);\">✅ Pagado el " + formatoFechaCorta(new Date(eg.fecha + "T00:00:00")) + " (" + eg.forma_pago + ")</span>";
+        } else {
+          var abonado = abonos.reduce(function (a, ab) { return a + Number(ab.monto || 0); }, 0);
+          var saldo = Math.max(0, Number(eg.monto || 0) - abonado);
+          var detalleAbonos = abonos.length
+            ? abonos.map(function (ab) {
+                return formatoFechaCorta(new Date(ab.fecha + "T00:00:00")) + ": " + formatoMoneda(ab.monto) + " (" + ab.forma_pago + (ab.cuentas_taller ? " · " + ab.cuentas_taller.nombre : "") + ")";
+              }).join(" · ")
+            : "";
+          if (eg.estado_pago === "pagado") {
+            htmlPago = "<span class=\"fila-detalle\" style=\"color:var(--verde);\">✅ Pagado — " + detalleAbonos + "</span>";
+          } else if (abonos.length) {
+            htmlPago = "<span class=\"fila-detalle\" style=\"color:#b45309;\">🟡 Abonado parcial, saldo " + formatoMoneda(saldo) + " — " + detalleAbonos + "</span>";
+          } else {
+            htmlPago = "<span class=\"fila-detalle\" style=\"color:var(--rojo);\">⏳ Pendiente de pago (crédito)</span>";
+          }
+        }
+
         fila.innerHTML =
-          "<span>" + eg.concepto + " <span class=\"fila-detalle\">(" + eg.categoria + ")</span><br><span class=\"fila-detalle\">" + eg.fecha + (eg.proveedor ? " · " + eg.proveedor : "") + orden + soporte + "</span></span>" +
+          "<span>" + eg.concepto + " <span class=\"fila-detalle\">(" + eg.categoria + ")</span><br><span class=\"fila-detalle\">" + eg.fecha + (eg.proveedor ? " · " + eg.proveedor : "") + orden + soporte + "</span><br>" + htmlPago + "</span>" +
           "<span>" + formatoMoneda(eg.monto) + "</span>";
         listaEg.appendChild(fila);
       });
@@ -10797,7 +10824,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   function cargarOrdenesCompraPagina() {
     ocultarError("ordenescompra-error");
     $("btn-nueva-orden-compra").classList.toggle("oculto", rolActual !== "administrador" && rolActual !== "asesor");
-    var query = "select=id_orden_compra,numero_orden,fecha,es_credito,fecha_vencimiento,descuento,envio,pct_iva,id_egreso,proveedores(nombre),ordenes_trabajo(numero_ot),ordenes_compra_detalle(cantidad,precio),egresos(estado_pago,monto,abonos_cuentas_pagar(monto))&order=numero_orden.desc&limit=200";
+    var query = "select=id_orden_compra,numero_orden,fecha,es_credito,fecha_vencimiento,descuento,envio,pct_iva,id_egreso,proveedores(nombre),ordenes_trabajo(numero_ot),ordenes_compra_detalle(cantidad,precio),egresos(estado_pago,monto,fecha,forma_pago,abonos_cuentas_pagar(monto,fecha,forma_pago,cuentas_taller(nombre)))&order=numero_orden.desc&limit=200";
     return restRequest("GET", "ordenes_compra", { query: query }).then(function (filas) {
       var cuerpo = $("cuerpo-tabla-ordenescompra");
       cuerpo.innerHTML = "";
@@ -10814,13 +10841,17 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         // se puede saber; si no es a crédito, contado se registra pagada de
         // una vez; si es a crédito, se mira si ya se abonó todo el saldo.
         var eg = oc.egresos || null;
+        var abonosOc = (eg && eg.abonos_cuentas_pagar) || [];
         var estadoPagoHtml;
         if (!eg) {
           estadoPagoHtml = "<span style=\"color:var(--gris);\">—</span>";
-        } else if (!oc.es_credito || eg.estado_pago === "pagado") {
-          estadoPagoHtml = "<span style=\"color:var(--verde);font-weight:600;\">✅ Pagada</span>";
+        } else if (!oc.es_credito) {
+          estadoPagoHtml = "<span style=\"color:var(--verde);font-weight:600;\">✅ Pagada el " + formatoFechaCorta(new Date(eg.fecha + "T00:00:00")) + "</span>";
+        } else if (eg.estado_pago === "pagado") {
+          var ultimoAbono = abonosOc.length ? abonosOc[abonosOc.length - 1] : null;
+          estadoPagoHtml = "<span style=\"color:var(--verde);font-weight:600;\">✅ Pagada" + (ultimoAbono ? " el " + formatoFechaCorta(new Date(ultimoAbono.fecha + "T00:00:00")) : "") + "</span>";
         } else {
-          var abonado = (eg.abonos_cuentas_pagar || []).reduce(function (a, ab) { return a + Number(ab.monto || 0); }, 0);
+          var abonado = abonosOc.reduce(function (a, ab) { return a + Number(ab.monto || 0); }, 0);
           var saldo = Math.max(0, Number(eg.monto || 0) - abonado);
           estadoPagoHtml = abonado > 0
             ? "<span style=\"color:#b45309;font-weight:600;\">🟡 Abonada, saldo " + formatoMoneda(saldo) + "</span>"
