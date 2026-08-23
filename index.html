@@ -34,6 +34,16 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
 </head>
 <body>
 
+<!-- Listas de sugerencias (autocompletado) para campos de vehículo que se
+     repiten mucho entre un vehículo y otro (marca, modelo, color, etc.).
+     Se llenan con valores ya guardados antes — ver cargarListasVehiculo(). -->
+<datalist id="lista-marcas"></datalist>
+<datalist id="lista-modelos"></datalist>
+<datalist id="lista-colores"></datalist>
+<datalist id="lista-transmisiones"></datalist>
+<datalist id="lista-versiones"></datalist>
+<datalist id="lista-combustibles"></datalist>
+
 <div id="alerta-flotante" class="alerta-flotante oculto" role="alert">
   <span id="alerta-flotante-texto"></span>
   <button type="button" id="alerta-flotante-cerrar" aria-label="Cerrar">×</button>
@@ -421,11 +431,11 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         <div class="fila-2col">
           <div>
             <label for="nuevo-vehiculo-marca">Marca</label>
-            <input id="nuevo-vehiculo-marca" type="text">
+            <input id="nuevo-vehiculo-marca" type="text" list="lista-marcas">
           </div>
           <div>
             <label for="nuevo-vehiculo-modelo">Modelo</label>
-            <input id="nuevo-vehiculo-modelo" type="text">
+            <input id="nuevo-vehiculo-modelo" type="text" list="lista-modelos">
           </div>
         </div>
         <div class="fila-2col">
@@ -435,7 +445,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
           </div>
           <div>
             <label for="nuevo-vehiculo-color">Color</label>
-            <input id="nuevo-vehiculo-color" type="text">
+            <input id="nuevo-vehiculo-color" type="text" list="lista-colores">
           </div>
         </div>
         <div class="fila-2col">
@@ -1132,11 +1142,11 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         <div class="fila-2col">
           <div>
             <label for="vehiculo-marca">Marca</label>
-            <input id="vehiculo-marca" type="text">
+            <input id="vehiculo-marca" type="text" list="lista-marcas">
           </div>
           <div>
             <label for="vehiculo-modelo">Línea / modelo</label>
-            <input id="vehiculo-modelo" type="text">
+            <input id="vehiculo-modelo" type="text" list="lista-modelos">
           </div>
         </div>
         <div class="fila-2col">
@@ -1146,7 +1156,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
           </div>
           <div>
             <label for="vehiculo-color">Color</label>
-            <input id="vehiculo-color" type="text">
+            <input id="vehiculo-color" type="text" list="lista-colores">
           </div>
         </div>
         <div class="fila-2col">
@@ -1156,13 +1166,13 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
           </div>
           <div>
             <label for="vehiculo-transmision">Transmisión (opcional)</label>
-            <input id="vehiculo-transmision" type="text" placeholder="Ej. Automática, Mecánica">
+            <input id="vehiculo-transmision" type="text" placeholder="Ej. Automática, Mecánica" list="lista-transmisiones">
           </div>
         </div>
         <div class="fila-2col">
           <div>
             <label for="vehiculo-version">Versión (opcional)</label>
-            <input id="vehiculo-version" type="text" placeholder="Ej. TX, LX, Sport">
+            <input id="vehiculo-version" type="text" placeholder="Ej. TX, LX, Sport" list="lista-versiones">
           </div>
           <div>
             <label for="vehiculo-km">Kilometraje</label>
@@ -1178,7 +1188,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
           </div>
           <div>
             <label for="vehiculo-combustible">Combustible</label>
-            <input id="vehiculo-combustible" type="text" placeholder="Ej. Gasolina, Diésel">
+            <input id="vehiculo-combustible" type="text" placeholder="Ej. Gasolina, Diésel" list="lista-combustibles">
           </div>
           <div>
             <label for="vehiculo-puertas">Puertas</label>
@@ -3416,6 +3426,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
 
   function cargarTableroOrdenes() {
     ocultarError("tablero-error");
+    cargarListasVehiculo(); // sugerencias de marca/modelo/color para "Nueva orden" (no bloquea la carga del tablero)
     var query = "select=id_ot,numero_ot,estado,tipo_orden,fecha_apertura,veces_devuelta_calidad,vehiculos(placa,marca,modelo),clientes(nombre)," +
       "asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre)" +
       "&order=fecha_apertura.desc&limit=100";
@@ -5066,6 +5077,51 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   // en este formulario: ya se seleccionó al cliente en el <select>.
   var clientesInfoPorIdVehiculo = {};
 
+  // ---------------------------------------------------------------------
+  // Autocompletado de marca/modelo/color/transmisión/versión/combustible:
+  // se sugieren valores ya guardados antes en otros vehículos, para no
+  // tener que volver a escribirlos. Se cachea en sesión y se refresca
+  // después de guardar un vehículo nuevo (ver invalidarListasVehiculo()).
+  // ---------------------------------------------------------------------
+  var datosListasVehiculo = null;
+  function valoresUnicosOrdenados(filas, campo) {
+    var vistos = {};
+    var out = [];
+    (filas || []).forEach(function (f) {
+      var v = (f[campo] || "").toString().trim();
+      if (v && !vistos[v.toLowerCase()]) { vistos[v.toLowerCase()] = true; out.push(v); }
+    });
+    out.sort(function (a, b) { return a.localeCompare(b, "es"); });
+    return out;
+  }
+  function llenarDatalist(idDatalist, valores) {
+    var dl = $(idDatalist);
+    if (!dl) return;
+    dl.innerHTML = "";
+    valores.forEach(function (v) {
+      var opt = document.createElement("option");
+      opt.value = v;
+      dl.appendChild(opt);
+    });
+  }
+  function llenarDatalistsVehiculo(filas) {
+    llenarDatalist("lista-marcas", valoresUnicosOrdenados(filas, "marca"));
+    llenarDatalist("lista-modelos", valoresUnicosOrdenados(filas, "modelo"));
+    llenarDatalist("lista-colores", valoresUnicosOrdenados(filas, "color"));
+    llenarDatalist("lista-transmisiones", valoresUnicosOrdenados(filas, "transmision"));
+    llenarDatalist("lista-versiones", valoresUnicosOrdenados(filas, "version"));
+    llenarDatalist("lista-combustibles", valoresUnicosOrdenados(filas, "combustible"));
+  }
+  function cargarListasVehiculo() {
+    if (datosListasVehiculo) { llenarDatalistsVehiculo(datosListasVehiculo); return Promise.resolve(datosListasVehiculo); }
+    return restRequest("GET", "vehiculos", { query: "select=marca,modelo,color,transmision,version,combustible&limit=3000" }).then(function (filas) {
+      datosListasVehiculo = filas || [];
+      llenarDatalistsVehiculo(datosListasVehiculo);
+      return datosListasVehiculo;
+    });
+  }
+  function invalidarListasVehiculo() { datosListasVehiculo = null; }
+
   function cargarVehiculos() {
     ocultarError("vehiculos-error");
     return Promise.all([
@@ -5074,6 +5130,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     ]).then(function (r) {
       todosVehiculos = r[0] || [];
       var clientesParaSelect = r[1] || [];
+      llenarDatalistsVehiculo(todosVehiculos);
 
       clientesInfoPorIdVehiculo = {};
       clientesParaSelect.forEach(function (c) { clientesInfoPorIdVehiculo[c.id_cliente] = c; });
@@ -5271,6 +5328,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       ? restRequest("PATCH", "vehiculos", { query: "id_vehiculo=eq." + vehiculoEditando, body: body })
       : restRequest("POST", "vehiculos", { body: body });
     return pedido.then(function () {
+      invalidarListasVehiculo();
       reiniciarFormularioVehiculo();
       return cargarVehiculos();
     });
@@ -8157,6 +8215,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     }).then(function (vehiculos) {
       var vehiculoCreado = vehiculos[0];
       vehiculoSeleccionado = { id_vehiculo: vehiculoCreado.id_vehiculo, id_cliente: idClienteFinal, kilometraje: km };
+      invalidarListasVehiculo();
       datosRuntVehiculoActual = null;
       $("tarjeta-nuevo").classList.add("oculto");
       $("tarjeta-asignar").classList.remove("oculto");
