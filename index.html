@@ -2295,6 +2295,15 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       </div>
 
       <div class="tarjeta">
+        <h2>Planilla para firmar (todos los empleados)</h2>
+        <div class="nota-ayuda">Genera un solo documento en tabla con todos los empleados ya liquidados en el período de arriba (Período — inicio/fin), con un espacio de firma al frente de cada uno — así no imprimes un recibo por persona.</div>
+        <label for="planilla-fecha-liquidacion">Fecha de liquidación</label>
+        <input id="planilla-fecha-liquidacion" type="date">
+        <button id="btn-imprimir-planilla" class="secundario">🖨️ Imprimir planilla del período</button>
+        <div id="planilla-error" class="mensaje-error"></div>
+      </div>
+
+      <div class="tarjeta">
         <h2>Historial de liquidaciones</h2>
         <div id="lista-liquidaciones"></div>
       </div>
@@ -6621,6 +6630,8 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     var hoy = new Date();
     if (!$("nomina-inicio").value) $("nomina-inicio").value = aFechaISO(primerDiaMes(hoy));
     if (!$("nomina-fin").value) $("nomina-fin").value = aFechaISO(ultimoDiaMes(hoy));
+    if (!$("planilla-fecha-liquidacion").value) $("planilla-fecha-liquidacion").value = aFechaISO(hoy);
+    ocultarError("planilla-error");
 
     return Promise.all([
       restRequest("GET", "empleados", { query: "select=*,usuarios(nombre,rol)&activo=eq.true&order=creado_en.desc" }),
@@ -6716,6 +6727,62 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       mostrarError("nomina-error", "No se pudo preparar el recibo: " + err.message);
     });
   }
+
+  // Un solo documento con todos los empleados liquidados en el mismo
+  // período (Período — inicio/fin de arriba), en tabla, con espacio de
+  // firma al frente de cada uno — para no imprimir un recibo por persona.
+  function imprimirPlanillaLiquidacion(liquidaciones, periodoInicio, periodoFin, fechaLiquidacion) {
+    return obtenerDatosTaller().then(function (taller) {
+      var totalGeneral = 0;
+      var filas = liquidaciones.map(function (l, i) {
+        var nombreEmp = (l.empleados && (l.empleados.nombre || (l.empleados.usuarios && l.empleados.usuarios.nombre))) || "—";
+        var deducciones = Number(l.deduccion_prestamo || 0) + Number(l.otras_deducciones || 0);
+        totalGeneral += Number(l.total || 0);
+        return "<tr>" +
+          "<td>" + (i + 1) + "</td>" +
+          "<td>" + nombreEmp + "</td>" +
+          "<td>" + formatoMoneda(l.salario_base) + "</td>" +
+          "<td>" + formatoMoneda(Number(l.comisiones || 0) + Number(l.variable_tecnico || 0)) + "</td>" +
+          "<td>" + formatoMoneda(l.bonificaciones) + "</td>" +
+          "<td>−" + formatoMoneda(deducciones) + "</td>" +
+          "<td><b>" + formatoMoneda(l.total) + "</b></td>" +
+          "<td style=\"min-width:130px;\">&nbsp;</td>" +
+          "</tr>";
+      }).join("");
+      var contenido =
+        "<div class=\"datos-doc\">" +
+        "<div class=\"bloque\"><b>Período liquidado</b>" + formatoFechaCorta(new Date(periodoInicio + "T00:00:00")) + " a " + formatoFechaCorta(new Date(periodoFin + "T00:00:00")) + "</div>" +
+        "<div class=\"bloque\"><b>Fecha de liquidación</b>" + formatoFechaCorta(new Date(fechaLiquidacion + "T00:00:00")) + "</div>" +
+        "</div>" +
+        "<table><thead><tr><th>#</th><th>Empleado</th><th>Salario base</th><th>Comisión/Variable</th><th>Bonific.</th><th>Deducciones</th><th>Total</th><th>Firma</th></tr></thead>" +
+        "<tbody>" + filas + "</tbody></table>" +
+        "<div class=\"total-final\">Total planilla: " + formatoMoneda(totalGeneral) + "</div>";
+      abrirVentanaImpresion("Planilla de liquidación de nómina", contenido, taller);
+    }).catch(function (err) {
+      mostrarError("planilla-error", "No se pudo preparar la planilla: " + err.message);
+    });
+  }
+
+  $("btn-imprimir-planilla").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("planilla-error");
+    var periodoInicio = $("nomina-inicio").value;
+    var periodoFin = $("nomina-fin").value;
+    var fechaLiquidacion = $("planilla-fecha-liquidacion").value || aFechaISO(new Date());
+    if (!periodoInicio || !periodoFin) {
+      mostrarError("planilla-error", "Elige el período (inicio y fin) arriba, en \"Liquidar período\", antes de generar la planilla.");
+      return;
+    }
+    return restRequest("GET", "liquidaciones", {
+      query: "select=*,empleados(nombre,usuarios(nombre))&periodo_inicio=eq." + periodoInicio + "&periodo_fin=eq." + periodoFin + "&order=creado_en.asc"
+    }).then(function (liquidaciones) {
+      liquidaciones = liquidaciones || [];
+      if (!liquidaciones.length) {
+        mostrarError("planilla-error", "Todavía no hay liquidaciones registradas para ese período exacto.");
+        return;
+      }
+      return imprimirPlanillaLiquidacion(liquidaciones, periodoInicio, periodoFin, fechaLiquidacion);
+    });
+  }, "planilla-error"));
 
   $("btn-calcular-nomina").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("nomina-error");
