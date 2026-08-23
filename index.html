@@ -1496,6 +1496,12 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       </div>
 
       <div class="tarjeta">
+        <h2>Ingresos del año vs. tope de responsable de IVA</h2>
+        <div class="nota-ayuda">Por ley, si tus ingresos brutos del año superan 3.500 UVT te vuelves responsable de IVA desde el mes siguiente y debes empezar a cobrarlo y declararlo. Actualiza el valor de la UVT cada enero en Configuración → Datos del taller.</div>
+        <div id="alerta-tope-iva" class="info-vehiculo"></div>
+      </div>
+
+      <div class="tarjeta">
         <h2>Resultado del mes actual</h2>
         <div id="resultado-mensual" class="info-vehiculo"></div>
       </div>
@@ -1645,6 +1651,17 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         <input id="egreso-fecha" type="date">
         <label for="egreso-proveedor">Proveedor (opcional)</label>
         <input id="egreso-proveedor" type="text">
+        <div class="fila-2col">
+          <div>
+            <label for="egreso-nit-proveedor">NIT/documento del proveedor (opcional)</label>
+            <input id="egreso-nit-proveedor" type="text" placeholder="Ej. 900123456-7">
+          </div>
+          <div>
+            <label for="egreso-numero-soporte">N.º de factura/soporte (opcional)</label>
+            <input id="egreso-numero-soporte" type="text" placeholder="Ej. FE-1234">
+          </div>
+        </div>
+        <div class="nota-ayuda">Si tienes la factura o documento soporte del proveedor, guarda aquí su NIT y número — así este gasto queda mejor sustentado ante una eventual revisión de la DIAN.</div>
         <label for="egreso-concepto">Concepto</label>
         <input id="egreso-concepto" type="text" placeholder="Ej. Compra de repuestos">
         <label for="egreso-categoria">Categoría</label>
@@ -1876,6 +1893,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
 
     <section id="pantalla-facturacion" class="pagina pagina-ancha oculto">
       <h1>Facturación</h1>
+      <div class="nota-ayuda" style="border:2px solid var(--rojo);">⚠️ Importante: el número que ves aquí y en el documento impreso es un consecutivo interno del taller, NO una factura electrónica validada por la DIAN (no tiene CUFE ni firma digital). Si hoy es el único comprobante que le entregas a tus clientes, es muy probable que la ley te exija facturar electrónicamente a través de un proveedor tecnológico autorizado por la DIAN (hay opciones económicas para negocios pequeños). Revísalo con tu contador lo antes posible para evitar sanciones.</div>
       <div class="nota-ayuda">Órdenes ya cerradas, con su número de factura y estado de pago. El crédito en servicios es máximo a 15 días — evítalo en lo posible, y si se da, gestiónalo cuanto antes en "Cuentas por cobrar/pagar".</div>
       <div id="facturacion-error" class="mensaje-error"></div>
 
@@ -2085,14 +2103,26 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         </div>
         <div class="fila-2col">
           <div>
+            <label for="taller-valor-uvt">Valor UVT vigente ($)</label>
+            <input id="taller-valor-uvt" type="number" min="0" step="1" placeholder="Ej. 52374">
+          </div>
+          <div>
+            <label for="taller-pct-carga-prestacional">% carga prestacional (empleados formales)</label>
+            <input id="taller-pct-carga-prestacional" type="number" min="0" max="100" step="0.01" placeholder="Ej. 45">
+          </div>
+        </div>
+        <div class="nota-ayuda">El valor UVT se usa solo para avisarte en Contabilidad cuando tus ingresos del año se acerquen al tope de 3.500 UVT que te obliga por ley a ser responsable de IVA — actualízalo cada enero con el valor que publique la DIAN. El % de carga prestacional se suma al salario de los empleados marcados como "contrato formal" en Nómina, para que veas el costo real de seguridad social y prestaciones sociales (no cambia nada si ningún empleado está marcado así).</div>
+        <div class="fila-2col">
+          <div>
             <label for="taller-prefijo-ot">Prefijo para número de OT</label>
             <input id="taller-prefijo-ot" type="text" placeholder="Ej. OT-">
           </div>
           <div>
-            <label for="taller-prefijo-factura">Prefijo para número de factura</label>
+            <label for="taller-prefijo-factura">Prefijo para número de comprobante</label>
             <input id="taller-prefijo-factura" type="text" placeholder="Ej. FV-">
           </div>
         </div>
+        <div class="nota-ayuda">⚠️ Este número es solo un consecutivo interno del taller — no es una factura electrónica validada por la DIAN. Ver el aviso en la sección "Facturación" del menú.</div>
         <div class="fila-2col">
           <div>
             <label for="taller-fondo-caja-menor">Fondo objetivo de caja menor ($)</label>
@@ -2179,6 +2209,8 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
           <option value="ocasional">Ocasional</option>
           <option value="aprendiz">Aprendiz</option>
         </select>
+        <label><input type="checkbox" id="empleado-carga-prestacional" style="width:auto;"> Contrato formal (sumar seguridad social y prestaciones sociales al liquidar su nómina)</label>
+        <div class="nota-ayuda">Actívalo solo cuando el empleado tenga contrato formal con seguridad social a tu cargo. Mientras el arreglo sea informal, déjalo desmarcado — no cambia nada hasta que lo actives.</div>
         <button id="btn-agregar-empleado">Agregar</button>
         <div id="empleado-error" class="mensaje-error"></div>
       </div>
@@ -2222,6 +2254,9 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
           <input id="nomina-deduccion-prestamo" type="number" min="0" step="0.01" value="0">
           <label for="nomina-otras-deducciones">Otras deducciones</label>
           <input id="nomina-otras-deducciones" type="number" min="0" step="0.01" value="0">
+          <label for="nomina-cuenta">¿De cuál cuenta sale el pago?</label>
+          <select id="nomina-cuenta"></select>
+          <div class="nota-ayuda">Al registrar, esto también queda como egreso real y descuenta el saldo de esa cuenta — antes no pasaba, así que la utilidad y los saldos no reflejaban lo pagado en nómina.</div>
           <div id="nomina-total" class="info-vehiculo"></div>
           <button id="btn-registrar-liquidacion">Registrar liquidación</button>
           <div id="nomina-exito" class="mensaje-error mensaje-exito oculto"></div>
@@ -5559,6 +5594,8 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     $("egreso-exito").classList.add("oculto");
     var fecha = $("egreso-fecha").value || new Date().toISOString().slice(0, 10);
     var proveedor = $("egreso-proveedor").value.trim();
+    var nitProveedor = $("egreso-nit-proveedor").value.trim();
+    var numeroSoporte = $("egreso-numero-soporte").value.trim();
     var concepto = $("egreso-concepto").value.trim();
     var categoria = $("egreso-categoria").value;
     var monto = parseFloat($("egreso-monto").value);
@@ -5585,6 +5622,8 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       body: {
         fecha: fecha,
         proveedor: proveedor || null,
+        nit_proveedor: nitProveedor || null,
+        numero_soporte: numeroSoporte || null,
         concepto: concepto,
         categoria: categoria,
         monto: monto,
@@ -5597,6 +5636,8 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       }
     }).then(function () {
       $("egreso-proveedor").value = "";
+      $("egreso-nit-proveedor").value = "";
+      $("egreso-numero-soporte").value = "";
       $("egreso-concepto").value = "";
       $("egreso-monto").value = "";
       $("egreso-cuenta").value = "";
@@ -5624,16 +5665,18 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   var costoFijoEditandoId = null;
 
   function cargarContabilidad() {
+    var inicioAnio = new Date().getFullYear() + "-01-01";
     return Promise.all([
       restRequest("POST", "rpc/calcular_costo_hora_equilibrio", { body: {} }),
       restRequest("POST", "rpc/calcular_precio_hora_equilibrio", { body: {} }),
-      restRequest("GET", "parametros_taller", { query: "select=horas_disponibles_mes,pct_variable_tecnico,pct_comisiones,pct_datafono,precio_mano_obra,tramo_horas_tecnico,tarifa_hora_tecnico_base,tarifa_hora_tecnico_extra,tramo_horas_ticket_asesor,pct_comision_mo_baja,pct_comision_mo_alta,pct_comision_margen_otros&id=eq.1" }),
+      restRequest("GET", "parametros_taller", { query: "select=horas_disponibles_mes,pct_variable_tecnico,pct_comisiones,pct_datafono,precio_mano_obra,tramo_horas_tecnico,tarifa_hora_tecnico_base,tarifa_hora_tecnico_extra,tramo_horas_ticket_asesor,pct_comision_mo_baja,pct_comision_mo_alta,pct_comision_margen_otros,valor_uvt_actual&id=eq.1" }),
       restRequest("GET", "costos_fijos_mensuales", { query: "select=*&order=creado_en.desc" }),
       restRequest("GET", "egresos", { query: "select=*,ordenes_trabajo(numero_ot)&order=fecha.desc,creado_en.desc&limit=20" }),
       restRequest("GET", "vista_resultado_mensual", { query: "select=*&limit=1" }),
       restRequest("GET", "cuentas_taller", { query: "select=id_cuenta,nombre&activa=eq.true&order=orden.asc" }),
       restRequest("GET", "vista_saldo_cuentas", { query: "select=*" }),
-      restRequest("GET", "transferencias_entre_cuentas", { query: "select=fecha,monto,nota,origen:cuentas_taller!transferencias_entre_cuentas_id_cuenta_origen_fkey(nombre),destino:cuentas_taller!transferencias_entre_cuentas_id_cuenta_destino_fkey(nombre)&order=fecha.desc,creado_en.desc&limit=20" })
+      restRequest("GET", "transferencias_entre_cuentas", { query: "select=fecha,monto,nota,origen:cuentas_taller!transferencias_entre_cuentas_id_cuenta_origen_fkey(nombre),destino:cuentas_taller!transferencias_entre_cuentas_id_cuenta_destino_fkey(nombre)&order=fecha.desc,creado_en.desc&limit=20" }),
+      restRequest("GET", "vista_ingresos_ot", { query: "select=monto_ingreso&fecha_cierre=gte." + inicioAnio })
     ]).then(function (r) {
       var costoHora = r[0];
       var precioHora = r[1];
@@ -5647,6 +5690,18 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       renderizarSaldoCuentas(r[7] || []);
       renderizarListaTransferencias(r[8] || []);
       if (!$("transf-fecha").value) $("transf-fecha").value = aFechaISO(new Date());
+
+      var ingresosAnio = (r[9] || []).reduce(function (acc, f) { return acc + Number(f.monto_ingreso || 0); }, 0);
+      var valorUvt = (parametros && parametros.valor_uvt_actual) ? Number(parametros.valor_uvt_actual) : 52374;
+      var topeIva = valorUvt * 3500;
+      var pctTope = topeIva > 0 ? (ingresosAnio / topeIva) * 100 : 0;
+      var mensajeAlerta = pctTope >= 100
+        ? "<b style=\"color:var(--rojo);\">Superaste el tope — por ley ya deberías estar cobrando y declarando IVA desde el mes siguiente a cuando lo cruzaste. Habla con tu contador cuanto antes.</b>"
+        : (pctTope >= 80
+            ? "<b style=\"color:var(--rojo);\">Te estás acercando al tope. Empieza a planear el cambio a responsable de IVA.</b>"
+            : "Todavía estás por debajo del tope.");
+      $("alerta-tope-iva").innerHTML =
+        "<b>Ingresos acumulados " + new Date().getFullYear() + ": " + formatoMoneda(ingresosAnio) + "</b> de " + formatoMoneda(topeIva) + " (" + pctTope.toFixed(1) + "%)<br>" + mensajeAlerta;
 
       precioEquilibrioActualContab = (precioHora === null || precioHora === undefined) ? null : Number(precioHora);
 
@@ -5801,8 +5856,11 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         var fila = document.createElement("div");
         fila.className = "fila-renglon";
         var orden = eg.ordenes_trabajo ? " · " + prefijoOT + eg.ordenes_trabajo.numero_ot : "";
+        var soporte = (eg.nit_proveedor || eg.numero_soporte)
+          ? " · soporte: " + [eg.nit_proveedor, eg.numero_soporte].filter(Boolean).join(" / ")
+          : "";
         fila.innerHTML =
-          "<span>" + eg.concepto + " <span class=\"fila-detalle\">(" + eg.categoria + ")</span><br><span class=\"fila-detalle\">" + eg.fecha + (eg.proveedor ? " · " + eg.proveedor : "") + orden + "</span></span>" +
+          "<span>" + eg.concepto + " <span class=\"fila-detalle\">(" + eg.categoria + ")</span><br><span class=\"fila-detalle\">" + eg.fecha + (eg.proveedor ? " · " + eg.proveedor : "") + orden + soporte + "</span></span>" +
           "<span>" + formatoMoneda(eg.monto) + "</span>";
         listaEg.appendChild(fila);
       });
@@ -5977,7 +6035,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       restRequest("GET", "empleados", { query: "select=*,usuarios(nombre,rol,correo)&order=creado_en.desc" }),
       restRequest("GET", "usuarios", { query: "select=id_usuario,nombre,rol&estado=eq.activo&order=nombre.asc" }),
       restRequest("GET", "prestamos", { query: "select=*,empleados(nombre,usuarios(nombre))&order=fecha.desc" }),
-      restRequest("GET", "parametros_taller", { query: "select=nombre_taller,nit,direccion,telefono,regimen_tributario,responsable_iva,horarios_semana,prefijo_ot,prefijo_factura,monto_fondo_caja_menor,enlace_resenas,dias_sin_visita_mantenimiento,cupos_agenda_por_turno&id=eq.1" }),
+      restRequest("GET", "parametros_taller", { query: "select=nombre_taller,nit,direccion,telefono,regimen_tributario,responsable_iva,horarios_semana,prefijo_ot,prefijo_factura,monto_fondo_caja_menor,enlace_resenas,dias_sin_visita_mantenimiento,cupos_agenda_por_turno,valor_uvt_actual,pct_carga_prestacional&id=eq.1" }),
       restRequest("GET", "plantillas_mensajes", { query: "select=*&order=etiqueta.asc" })
     ]).then(function (r) {
       var empleados = r[0] || [];
@@ -5999,6 +6057,8 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       $("taller-enlace-resenas").value = datosTaller.enlace_resenas || "";
       $("taller-dias-sin-visita").value = datosTaller.dias_sin_visita_mantenimiento || 150;
       $("taller-cupos-agenda").value = datosTaller.cupos_agenda_por_turno || 1;
+      $("taller-valor-uvt").value = datosTaller.valor_uvt_actual || 52374;
+      $("taller-pct-carga-prestacional").value = (datosTaller.pct_carga_prestacional || datosTaller.pct_carga_prestacional === 0) ? Number(datosTaller.pct_carga_prestacional * 100).toFixed(2) : 45;
       $("config-enlace-agendar").value = "https://servi-motors.github.io/taller-servi-motors/?agendar=1";
       renderizarTablaJornada(datosTaller.horarios_semana || {});
 
@@ -6010,7 +6070,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         fila.className = "fila-renglon";
         fila.innerHTML =
           "<span>" + (u.nombre || emp.nombre || "—") + " <span class=\"fila-detalle\">(" + (u.rol || "sin acceso") + (emp.activo ? "" : " · inactivo") + ")</span><br>" +
-          "<span class=\"fila-detalle\">" + formatoMoneda(emp.salario_base) + " · " + emp.tipo_contrato + "</span></span>";
+          "<span class=\"fila-detalle\">" + formatoMoneda(emp.salario_base) + " · " + emp.tipo_contrato + (emp.aplica_carga_prestacional ? " · <b>contrato formal (con carga prestacional)</b>" : " · informal (sin carga prestacional)") + "</span></span>";
         var btnEditar = document.createElement("button");
         btnEditar.className = "secundario";
         btnEditar.textContent = "Editar salario";
@@ -6027,8 +6087,17 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         btnActivo.addEventListener("click", conManejoDeErrores(function () {
           return restRequest("PATCH", "empleados", { query: "id_empleado=eq." + emp.id_empleado, body: { activo: !emp.activo } }).then(cargarConfiguracion);
         }, "empleado-error"));
+        var btnCargaPrestacional = document.createElement("button");
+        btnCargaPrestacional.className = "secundario";
+        btnCargaPrestacional.textContent = emp.aplica_carga_prestacional ? "Marcar como informal" : "Marcar contrato formal";
+        btnCargaPrestacional.addEventListener("click", conManejoDeErrores(function () {
+          var activar = !emp.aplica_carga_prestacional;
+          if (activar && !confirm("¿Confirmas que " + (u.nombre || emp.nombre || "este empleado") + " ya tiene contrato formal? Desde la próxima liquidación se sumará el % de carga prestacional configurado en Configuración → Datos del taller como costo aparte (no se descuenta de su pago).")) return;
+          return restRequest("PATCH", "empleados", { query: "id_empleado=eq." + emp.id_empleado, body: { aplica_carga_prestacional: activar } }).then(cargarConfiguracion);
+        }, "empleado-error"));
         fila.appendChild(btnEditar);
         fila.appendChild(btnActivo);
+        fila.appendChild(btnCargaPrestacional);
         listaEmp.appendChild(fila);
       });
 
@@ -6080,6 +6149,10 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     var enlaceResenas = $("taller-enlace-resenas").value.trim();
     var diasSinVisitaTexto = $("taller-dias-sin-visita").value.trim();
     var diasSinVisita = diasSinVisitaTexto === "" ? 150 : parseInt(diasSinVisitaTexto, 10);
+    var valorUvtTexto = $("taller-valor-uvt").value.trim();
+    var valorUvt = valorUvtTexto === "" ? 52374 : parseFloat(valorUvtTexto);
+    var pctCargaPrestacionalTexto = $("taller-pct-carga-prestacional").value.trim();
+    var pctCargaPrestacional = pctCargaPrestacionalTexto === "" ? 0.45 : parseFloat(pctCargaPrestacionalTexto) / 100;
     if (!nombre) {
       mostrarError("datos-taller-error", "Escribe el nombre del taller.");
       return;
@@ -6090,6 +6163,14 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     }
     if (!(diasSinVisita > 0)) {
       mostrarError("datos-taller-error", "Los días sin visita para el recordatorio de mantenimiento deben ser un número mayor a 0.");
+      return;
+    }
+    if (!(valorUvt > 0)) {
+      mostrarError("datos-taller-error", "Escribe un valor de UVT válido.");
+      return;
+    }
+    if (!(pctCargaPrestacional >= 0 && pctCargaPrestacional <= 1)) {
+      mostrarError("datos-taller-error", "El % de carga prestacional debe estar entre 0 y 100.");
       return;
     }
     return restRequest("PATCH", "parametros_taller", {
@@ -6105,7 +6186,9 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         prefijo_factura: prefFactura,
         monto_fondo_caja_menor: fondoCajaMenor,
         enlace_resenas: enlaceResenas || null,
-        dias_sin_visita_mantenimiento: diasSinVisita
+        dias_sin_visita_mantenimiento: diasSinVisita,
+        valor_uvt_actual: valorUvt,
+        pct_carga_prestacional: pctCargaPrestacional
       }
     }).then(function () {
       prefijoOT = prefOT;
@@ -6252,11 +6335,13 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     var idUsuario = $("empleado-usuario").value;
     var salario = parseFloat($("empleado-salario").value);
     var contrato = $("empleado-contrato").value;
+    var cargaPrestacional = $("empleado-carga-prestacional").checked;
     if (!idUsuario) { mostrarError("empleado-error", "No hay usuarios disponibles para agregar (o ya todos son empleados)."); return; }
     if (!(salario >= 0)) { mostrarError("empleado-error", "Escribe un salario base válido."); return; }
-    return restRequest("POST", "empleados", { body: { id_usuario: idUsuario, salario_base: salario, tipo_contrato: contrato } })
+    return restRequest("POST", "empleados", { body: { id_usuario: idUsuario, salario_base: salario, tipo_contrato: contrato, aplica_carga_prestacional: cargaPrestacional } })
       .then(function () {
         $("empleado-salario").value = "";
+        $("empleado-carga-prestacional").checked = false;
         return cargarConfiguracion();
       });
   }, "empleado-error"));
@@ -6280,6 +6365,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   // NÓMINA — liquidar (lee de Configuración, no guarda salarios/porcentajes)
   // =====================================================================
   var nominaCalculo = null;
+  var pctCargaPrestacionalActual = 0.45;
 
   function primerDiaMes(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
   function ultimoDiaMes(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 0); }
@@ -6297,10 +6383,15 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
 
     return Promise.all([
       restRequest("GET", "empleados", { query: "select=*,usuarios(nombre,rol)&activo=eq.true&order=creado_en.desc" }),
-      restRequest("GET", "liquidaciones", { query: "select=*,empleados(nombre,salario_base,usuarios(nombre))&order=periodo_inicio.desc&limit=20" })
+      restRequest("GET", "liquidaciones", { query: "select=*,empleados(nombre,salario_base,usuarios(nombre))&order=periodo_inicio.desc&limit=20" }),
+      restRequest("GET", "cuentas_taller", { query: "select=id_cuenta,nombre,tipo&activa=eq.true&order=orden.asc" }),
+      restRequest("GET", "parametros_taller", { query: "select=pct_carga_prestacional&id=eq.1" })
     ]).then(function (r) {
       var empleados = r[0] || [];
       var liquidaciones = r[1] || [];
+      todasCuentasTaller = r[2] || [];
+      llenarSelectCuentas($("nomina-cuenta"), false);
+      pctCargaPrestacionalActual = (r[3] && r[3][0]) ? Number(r[3][0].pct_carga_prestacional) : 0.45;
 
       var sel = $("nomina-empleado");
       var valorPrevio = sel.value;
@@ -6313,7 +6404,8 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         opt.setAttribute("data-usuario", emp.id_usuario || "");
         opt.setAttribute("data-rol", u.rol || "");
         opt.setAttribute("data-salario", emp.salario_base);
-        opt.textContent = nombreEmpleado + (u.rol ? " (" + u.rol + ")" : " (sin acceso)");
+        opt.setAttribute("data-carga-prestacional", emp.aplica_carga_prestacional ? "1" : "0");
+        opt.textContent = nombreEmpleado + (u.rol ? " (" + u.rol + ")" : " (sin acceso)") + (emp.aplica_carga_prestacional ? " · formal" : "");
         sel.appendChild(opt);
       });
       if (valorPrevio) sel.value = valorPrevio;
@@ -6397,6 +6489,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     var idUsuario = opt.getAttribute("data-usuario");
     var rol = opt.getAttribute("data-rol");
     var salarioMensual = parseFloat(opt.getAttribute("data-salario")) || 0;
+    var aplicaCargaPrestacional = opt.getAttribute("data-carga-prestacional") === "1";
     var inicio = $("nomina-inicio").value;
     var fin = $("nomina-fin").value;
     if (!inicio || !fin || inicio > fin) { mostrarError("nomina-error", "Escribe un período válido."); return; }
@@ -6472,9 +6565,12 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
 
       var comisiones = comisionManoObra + comisionMargenOtros;
       var variableTecnico = rol === "tecnico" ? (horasTramoBase * tarifaBase + horasTramoExtra * tarifaExtra) : 0;
+      var cargaPrestacionalValor = aplicaCargaPrestacional ? Math.round(salarioBase * pctCargaPrestacionalActual) : 0;
 
       nominaCalculo = {
         id_empleado: idEmpleado,
+        aplica_carga_prestacional: aplicaCargaPrestacional,
+        carga_prestacional: cargaPrestacionalValor,
         periodo_inicio: inicio,
         periodo_fin: fin,
         horas_mano_obra_asesor: horas,
@@ -6511,7 +6607,10 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
 
       $("nomina-resumen").innerHTML = "<b>Salario base: " + formatoMoneda(salarioBase) + "</b>"
         + "(" + diasPeriodo + " días de 30, sobre salario mensual de " + formatoMoneda(salarioMensual) + ")"
-        + detalleCalculo;
+        + detalleCalculo
+        + (aplicaCargaPrestacional
+            ? ("<br><b>+ Carga prestacional (" + (pctCargaPrestacionalActual * 100).toFixed(2) + "%): " + formatoMoneda(cargaPrestacionalValor) + "</b> — costo adicional del taller (seguridad social y prestaciones sociales). No se paga al empleado ni se descuenta de su liquidación; se registra como un gasto aparte.")
+            : "");
 
       var selPrestamo = $("nomina-prestamo");
       selPrestamo.innerHTML = "<option value=\"\">— Ninguno —</option>";
@@ -6555,42 +6654,94 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     var dedPrestamo = parseFloat($("nomina-deduccion-prestamo").value) || 0;
     if (dedPrestamo > 0 && !idPrestamo) { mostrarError("nomina-error", "Selecciona el préstamo del que quieres descontar."); return; }
     if (dedPrestamo <= 0) idPrestamo = null;
+    var idCuentaNomina = $("nomina-cuenta").value || null;
+    if (!idCuentaNomina) { mostrarError("nomina-error", "Elige de cuál cuenta sale el pago (así queda registrado el gasto real y se descuenta el saldo)."); return; }
+    var cuentaElegida = (todasCuentasTaller || []).filter(function (c) { return c.id_cuenta === idCuentaNomina; })[0];
+    var formaPagoNomina = (cuentaElegida && cuentaElegida.tipo === "efectivo") ? "efectivo" : "transferencia";
+
+    var selEmp = $("nomina-empleado");
+    var optEmp = selEmp.options[selEmp.selectedIndex];
+    var nombreEmpleadoTexto = optEmp ? optEmp.textContent : "";
 
     var btnRegistrar = $("btn-registrar-liquidacion");
     btnRegistrar.disabled = true;
     btnRegistrar.textContent = "Registrando…";
 
-    var body = {
-      id_empleado: nominaCalculo.id_empleado,
-      periodo_inicio: nominaCalculo.periodo_inicio,
-      periodo_fin: nominaCalculo.periodo_fin,
-      dias_periodo: nominaCalculo.dias_periodo,
-      salario_mensual_base: nominaCalculo.salario_mensual_base,
-      salario_base: nominaCalculo.salario_base,
-      comisiones: nominaCalculo.comisiones,
-      variable_tecnico: nominaCalculo.variable_tecnico,
-      horas_tramo_base: nominaCalculo.horas_tramo_base,
-      horas_tramo_extra: nominaCalculo.horas_tramo_extra,
-      tarifa_hora_base: nominaCalculo.tarifa_hora_base,
-      tarifa_hora_extra: nominaCalculo.tarifa_hora_extra,
-      horas_trabajadas: nominaCalculo.horas_trabajadas,
-      horas_mano_obra_asesor: nominaCalculo.horas_mano_obra_asesor,
-      num_ordenes_asesor: nominaCalculo.num_ordenes_asesor,
-      ticket_promedio_horas: nominaCalculo.ticket_promedio_horas,
-      valor_mano_obra_asesor: nominaCalculo.valor_mano_obra_asesor,
-      pct_comision_mano_obra: nominaCalculo.pct_comision_mano_obra,
-      comision_mano_obra: nominaCalculo.comision_mano_obra,
-      margen_otros_asesor: nominaCalculo.margen_otros_asesor,
-      pct_comision_margen_otros: nominaCalculo.pct_comision_margen_otros,
-      comision_margen_otros: nominaCalculo.comision_margen_otros,
-      bonificaciones: parseFloat($("nomina-bonificaciones").value) || 0,
-      id_prestamo: idPrestamo,
-      deduccion_prestamo: dedPrestamo,
-      otras_deducciones: parseFloat($("nomina-otras-deducciones").value) || 0,
-      id_usuario_registro: usuarioActualId
-    };
+    var bonificaciones = parseFloat($("nomina-bonificaciones").value) || 0;
+    var otrasDeducciones = parseFloat($("nomina-otras-deducciones").value) || 0;
+    var totalNeto = nominaCalculo.salario_base + nominaCalculo.comisiones + nominaCalculo.variable_tecnico + bonificaciones - dedPrestamo - otrasDeducciones;
 
-    return restRequest("POST", "liquidaciones", { body: body })
+    // 1) Egreso real por el neto pagado al empleado — esto es lo que antes faltaba:
+    //    sin esto, la nómina nunca bajaba el saldo de cuentas ni la utilidad del mes.
+    return restRequest("POST", "egresos", {
+      body: {
+        fecha: nominaCalculo.periodo_fin,
+        proveedor: nombreEmpleadoTexto || null,
+        concepto: "Nómina — " + nominaCalculo.periodo_inicio + " a " + nominaCalculo.periodo_fin,
+        categoria: "gasto",
+        monto: totalNeto,
+        forma_pago: formaPagoNomina,
+        estado_pago: "pagado",
+        id_cuenta: idCuentaNomina,
+        id_usuario_registro: usuarioActualId
+      }
+    }).then(function (egresoNomina) {
+      var idEgresoNomina = egresoNomina[0].id_egreso;
+      // 2) Si el empleado tiene contrato formal, un SEGUNDO egreso aparte por la carga
+      //    prestacional (seguridad social + prestaciones sociales) — es un costo real
+      //    del taller, pero no sale de ninguna cuenta todavía, así que no se le asigna cuenta.
+      var pedidoEgresoCarga = nominaCalculo.aplica_carga_prestacional && nominaCalculo.carga_prestacional > 0
+        ? restRequest("POST", "egresos", {
+            body: {
+              fecha: nominaCalculo.periodo_fin,
+              proveedor: nombreEmpleadoTexto || null,
+              concepto: "Carga prestacional (seg. social + prestaciones) — " + nominaCalculo.periodo_inicio + " a " + nominaCalculo.periodo_fin,
+              categoria: "gasto",
+              monto: nominaCalculo.carga_prestacional,
+              forma_pago: "transferencia",
+              estado_pago: "pagado",
+              id_cuenta: null,
+              id_usuario_registro: usuarioActualId
+            }
+          }).then(function (egresoCarga) { return egresoCarga[0].id_egreso; })
+        : Promise.resolve(null);
+
+      return pedidoEgresoCarga.then(function (idEgresoCarga) {
+        var body = {
+          id_empleado: nominaCalculo.id_empleado,
+          periodo_inicio: nominaCalculo.periodo_inicio,
+          periodo_fin: nominaCalculo.periodo_fin,
+          dias_periodo: nominaCalculo.dias_periodo,
+          salario_mensual_base: nominaCalculo.salario_mensual_base,
+          salario_base: nominaCalculo.salario_base,
+          comisiones: nominaCalculo.comisiones,
+          variable_tecnico: nominaCalculo.variable_tecnico,
+          horas_tramo_base: nominaCalculo.horas_tramo_base,
+          horas_tramo_extra: nominaCalculo.horas_tramo_extra,
+          tarifa_hora_base: nominaCalculo.tarifa_hora_base,
+          tarifa_hora_extra: nominaCalculo.tarifa_hora_extra,
+          horas_trabajadas: nominaCalculo.horas_trabajadas,
+          horas_mano_obra_asesor: nominaCalculo.horas_mano_obra_asesor,
+          num_ordenes_asesor: nominaCalculo.num_ordenes_asesor,
+          ticket_promedio_horas: nominaCalculo.ticket_promedio_horas,
+          valor_mano_obra_asesor: nominaCalculo.valor_mano_obra_asesor,
+          pct_comision_mano_obra: nominaCalculo.pct_comision_mano_obra,
+          comision_mano_obra: nominaCalculo.comision_mano_obra,
+          margen_otros_asesor: nominaCalculo.margen_otros_asesor,
+          pct_comision_margen_otros: nominaCalculo.pct_comision_margen_otros,
+          comision_margen_otros: nominaCalculo.comision_margen_otros,
+          bonificaciones: bonificaciones,
+          id_prestamo: idPrestamo,
+          deduccion_prestamo: dedPrestamo,
+          otras_deducciones: otrasDeducciones,
+          carga_prestacional: nominaCalculo.carga_prestacional || 0,
+          id_egreso: idEgresoNomina,
+          id_egreso_carga_prestacional: idEgresoCarga,
+          id_usuario_registro: usuarioActualId
+        };
+        return restRequest("POST", "liquidaciones", { body: body });
+      });
+    })
       .then(function () {
         nominaCalculo = null;
         $("nomina-inicio").value = "";
@@ -6599,7 +6750,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         // AL FINAL mostramos el mensaje de éxito, para que cargarNomina() no lo
         // oculte de inmediato y el usuario vea la confirmación con claridad.
         return cargarNomina().then(function () {
-          $("nomina-exito").textContent = "Liquidación registrada.";
+          $("nomina-exito").textContent = "Liquidación registrada. También quedó como egreso real, descontando la cuenta elegida.";
           $("nomina-exito").classList.remove("oculto");
         });
       })
