@@ -225,6 +225,7 @@ against the dark UI.
 
     <div class="nav-seccion">Stock</div>
     <a href="#" class="nav-link oculto" id="nav-inventario" data-pagina="inventario">📦 Inventario</a>
+    <a href="#" class="nav-link oculto" id="nav-activos" data-pagina="activos">🧰 Activos y herramientas</a>
     <a href="#" class="nav-link oculto" id="nav-servicios" data-pagina="servicios">🔧 Servicios</a>
     <a href="#" class="nav-link oculto" id="nav-combos" data-pagina="combos">🧩 Combos de servicio</a>
 
@@ -1822,6 +1823,198 @@ against the dark UI.
       <div id="stock-exito" class="mensaje-error mensaje-exito oculto"></div>
     </div>
 
+    <section id="pantalla-activos" class="pagina pagina-ancha oculto">
+      <h1>Activos y herramientas</h1>
+      <div class="nota-ayuda">Ficha de las herramientas y equipos del taller (no repuestos ni insumos): en qué estado están, dónde están, quién los tiene, control de préstamos, auditorías trimestrales y bajas por daño.</div>
+      <div id="activos-error" class="mensaje-error"></div>
+
+      <div class="tarjeta">
+        <h2>Ficha de herramientas y equipos</h2>
+        <div class="tabla-toolbar">
+          <button type="button" id="btn-nuevo-activo">+ Registrar herramienta/equipo</button>
+          <label>Mostrar
+            <select id="activos-tamano">
+              <option value="10">10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="999999">Todos</option>
+            </select>
+            registros
+          </label>
+          <label>Buscar <input id="activos-buscar" type="text"></label>
+        </div>
+        <label for="activos-filtro-estado">Filtrar por estado</label>
+        <select id="activos-filtro-estado">
+          <option value="">En uso (todos los estados)</option>
+          <option value="nuevo">Nuevo</option>
+          <option value="bueno">Bueno</option>
+          <option value="requiere_mantenimiento">Requiere mantenimiento</option>
+          <option value="requiere_reemplazo">Requiere reemplazo</option>
+          <option value="baja">Dados de baja</option>
+        </select>
+        <div class="tabla-scroll">
+          <table class="tabla-datos" id="tabla-activos">
+            <thead>
+              <tr>
+                <th data-orden="nombre">Nombre</th>
+                <th data-orden="marca">Marca</th>
+                <th data-orden="estado_actual">Estado</th>
+                <th data-orden="ubicacion">Ubicación</th>
+                <th data-orden="responsable">Responsable</th>
+                <th data-orden="costo_original">Costo original</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="cuerpo-tabla-activos"></tbody>
+          </table>
+        </div>
+        <div class="tabla-pie">
+          <span id="activos-info-paginacion"></span>
+          <span id="activos-paginacion"></span>
+        </div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Préstamos (check-in / check-out)</h2>
+        <div class="nota-ayuda">Solo para las herramientas/equipos marcados como "requiere control de préstamo" en su ficha.</div>
+        <button type="button" id="btn-nuevo-prestamoact">+ Registrar préstamo (check-out)</button>
+        <div class="tabla-scroll">
+          <table class="tabla-datos" id="tabla-prestamos-activos">
+            <thead>
+              <tr>
+                <th>Herramienta/equipo</th>
+                <th>Prestado a</th>
+                <th>Fecha préstamo</th>
+                <th>Devolución esperada</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="cuerpo-tabla-prestamos-activos"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Auditoría / conteo físico</h2>
+        <div class="nota-ayuda">Cuenta físicamente tus herramientas y equipos cada trimestre (o cuando quieras) y deja constancia de lo que encontraste.</div>
+        <button type="button" id="btn-iniciar-auditoria">+ Iniciar nueva auditoría</button>
+        <p id="activos-ultima-auditoria" class="nota-ayuda"></p>
+        <div class="tabla-scroll">
+          <table class="tabla-datos" id="tabla-auditorias">
+            <thead><tr><th>Fecha</th><th>Encontrados</th><th>No encontrados</th><th>Notas</th></tr></thead>
+            <tbody id="cuerpo-tabla-auditorias"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Bajas por daño, pérdida u obsolescencia</h2>
+        <div class="nota-ayuda">Cada baja genera automáticamente un Egreso contable con el valor de la pérdida, para que tus libros queden actualizados.</div>
+        <button type="button" id="btn-nueva-baja-activo">+ Dar de baja un activo</button>
+        <div class="tabla-scroll">
+          <table class="tabla-datos" id="tabla-bajas-activos">
+            <thead><tr><th>Fecha</th><th>Activo</th><th>Motivo</th><th>Valor de la pérdida</th></tr></thead>
+            <tbody id="cuerpo-tabla-bajas-activos"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <div id="fondo-form-activo" class="fondo-modal oculto"></div>
+    <div class="tarjeta tarjeta-formulario tarjeta-modal oculto" id="tarjeta-form-activo">
+      <h2 id="activos-form-titulo">Registrar herramienta/equipo</h2>
+      <label for="activo-nombre">Nombre</label>
+      <input id="activo-nombre" type="text" placeholder="Ej. Escáner automotriz OBD2">
+      <label for="activo-marca">Marca (opcional)</label>
+      <input id="activo-marca" type="text">
+      <label for="activo-fecha-compra">Fecha de compra (opcional)</label>
+      <input id="activo-fecha-compra" type="date">
+      <label for="activo-costo-original">Costo original (opcional)</label>
+      <input id="activo-costo-original" type="number" min="0" step="0.01">
+      <label for="activo-estado">Estado actual</label>
+      <select id="activo-estado">
+        <option value="nuevo">Nuevo</option>
+        <option value="bueno" selected>Bueno</option>
+        <option value="requiere_mantenimiento">Requiere mantenimiento</option>
+        <option value="requiere_reemplazo">Requiere reemplazo</option>
+      </select>
+      <label for="activo-ubicacion">Ubicación (opcional)</label>
+      <input id="activo-ubicacion" type="text" placeholder="Ej. Bahía 2, Bodega, Camioneta de servicio">
+      <label for="activo-responsable">Responsable (opcional)</label>
+      <select id="activo-responsable"><option value="">Sin asignar</option></select>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:10px;">
+        <input type="checkbox" id="activo-requiere-prestamo" style="width:auto;margin:0;">
+        Requiere control de préstamo (check-in/check-out)
+      </label>
+      <div class="nota-ayuda" style="margin-top:2px;">Actívalo solo para herramientas o equipos especiales/costosos que se prestan entre técnicos. Lo demás no necesita este trámite.</div>
+      <button id="btn-guardar-activo">Registrar herramienta/equipo</button>
+      <button type="button" class="secundario" id="btn-cancelar-activo">Cancelar</button>
+      <div id="activo-error" class="mensaje-error"></div>
+    </div>
+
+    <div id="fondo-form-prestamoact" class="fondo-modal oculto"></div>
+    <div class="tarjeta tarjeta-formulario tarjeta-modal oculto" id="tarjeta-form-prestamoact">
+      <h2>Registrar préstamo (check-out)</h2>
+      <label for="prestamoact-activo">Herramienta/equipo</label>
+      <select id="prestamoact-activo"></select>
+      <label for="prestamoact-empleado">Se lo lleva</label>
+      <select id="prestamoact-empleado"></select>
+      <label for="prestamoact-fecha-esperada">Fecha esperada de devolución (opcional)</label>
+      <input id="prestamoact-fecha-esperada" type="date">
+      <label for="prestamoact-notas">Notas (opcional)</label>
+      <textarea id="prestamoact-notas" rows="2"></textarea>
+      <button id="btn-guardar-prestamoact">Registrar préstamo</button>
+      <button type="button" class="secundario" id="btn-cancelar-prestamoact">Cancelar</button>
+      <div id="prestamoact-error" class="mensaje-error"></div>
+    </div>
+
+    <div id="fondo-form-devolucion" class="fondo-modal oculto"></div>
+    <div class="tarjeta tarjeta-formulario tarjeta-modal oculto" id="tarjeta-form-devolucion">
+      <h2>Registrar devolución (check-in)</h2>
+      <p id="devolucion-activo-nombre" class="info-vehiculo"></p>
+      <label for="devolucion-notas">Notas (opcional)</label>
+      <textarea id="devolucion-notas" rows="2" placeholder="Ej. Devuelto en buen estado"></textarea>
+      <div class="nota-ayuda">Si volvió dañado, primero registra aquí la devolución y luego usa "Dar de baja un activo" para dejar la pérdida en libros.</div>
+      <button id="btn-guardar-devolucion">Registrar devolución</button>
+      <button type="button" class="secundario" id="btn-cancelar-devolucion">Cancelar</button>
+      <div id="devolucion-error" class="mensaje-error"></div>
+    </div>
+
+    <div id="fondo-form-auditoria" class="fondo-modal oculto"></div>
+    <div class="tarjeta tarjeta-formulario tarjeta-modal oculto" id="tarjeta-form-auditoria">
+      <h2>Nueva auditoría / conteo físico</h2>
+      <div class="nota-ayuda">Desmarca los que no encontraste, y ajusta el estado de los que sí, si cambió.</div>
+      <div id="auditoria-items-cuerpo" class="auditoria-items-lista"></div>
+      <label for="auditoria-notas-generales">Notas generales (opcional)</label>
+      <textarea id="auditoria-notas-generales" rows="2"></textarea>
+      <button id="btn-guardar-auditoria">Guardar auditoría</button>
+      <button type="button" class="secundario" id="btn-cancelar-auditoria">Cancelar</button>
+      <div id="auditoria-error" class="mensaje-error"></div>
+    </div>
+
+    <div id="fondo-form-baja-activo" class="fondo-modal oculto"></div>
+    <div class="tarjeta tarjeta-formulario tarjeta-modal oculto" id="tarjeta-form-baja-activo">
+      <h2>Dar de baja un activo</h2>
+      <label for="baja-activo">Herramienta/equipo</label>
+      <select id="baja-activo"></select>
+      <label for="baja-motivo">Motivo</label>
+      <select id="baja-motivo">
+        <option value="dano">Daño</option>
+        <option value="perdida">Pérdida</option>
+        <option value="robo">Robo</option>
+        <option value="obsolescencia">Obsolescencia</option>
+        <option value="otro">Otro</option>
+      </select>
+      <label for="baja-descripcion">Descripción (opcional)</label>
+      <textarea id="baja-descripcion" rows="2" placeholder="Ej. Se cayó y se rompió la pantalla"></textarea>
+      <label for="baja-valor-perdida">Valor de la pérdida (para el Egreso)</label>
+      <input id="baja-valor-perdida" type="number" min="0" step="0.01">
+      <div class="nota-ayuda">Se llena solo con el costo original de la ficha — cámbialo si el valor real de la pérdida es distinto. Al guardar se crea automáticamente un Egreso por este valor.</div>
+      <button id="btn-guardar-baja-activo">Dar de baja y registrar egreso</button>
+      <button type="button" class="secundario" id="btn-cancelar-baja-activo">Cancelar</button>
+      <div id="baja-activo-error" class="mensaje-error"></div>
+    </div>
+
     <section id="pantalla-servicios" class="pagina pagina-ancha oculto">
       <h1>Servicios</h1>
       <div class="nota-ayuda">Catálogo de servicios de mano de obra que ofrece el taller: nombre, descripción, tiempo estimado y frecuencia recomendada. Sirve como referencia rápida al agregar mano de obra en una orden (el precio por hora lo sigue fijando Contabilidad, no cambia aquí). La frecuencia se usa para sugerir automáticamente el próximo mantenimiento en Comunicaciones.</div>
@@ -2537,6 +2730,20 @@ against the dark UI.
   .fr-item-stepper input.fr-item-cantidad::-webkit-outer-spin-button,
   .fr-item-stepper input.fr-item-cantidad::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .fr-item-subtotal { text-align: right; font-size: 14px; margin-top: 6px; }
+
+  /* Lista de ítems dentro del modal de auditoría de activos: mismo espíritu
+     de tarjeta apilada que la firma remota, pero con casilla "encontrado" +
+     selector de estado + nota por herramienta. */
+  .auditoria-items-lista { max-height: 50vh; overflow-y: auto; margin: 10px 0; border: 1px solid var(--borde); border-radius: 8px; padding: 0 10px; }
+  .auditoria-item-fila { padding: 10px 0; border-bottom: 1px solid var(--borde); }
+  .auditoria-item-fila:last-child { border-bottom: none; }
+  .auditoria-item-fila.auditoria-item-no-encontrado { opacity: 0.55; }
+  .auditoria-item-nombre { font-weight: 600; font-size: 15px; }
+  .auditoria-item-controles { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+  .auditoria-item-controles label { margin: 0; font-weight: 400; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+  .auditoria-item-controles input[type="checkbox"] { width: auto; margin: 0; }
+  .auditoria-item-controles select { width: auto; padding: 4px 6px; }
+  .auditoria-item-nota { width: 100%; margin-top: 6px; padding: 6px; font-size: 14px; }
   #pantalla-consulta-publica { max-width: 480px; margin: 0 auto; padding: 12px; }
   #pantalla-agendar-publico { max-width: 480px; margin: 0 auto; padding: 12px; }
   .tarjeta {
@@ -3242,6 +3449,7 @@ against the dark UI.
         $("nav-cuentas").classList.toggle("oculto", !puedeVerCaja);
         var puedeVerInventario = rolActual === "administrador" || rolActual === "asesor" || rolActual === "contador";
         $("nav-inventario").classList.toggle("oculto", !puedeVerInventario);
+        $("nav-activos").classList.toggle("oculto", !puedeVerInventario);
         $("nav-servicios").classList.toggle("oculto", !puedeVerInventario);
         $("nav-combos").classList.toggle("oculto", !puedeVerInventario);
         $("nav-agenda").classList.toggle("oculto", !puedeVerInventario);
@@ -3274,9 +3482,9 @@ against the dark UI.
   // =====================================================================
   // NAVEGACIÓN (menú lateral)
   // =====================================================================
-  var PAGINAS = ["inicio", "app", "agenda", "clientes", "vehiculos", "historial", "proveedores", "ordenescompra", "personal", "inventario", "servicios", "combos", "contabilidad", "facturacion", "caja", "cuentas", "egreso", "configuracion", "nomina", "reportes", "comunicaciones"];
-  var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", agenda: "Agenda", clientes: "Clientes", vehiculos: "Vehículos", historial: "Historial del vehículo", proveedores: "Proveedores", personal: "Personal", inventario: "Inventario", servicios: "Servicios", combos: "Combos de servicio", contabilidad: "Contabilidad", facturacion: "Facturación", caja: "Caja", cuentas: "Cuentas por cobrar/pagar", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes", comunicaciones: "Comunicaciones" };
-  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", agenda: "agenda-error", clientes: "clientes-error", vehiculos: "vehiculos-error", historial: "historial-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", servicios: "servicios-error", combos: "combos-error", contabilidad: "contab-horas-error", facturacion: "facturacion-error", caja: "caja-error", cuentas: "cuentas-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error", comunicaciones: "comunicaciones-error", ordenescompra: "ordenescompra-error" };
+  var PAGINAS = ["inicio", "app", "agenda", "clientes", "vehiculos", "historial", "proveedores", "ordenescompra", "personal", "inventario", "activos", "servicios", "combos", "contabilidad", "facturacion", "caja", "cuentas", "egreso", "configuracion", "nomina", "reportes", "comunicaciones"];
+  var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", agenda: "Agenda", clientes: "Clientes", vehiculos: "Vehículos", historial: "Historial del vehículo", proveedores: "Proveedores", personal: "Personal", inventario: "Inventario", activos: "Activos y herramientas", servicios: "Servicios", combos: "Combos de servicio", contabilidad: "Contabilidad", facturacion: "Facturación", caja: "Caja", cuentas: "Cuentas por cobrar/pagar", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes", comunicaciones: "Comunicaciones" };
+  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", agenda: "agenda-error", clientes: "clientes-error", vehiculos: "vehiculos-error", historial: "historial-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", activos: "activos-error", servicios: "servicios-error", combos: "combos-error", contabilidad: "contab-horas-error", facturacion: "facturacion-error", caja: "caja-error", cuentas: "cuentas-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error", comunicaciones: "comunicaciones-error", ordenescompra: "ordenescompra-error" };
 
   function mostrarPagina(nombre) {
     if (PAGINAS.indexOf(nombre) === -1) nombre = "inicio";
@@ -3299,6 +3507,16 @@ against the dark UI.
     $("fondo-form-combo").classList.add("oculto");
     $("tarjeta-form-stock").classList.add("oculto");
     $("fondo-form-stock").classList.add("oculto");
+    $("tarjeta-form-activo").classList.add("oculto");
+    $("fondo-form-activo").classList.add("oculto");
+    $("tarjeta-form-prestamoact").classList.add("oculto");
+    $("fondo-form-prestamoact").classList.add("oculto");
+    $("tarjeta-form-devolucion").classList.add("oculto");
+    $("fondo-form-devolucion").classList.add("oculto");
+    $("tarjeta-form-auditoria").classList.add("oculto");
+    $("fondo-form-auditoria").classList.add("oculto");
+    $("tarjeta-form-baja-activo").classList.add("oculto");
+    $("fondo-form-baja-activo").classList.add("oculto");
     $("tarjeta-form-precioshora").classList.add("oculto");
     $("fondo-form-precioshora").classList.add("oculto");
     $("tarjeta-form-costofijo").classList.add("oculto");
@@ -3335,6 +3553,7 @@ against the dark UI.
     else if (nombre === "ordenescompra") promesa = cargarOrdenesCompraPagina();
     else if (nombre === "personal") promesa = cargarPersonal();
     else if (nombre === "inventario") promesa = cargarInventario();
+    else if (nombre === "activos") promesa = cargarActivos();
     else if (nombre === "servicios") promesa = cargarServicios();
     else if (nombre === "combos") promesa = cargarCombos();
     else if (nombre === "contabilidad") promesa = cargarContabilidad();
@@ -4956,6 +5175,509 @@ against the dark UI.
       establecerDatos: function (nuevos) { datos = nuevos || []; estado.pagina = 1; renderizar(); }
     };
   }
+
+  // =====================================================================
+  // ACTIVOS Y HERRAMIENTAS (ficha, préstamos, auditorías, bajas)
+  // =====================================================================
+  var activoEditando = null;
+  var activosCache = [];
+  var prestamosActivosCache = [];
+  var listaEmpleadosActivos = [];
+  var idPrestamoDevolviendo = null;
+  var ETIQUETAS_ESTADO_ACTIVO = { nuevo: "Nuevo", bueno: "Bueno", requiere_mantenimiento: "Requiere mantenimiento", requiere_reemplazo: "Requiere reemplazo" };
+  var ETIQUETAS_MOTIVO_BAJA = { dano: "Daño", perdida: "Pérdida", robo: "Robo", obsolescencia: "Obsolescencia", otro: "Otro" };
+
+  function etiquetaEstadoActivoHtml(a) {
+    if (a.dado_de_baja_en) return '<span style="color:var(--rojo);font-weight:600;">Dado de baja</span>';
+    return ETIQUETAS_ESTADO_ACTIVO[a.estado_actual] || a.estado_actual;
+  }
+
+  function llenarSelectEmpleadosActivo(idSelect, permitirVacio) {
+    var sel = $(idSelect);
+    var valorPrevio = sel.value;
+    sel.innerHTML = "";
+    if (permitirVacio) {
+      var optVacio = document.createElement("option");
+      optVacio.value = "";
+      optVacio.textContent = "Sin asignar";
+      sel.appendChild(optVacio);
+    }
+    listaEmpleadosActivos.forEach(function (e) {
+      var opt = document.createElement("option");
+      opt.value = e.id_empleado;
+      opt.textContent = e.nombre;
+      sel.appendChild(opt);
+    });
+    if (valorPrevio) sel.value = valorPrevio;
+  }
+
+  var tablaActivos = crearTablaGestion({
+    idBuscar: "activos-buscar", idTamano: "activos-tamano", idTabla: "tabla-activos",
+    idCuerpoTabla: "cuerpo-tabla-activos", idInfo: "activos-info-paginacion", idPaginacion: "activos-paginacion",
+    columnas: [
+      { clave: "nombre", obtener: function (a) { return a.nombre; } },
+      { clave: "marca", obtener: function (a) { return a.marca; } },
+      { clave: "estado_actual", obtener: function (a) { return a.dado_de_baja_en ? "zzz_baja" : a.estado_actual; }, html: function (a) { return etiquetaEstadoActivoHtml(a); } },
+      { clave: "ubicacion", obtener: function (a) { return a.ubicacion; } },
+      { clave: "responsable", obtener: function (a) { return a.empleados ? a.empleados.nombre : ""; } },
+      { clave: "costo_original", obtener: function (a) { return a.costo_original; }, html: function (a) { return a.costo_original != null ? formatoMoneda(a.costo_original) : "—"; } }
+    ],
+    filtro: function (a, texto) { return (a.nombre || "").toLowerCase().indexOf(texto) !== -1 || (a.marca || "").toLowerCase().indexOf(texto) !== -1; },
+    onEditar: function (a) { cargarActivoEnFormulario(a); }
+  });
+
+  function aplicarFiltroActivos() {
+    var filtro = $("activos-filtro-estado").value;
+    var filtradas = activosCache.filter(function (a) {
+      if (filtro === "baja") return !!a.dado_de_baja_en;
+      if (a.dado_de_baja_en) return false;
+      if (filtro) return a.estado_actual === filtro;
+      return true;
+    });
+    tablaActivos.establecerDatos(filtradas);
+  }
+  $("activos-filtro-estado").addEventListener("change", aplicarFiltroActivos);
+
+  function renderizarPrestamosActivos(filas) {
+    prestamosActivosCache = filas;
+    var tbody = $("cuerpo-tabla-prestamos-activos");
+    tbody.innerHTML = "";
+    if (!filas.length) {
+      var trVacio = document.createElement("tr");
+      var tdVacio = document.createElement("td");
+      tdVacio.colSpan = 5;
+      tdVacio.className = "tabla-vacia";
+      tdVacio.textContent = "No hay préstamos activos en este momento.";
+      trVacio.appendChild(tdVacio);
+      tbody.appendChild(trVacio);
+      return;
+    }
+    filas.forEach(function (p) {
+      var tr = document.createElement("tr");
+      var nombreActivo = p.activos_taller ? p.activos_taller.nombre : "—";
+      var nombreEmpleado = p.empleados ? p.empleados.nombre : "—";
+      tr.innerHTML =
+        "<td>" + nombreActivo + "</td>" +
+        "<td>" + nombreEmpleado + "</td>" +
+        "<td>" + formatoFechaCorta(new Date(p.fecha_prestamo)) + "</td>" +
+        "<td>" + (p.fecha_devolucion_esperada ? formatoFechaCorta(new Date(p.fecha_devolucion_esperada + "T00:00:00")) : "—") + "</td>";
+      var tdAcciones = document.createElement("td");
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "secundario";
+      btn.textContent = "Devolver (check-in)";
+      btn.addEventListener("click", function () { abrirFormularioDevolucion(p); });
+      tdAcciones.appendChild(btn);
+      tr.appendChild(tdAcciones);
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderizarAuditorias(filas) {
+    var tbody = $("cuerpo-tabla-auditorias");
+    tbody.innerHTML = "";
+    if (!filas.length) {
+      $("activos-ultima-auditoria").textContent = "Todavía no has registrado ninguna auditoría.";
+      return;
+    }
+    $("activos-ultima-auditoria").textContent = "Última auditoría: " + formatoFechaCorta(new Date(filas[0].fecha + "T00:00:00"));
+    filas.forEach(function (au) {
+      var detalle = au.auditoria_detalle_activos || [];
+      var encontrados = detalle.filter(function (d) { return d.encontrado; }).length;
+      var noEncontrados = detalle.length - encontrados;
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + formatoFechaCorta(new Date(au.fecha + "T00:00:00")) + "</td>" +
+        "<td>" + encontrados + "</td>" +
+        "<td>" + noEncontrados + "</td>" +
+        "<td>" + (au.notas_generales || "—") + "</td>";
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderizarBajasActivos(filas) {
+    var tbody = $("cuerpo-tabla-bajas-activos");
+    tbody.innerHTML = "";
+    if (!filas.length) {
+      var trVacio = document.createElement("tr");
+      var tdVacio = document.createElement("td");
+      tdVacio.colSpan = 4;
+      tdVacio.className = "tabla-vacia";
+      tdVacio.textContent = "No se han registrado bajas.";
+      trVacio.appendChild(tdVacio);
+      tbody.appendChild(trVacio);
+      return;
+    }
+    filas.forEach(function (b) {
+      var tr = document.createElement("tr");
+      var nombreActivo = b.activos_taller ? b.activos_taller.nombre : "—";
+      tr.innerHTML =
+        "<td>" + formatoFechaCorta(new Date(b.fecha + "T00:00:00")) + "</td>" +
+        "<td>" + nombreActivo + "</td>" +
+        "<td>" + (ETIQUETAS_MOTIVO_BAJA[b.motivo] || b.motivo) + "</td>" +
+        "<td>" + formatoMoneda(b.valor_perdida) + "</td>";
+      tbody.appendChild(tr);
+    });
+  }
+
+  function cargarActivos() {
+    ocultarError("activos-error");
+    return Promise.all([
+      restRequest("GET", "empleados", { query: "select=id_empleado,nombre&activo=eq.true&order=nombre.asc" }),
+      restRequest("GET", "activos_taller", { query: "select=*,empleados(nombre)&order=nombre.asc" }),
+      restRequest("GET", "prestamos_activos", { query: "select=*,activos_taller(nombre),empleados(nombre)&estado=eq.prestado&order=fecha_prestamo.asc" }),
+      restRequest("GET", "auditorias_activos", { query: "select=*,auditoria_detalle_activos(encontrado)&order=fecha.desc&limit=10" }),
+      restRequest("GET", "bajas_activos", { query: "select=*,activos_taller(nombre)&order=fecha.desc&limit=30" })
+    ]).then(function (r) {
+      listaEmpleadosActivos = r[0] || [];
+      llenarSelectEmpleadosActivo("activo-responsable", true);
+      llenarSelectEmpleadosActivo("prestamoact-empleado", false);
+      activosCache = r[1] || [];
+      aplicarFiltroActivos();
+      renderizarPrestamosActivos(r[2] || []);
+      renderizarAuditorias(r[3] || []);
+      renderizarBajasActivos(r[4] || []);
+    });
+  }
+
+  // --- Ficha: alta/edición ---
+  function mostrarFormularioActivo() {
+    $("tarjeta-form-activo").classList.remove("oculto");
+    $("fondo-form-activo").classList.remove("oculto");
+  }
+  function reiniciarFormularioActivo() {
+    activoEditando = null;
+    $("activo-nombre").value = "";
+    $("activo-marca").value = "";
+    $("activo-fecha-compra").value = "";
+    $("activo-costo-original").value = "";
+    $("activo-estado").value = "bueno";
+    $("activo-ubicacion").value = "";
+    $("activo-responsable").value = "";
+    $("activo-requiere-prestamo").checked = false;
+    $("activos-form-titulo").textContent = "Registrar herramienta/equipo";
+    $("btn-guardar-activo").textContent = "Registrar herramienta/equipo";
+    $("tarjeta-form-activo").classList.add("oculto");
+    $("fondo-form-activo").classList.add("oculto");
+  }
+  function cargarActivoEnFormulario(a) {
+    activoEditando = a.id_activo;
+    $("activo-nombre").value = a.nombre || "";
+    $("activo-marca").value = a.marca || "";
+    $("activo-fecha-compra").value = a.fecha_compra || "";
+    $("activo-costo-original").value = a.costo_original != null ? a.costo_original : "";
+    $("activo-estado").value = a.estado_actual || "bueno";
+    $("activo-ubicacion").value = a.ubicacion || "";
+    $("activo-responsable").value = a.id_responsable || "";
+    $("activo-requiere-prestamo").checked = !!a.requiere_control_prestamo;
+    $("activos-form-titulo").textContent = "Editar herramienta/equipo";
+    $("btn-guardar-activo").textContent = "Guardar cambios";
+    mostrarFormularioActivo();
+  }
+  $("btn-nuevo-activo").addEventListener("click", function () { reiniciarFormularioActivo(); mostrarFormularioActivo(); });
+  $("btn-cancelar-activo").addEventListener("click", reiniciarFormularioActivo);
+  $("fondo-form-activo").addEventListener("click", reiniciarFormularioActivo);
+
+  $("btn-guardar-activo").addEventListener("click", conManejoDeErrores(conBotonOcupado($("btn-guardar-activo"), "Guardando…", function () {
+    ocultarError("activo-error");
+    var nombre = $("activo-nombre").value.trim();
+    if (!nombre) {
+      mostrarError("activo-error", "Escribe el nombre de la herramienta o equipo.");
+      return;
+    }
+    var body = {
+      nombre: nombre,
+      marca: $("activo-marca").value.trim() || null,
+      fecha_compra: $("activo-fecha-compra").value || null,
+      costo_original: $("activo-costo-original").value !== "" ? parseFloat($("activo-costo-original").value) : null,
+      estado_actual: $("activo-estado").value,
+      ubicacion: $("activo-ubicacion").value.trim() || null,
+      id_responsable: $("activo-responsable").value || null,
+      requiere_control_prestamo: $("activo-requiere-prestamo").checked
+    };
+    var pedido;
+    if (activoEditando) {
+      pedido = restRequest("PATCH", "activos_taller", { query: "id_activo=eq." + activoEditando, body: body });
+    } else {
+      body.id_usuario_registro = usuarioActualId;
+      pedido = restRequest("POST", "activos_taller", { body: body });
+    }
+    return pedido.then(function () {
+      reiniciarFormularioActivo();
+      return cargarActivos();
+    });
+  }), "activo-error"));
+
+  // --- Préstamos: check-out / check-in ---
+  function reiniciarFormularioPrestamo() {
+    $("prestamoact-fecha-esperada").value = "";
+    $("prestamoact-notas").value = "";
+    $("tarjeta-form-prestamoact").classList.add("oculto");
+    $("fondo-form-prestamoact").classList.add("oculto");
+  }
+  $("btn-nuevo-prestamoact").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("activos-error");
+    var idsConPrestamoActivo = prestamosActivosCache.map(function (p) { return p.id_activo; });
+    var disponibles = activosCache.filter(function (a) {
+      return a.requiere_control_prestamo && !a.dado_de_baja_en && idsConPrestamoActivo.indexOf(a.id_activo) === -1;
+    });
+    if (!disponibles.length) {
+      mostrarError("activos-error", "No hay herramientas marcadas para préstamo disponibles ahora mismo (revisa que estén marcadas 'requiere control de préstamo' en su ficha y que no estén ya prestadas).");
+      return;
+    }
+    var sel = $("prestamoact-activo");
+    sel.innerHTML = "";
+    disponibles.forEach(function (a) {
+      var opt = document.createElement("option");
+      opt.value = a.id_activo;
+      opt.textContent = a.nombre + (a.marca ? " (" + a.marca + ")" : "");
+      sel.appendChild(opt);
+    });
+    $("prestamoact-empleado").value = "";
+    $("prestamoact-fecha-esperada").value = "";
+    $("prestamoact-notas").value = "";
+    ocultarError("prestamoact-error");
+    $("tarjeta-form-prestamoact").classList.remove("oculto");
+    $("fondo-form-prestamoact").classList.remove("oculto");
+  }, "activos-error"));
+  $("btn-cancelar-prestamoact").addEventListener("click", reiniciarFormularioPrestamo);
+  $("fondo-form-prestamoact").addEventListener("click", reiniciarFormularioPrestamo);
+
+  $("btn-guardar-prestamoact").addEventListener("click", conManejoDeErrores(conBotonOcupado($("btn-guardar-prestamoact"), "Guardando…", function () {
+    ocultarError("prestamoact-error");
+    var idActivo = $("prestamoact-activo").value;
+    var idEmpleado = $("prestamoact-empleado").value;
+    if (!idActivo) {
+      mostrarError("prestamoact-error", "Elige la herramienta o equipo.");
+      return;
+    }
+    if (!idEmpleado) {
+      mostrarError("prestamoact-error", "Elige quién se la lleva.");
+      return;
+    }
+    var body = {
+      id_activo: idActivo,
+      id_empleado: idEmpleado,
+      fecha_devolucion_esperada: $("prestamoact-fecha-esperada").value || null,
+      notas_prestamo: $("prestamoact-notas").value.trim() || null,
+      id_usuario_prestamo: usuarioActualId
+    };
+    return restRequest("POST", "prestamos_activos", { body: body }).then(function () {
+      reiniciarFormularioPrestamo();
+      return cargarActivos();
+    }).catch(function (err) {
+      if (err && /duplicate key|unique/i.test(err.message || "")) throw new Error("Esa herramienta ya quedó prestada (puede que alguien más la haya registrado justo ahora). Actualiza la página e inténtalo de nuevo.");
+      throw err;
+    });
+  }), "prestamoact-error"));
+
+  function abrirFormularioDevolucion(p) {
+    idPrestamoDevolviendo = p.id_prestamo;
+    var nombreActivo = p.activos_taller ? p.activos_taller.nombre : "";
+    var nombreEmpleado = p.empleados ? p.empleados.nombre : "";
+    $("devolucion-activo-nombre").textContent = nombreActivo + " — prestado a " + nombreEmpleado;
+    $("devolucion-notas").value = "";
+    ocultarError("devolucion-error");
+    $("tarjeta-form-devolucion").classList.remove("oculto");
+    $("fondo-form-devolucion").classList.remove("oculto");
+  }
+  function cerrarFormularioDevolucion() {
+    idPrestamoDevolviendo = null;
+    $("tarjeta-form-devolucion").classList.add("oculto");
+    $("fondo-form-devolucion").classList.add("oculto");
+  }
+  $("btn-cancelar-devolucion").addEventListener("click", cerrarFormularioDevolucion);
+  $("fondo-form-devolucion").addEventListener("click", cerrarFormularioDevolucion);
+
+  $("btn-guardar-devolucion").addEventListener("click", conManejoDeErrores(conBotonOcupado($("btn-guardar-devolucion"), "Guardando…", function () {
+    ocultarError("devolucion-error");
+    var body = {
+      estado: "devuelto",
+      fecha_devolucion_real: new Date().toISOString(),
+      notas_devolucion: $("devolucion-notas").value.trim() || null,
+      id_usuario_devolucion: usuarioActualId
+    };
+    return restRequest("PATCH", "prestamos_activos", { query: "id_prestamo=eq." + idPrestamoDevolviendo, body: body }).then(function () {
+      cerrarFormularioDevolucion();
+      return cargarActivos();
+    });
+  }), "devolucion-error"));
+
+  // --- Auditoría / conteo físico ---
+  function cerrarFormularioAuditoria() {
+    $("tarjeta-form-auditoria").classList.add("oculto");
+    $("fondo-form-auditoria").classList.add("oculto");
+  }
+  $("btn-iniciar-auditoria").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("activos-error");
+    var vigentes = activosCache.filter(function (a) { return !a.dado_de_baja_en; });
+    if (!vigentes.length) {
+      mostrarError("activos-error", "No hay herramientas o equipos activos para auditar. Registra al menos uno primero.");
+      return;
+    }
+    var cuerpo = $("auditoria-items-cuerpo");
+    cuerpo.innerHTML = "";
+    vigentes.forEach(function (a) {
+      var fila = document.createElement("div");
+      fila.className = "auditoria-item-fila";
+      fila.dataset.idActivo = a.id_activo;
+
+      var nombre = document.createElement("div");
+      nombre.className = "auditoria-item-nombre";
+      nombre.textContent = a.nombre + (a.marca ? " (" + a.marca + ")" : "");
+      fila.appendChild(nombre);
+
+      var controles = document.createElement("div");
+      controles.className = "auditoria-item-controles";
+
+      var selEstado = document.createElement("select");
+      selEstado.className = "auditoria-item-estado";
+      [["nuevo", "Nuevo"], ["bueno", "Bueno"], ["requiere_mantenimiento", "Requiere mantenimiento"], ["requiere_reemplazo", "Requiere reemplazo"]].forEach(function (par) {
+        var opt = document.createElement("option");
+        opt.value = par[0];
+        opt.textContent = par[1];
+        if (par[0] === a.estado_actual) opt.selected = true;
+        selEstado.appendChild(opt);
+      });
+
+      var labelChk = document.createElement("label");
+      var chk = document.createElement("input");
+      chk.type = "checkbox";
+      chk.checked = true;
+      chk.className = "auditoria-item-encontrado";
+      chk.addEventListener("change", function () {
+        fila.classList.toggle("auditoria-item-no-encontrado", !chk.checked);
+        selEstado.disabled = !chk.checked;
+      });
+      labelChk.appendChild(chk);
+      labelChk.appendChild(document.createTextNode("Encontrado"));
+      controles.appendChild(labelChk);
+
+      var labelEstado = document.createElement("label");
+      labelEstado.appendChild(document.createTextNode("Estado:"));
+      labelEstado.appendChild(selEstado);
+      controles.appendChild(labelEstado);
+
+      fila.appendChild(controles);
+
+      var nota = document.createElement("input");
+      nota.type = "text";
+      nota.className = "auditoria-item-nota";
+      nota.placeholder = "Nota (opcional)";
+      fila.appendChild(nota);
+
+      cuerpo.appendChild(fila);
+    });
+    $("auditoria-notas-generales").value = "";
+    ocultarError("auditoria-error");
+    $("tarjeta-form-auditoria").classList.remove("oculto");
+    $("fondo-form-auditoria").classList.remove("oculto");
+  }, "activos-error"));
+  $("btn-cancelar-auditoria").addEventListener("click", cerrarFormularioAuditoria);
+  $("fondo-form-auditoria").addEventListener("click", cerrarFormularioAuditoria);
+
+  $("btn-guardar-auditoria").addEventListener("click", conManejoDeErrores(conBotonOcupado($("btn-guardar-auditoria"), "Guardando…", function () {
+    ocultarError("auditoria-error");
+    var filas = Array.prototype.slice.call(document.querySelectorAll(".auditoria-item-fila"));
+    var detalle = filas.map(function (fila) {
+      var chk = fila.querySelector(".auditoria-item-encontrado");
+      var sel = fila.querySelector(".auditoria-item-estado");
+      var nota = fila.querySelector(".auditoria-item-nota");
+      return {
+        id_activo: fila.dataset.idActivo,
+        encontrado: chk.checked,
+        estado_observado: sel.value,
+        nota: nota.value.trim() || null
+      };
+    });
+    return restRequest("POST", "auditorias_activos", {
+      body: { notas_generales: $("auditoria-notas-generales").value.trim() || null, id_usuario_registro: usuarioActualId }
+    }).then(function (res) {
+      var idAuditoria = res[0].id_auditoria;
+      var filasDetalle = detalle.map(function (d) {
+        return { id_auditoria: idAuditoria, id_activo: d.id_activo, encontrado: d.encontrado, estado_observado: d.encontrado ? d.estado_observado : null, nota: d.nota };
+      });
+      return restRequest("POST", "auditoria_detalle_activos", { body: filasDetalle }).then(function () {
+        var actualizaciones = detalle
+          .filter(function (d) { return d.encontrado; })
+          .map(function (d) {
+            var activoActual = activosCache.filter(function (a) { return a.id_activo === d.id_activo; })[0];
+            if (activoActual && activoActual.estado_actual !== d.estado_observado) {
+              return restRequest("PATCH", "activos_taller", { query: "id_activo=eq." + d.id_activo, body: { estado_actual: d.estado_observado } });
+            }
+            return Promise.resolve();
+          });
+        return Promise.all(actualizaciones);
+      });
+    }).then(function () {
+      cerrarFormularioAuditoria();
+      return cargarActivos();
+    });
+  }), "auditoria-error"));
+
+  // --- Bajas por daño/pérdida/robo/obsolescencia ---
+  function cerrarFormularioBajaActivo() {
+    $("tarjeta-form-baja-activo").classList.add("oculto");
+    $("fondo-form-baja-activo").classList.add("oculto");
+  }
+  $("btn-nueva-baja-activo").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("activos-error");
+    var disponibles = activosCache.filter(function (a) { return !a.dado_de_baja_en; });
+    if (!disponibles.length) {
+      mostrarError("activos-error", "No hay herramientas o equipos activos para dar de baja.");
+      return;
+    }
+    var sel = $("baja-activo");
+    sel.innerHTML = "";
+    disponibles.forEach(function (a) {
+      var opt = document.createElement("option");
+      opt.value = a.id_activo;
+      opt.textContent = a.nombre + (a.marca ? " (" + a.marca + ")" : "");
+      opt.dataset.costo = a.costo_original != null ? a.costo_original : "";
+      sel.appendChild(opt);
+    });
+    $("baja-motivo").value = "dano";
+    $("baja-descripcion").value = "";
+    $("baja-valor-perdida").value = sel.options[0] ? sel.options[0].dataset.costo : "";
+    ocultarError("baja-activo-error");
+    $("tarjeta-form-baja-activo").classList.remove("oculto");
+    $("fondo-form-baja-activo").classList.remove("oculto");
+  }, "activos-error"));
+  $("baja-activo").addEventListener("change", function () {
+    var opt = this.options[this.selectedIndex];
+    $("baja-valor-perdida").value = opt ? opt.dataset.costo : "";
+  });
+  $("btn-cancelar-baja-activo").addEventListener("click", cerrarFormularioBajaActivo);
+  $("fondo-form-baja-activo").addEventListener("click", cerrarFormularioBajaActivo);
+
+  $("btn-guardar-baja-activo").addEventListener("click", conManejoDeErrores(conBotonOcupado($("btn-guardar-baja-activo"), "Guardando…", function () {
+    ocultarError("baja-activo-error");
+    var idActivo = $("baja-activo").value;
+    var motivo = $("baja-motivo").value;
+    var valorPerdida = parseFloat($("baja-valor-perdida").value);
+    if (!idActivo) {
+      mostrarError("baja-activo-error", "Elige la herramienta o equipo.");
+      return;
+    }
+    if (isNaN(valorPerdida) || valorPerdida < 0) {
+      mostrarError("baja-activo-error", "Escribe el valor de la pérdida (puede ser 0).");
+      return;
+    }
+    if (!window.confirm("Vas a dar de baja este activo y se creará un Egreso por " + formatoMoneda(valorPerdida) + ". Esta acción no se puede deshacer. ¿Confirmas?")) {
+      return;
+    }
+    return restRequest("POST", "rpc/registrar_baja_activo", {
+      body: {
+        p_id_activo: idActivo,
+        p_motivo: motivo,
+        p_valor_perdida: valorPerdida,
+        p_descripcion: $("baja-descripcion").value.trim() || null
+      }
+    }).then(function () {
+      cerrarFormularioBajaActivo();
+      return cargarActivos();
+    });
+  }), "baja-activo-error"));
 
   // =====================================================================
   // GESTIÓN — Clientes / Vehículos / Proveedores / Personal
