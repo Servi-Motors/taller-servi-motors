@@ -8,11 +8,12 @@ external fonts. Zero external JS for data access — all Supabase calls are raw 
 API (no SDK), per the no-external-deps rule established after a fatal SDK naming collision. Exception: Chart.js
 is loaded from cdnjs for the two dashboard charts — hand-rolling charts isn't worth it, and this doesn't touch
 the data-access layer at all.
-Theme: dark/light follows the OS by default (prefers-color-scheme), but can be forced with the sun/moon button in
-the sidebar — the choice is remembered per browser via localStorage (key "tema_taller"), applied as a
-.tema-oscuro/.tema-claro class on <html>. Dark mode isn't a flat invert: accent colors (--azul/--rojo/--verde) get
-slightly lighter shades for contrast on dark backgrounds, and pale status backgrounds (badges, success/error
-banners) switch to translucent rgba washes instead of pastel hex, so they don't glare against the dark UI.
+Theme: starts in light mode by default (does not follow the OS anymore), but can be switched to dark with the
+sun/moon button in the sidebar — the choice is remembered per browser via localStorage (key "tema_taller"),
+applied as a .tema-oscuro/.tema-claro class on <html>. Dark mode isn't a flat invert: accent colors
+(--azul/--rojo/--verde) get slightly lighter shades for contrast on dark backgrounds, and pale status backgrounds
+(badges, success/error banners) switch to translucent rgba washes instead of pastel hex, so they don't glare
+against the dark UI.
 -->
 <!DOCTYPE html>
 <html lang="es">
@@ -23,12 +24,17 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
 <script>
   // Aplica el tema guardado (si la persona ya lo eligió a mano) antes de que
   // se pinte la página, para que no haya un parpadeo del tema equivocado.
+  // Si nunca eligió nada, arranca en modo claro (ya no sigue el tema del
+  // sistema operativo) — el botón de la barra lateral sigue permitiendo
+  // pasar a oscuro cuando quiera, y esa elección se recuerda.
   (function () {
     try {
       var t = localStorage.getItem("tema_taller");
       if (t === "oscuro") document.documentElement.classList.add("tema-oscuro");
-      else if (t === "claro") document.documentElement.classList.add("tema-claro");
-    } catch (e) {}
+      else document.documentElement.classList.add("tema-claro");
+    } catch (e) {
+      document.documentElement.classList.add("tema-claro");
+    }
   })();
 </script>
 </head>
