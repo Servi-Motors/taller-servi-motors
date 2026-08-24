@@ -96,11 +96,8 @@ against the dark UI.
         <div id="fr-fotos-galeria" class="galeria-evidencias"></div>
       </div>
 
-      <p class="nota-ayuda">Revisa la cantidad de cada servicio. Si quieres menos de lo cotizado, baja el número; si pones <b>0</b>, ese servicio queda rechazado y no se cobra ni se realiza. Lo que dejes igual se autoriza completo.</p>
-      <table>
-        <thead><tr><th>Descripción</th><th>Precio unit.</th><th>Cant. a autorizar</th><th>Subtotal</th></tr></thead>
-        <tbody id="fr-items-cuerpo"></tbody>
-      </table>
+      <p class="nota-ayuda">Marca "No autorizar" para rechazar un servicio completo, o usa los botones − / + (o escribe el número) para autorizar solo una parte de la cantidad cotizada. Lo que dejes igual se autoriza completo.</p>
+      <div id="fr-items-cuerpo" class="fr-items-lista"></div>
       <p><b>Total a autorizar: <span id="fr-total"></span></b></p>
 
       <label for="fr-nombre">Nombre de quien autoriza</label>
@@ -2518,9 +2515,28 @@ against the dark UI.
   }
   #contenedor-login { max-width: 480px; margin: 0 auto; padding: 12px; }
   #pantalla-firma-remota { max-width: 480px; margin: 0 auto; padding: 12px; }
-  #pantalla-firma-remota table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 14px; }
-  #pantalla-firma-remota th, #pantalla-firma-remota td { padding: 4px 2px; border-bottom: 1px solid var(--borde); text-align: left; }
-  #pantalla-firma-remota th:last-child, #pantalla-firma-remota td:last-child { text-align: right; }
+  /* Cada servicio se muestra como una tarjeta apilada (no tabla) para que
+     la casilla de rechazo y los botones −/+ de cantidad sean fáciles de
+     tocar en un celular. */
+  .fr-items-lista { margin: 10px 0; }
+  .fr-item-fila { padding: 10px 0; border-bottom: 1px solid var(--borde); }
+  .fr-item-fila.fr-item-fila-rechazada { opacity: 0.55; }
+  .fr-item-nombre { font-weight: 600; font-size: 15px; }
+  .fr-item-precio-unit { font-size: 13px; color: var(--gris); margin: 2px 0 8px; }
+  .fr-item-controles { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .fr-item-check-label { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 400; margin: 0; }
+  .fr-item-check-label input { width: auto; margin: 0; }
+  .fr-item-stepper { display: flex; align-items: center; gap: 6px; }
+  .fr-item-stepper button {
+    width: 36px; height: 36px; padding: 0; margin: 0; font-size: 18px; font-weight: 700;
+    line-height: 1; flex-shrink: 0;
+  }
+  .fr-item-stepper input.fr-item-cantidad {
+    width: 56px; text-align: center; padding: 6px 2px; -moz-appearance: textfield;
+  }
+  .fr-item-stepper input.fr-item-cantidad::-webkit-outer-spin-button,
+  .fr-item-stepper input.fr-item-cantidad::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .fr-item-subtotal { text-align: right; font-size: 14px; margin-top: 6px; }
   #pantalla-consulta-publica { max-width: 480px; margin: 0 auto; padding: 12px; }
   #pantalla-agendar-publico { max-width: 480px; margin: 0 auto; padding: 12px; }
   .tarjeta {
@@ -12643,19 +12659,26 @@ against the dark UI.
   var canvasRemota, ctxRemota, dibujandoRemota = false, tokenFirmaRemotaActual = null;
   var itemsFirmaRemotaActual = [];
 
-  // Recalcula el subtotal de cada línea y el total según la cantidad que
-  // el cliente vaya dejando en cada ítem (0 = rechazado).
+  // Recalcula el subtotal de cada línea y el total según lo que el cliente
+  // vaya dejando en cada ítem: si "No autorizar" está marcado, esa línea
+  // vale $0 sin importar el número que tenga adentro; si no, vale la
+  // cantidad que haya dejado (0 a la cantidad cotizada).
   function actualizarTotalFirmaRemota() {
     var total = 0;
-    document.querySelectorAll(".fr-item-cantidad").forEach(function (inp) {
+    document.querySelectorAll(".fr-item-fila").forEach(function (fila) {
+      var chk = fila.querySelector(".fr-item-rechazar");
+      var inp = fila.querySelector(".fr-item-cantidad");
       var original = Number(inp.dataset.cantidadOriginal) || 0;
       var precioUnit = Number(inp.dataset.precioUnitario) || 0;
+      var rechazada = chk.checked;
+      inp.disabled = rechazada;
+      fila.classList.toggle("fr-item-fila-rechazada", rechazada);
       var nueva = Number(inp.value);
       if (!(nueva >= 0)) nueva = 0;
       if (nueva > original) { nueva = original; inp.value = original; }
-      var subtotal = nueva * precioUnit;
-      var celda = document.querySelector('.fr-item-subtotal[data-id-detalle="' + inp.dataset.idDetalle + '"]');
-      if (celda) celda.textContent = formatoMoneda(subtotal);
+      var subtotal = rechazada ? 0 : (nueva * precioUnit);
+      var celda = fila.querySelector(".fr-item-subtotal");
+      if (celda) celda.textContent = "Subtotal: " + formatoMoneda(subtotal);
       total += subtotal;
     });
     $("fr-total").textContent = formatoMoneda(total);
@@ -12726,34 +12749,79 @@ against the dark UI.
         var cuerpo = $("fr-items-cuerpo");
         cuerpo.innerHTML = "";
         itemsFirmaRemotaActual.forEach(function (it) {
-          var tr = document.createElement("tr");
-          var tdNombre = document.createElement("td");
-          tdNombre.textContent = it.nombre || "";
-          var tdPrecioUnit = document.createElement("td");
-          tdPrecioUnit.textContent = formatoMoneda(it.precio);
-          var tdCantidad = document.createElement("td");
+          // Si la cantidad cotizada tiene decimales (ej. horas de mano de
+          // obra: 1.5, 8.00) los botones −/+ avanzan de a 0.5; si es una
+          // cantidad entera (repuestos, insumos), avanzan de a 1.
+          var pasoStepper = (Number(it.cantidad) % 1 === 0) ? 1 : 0.5;
+
+          var fila = document.createElement("div");
+          fila.className = "fr-item-fila";
+
+          var nombre = document.createElement("div");
+          nombre.className = "fr-item-nombre";
+          nombre.textContent = it.nombre || "";
+          fila.appendChild(nombre);
+
+          var precioUnit = document.createElement("div");
+          precioUnit.className = "fr-item-precio-unit";
+          precioUnit.textContent = "Precio unitario: " + formatoMoneda(it.precio) + " · cotizado: " + it.cantidad;
+          fila.appendChild(precioUnit);
+
+          var controles = document.createElement("div");
+          controles.className = "fr-item-controles";
+
+          var labelChk = document.createElement("label");
+          labelChk.className = "fr-item-check-label";
+          var chk = document.createElement("input");
+          chk.type = "checkbox";
+          chk.className = "fr-item-rechazar";
+          chk.addEventListener("change", actualizarTotalFirmaRemota);
+          labelChk.appendChild(chk);
+          labelChk.appendChild(document.createTextNode("No autorizar"));
+          controles.appendChild(labelChk);
+
+          var stepper = document.createElement("div");
+          stepper.className = "fr-item-stepper";
+          var btnMenos = document.createElement("button");
+          btnMenos.type = "button";
+          btnMenos.textContent = "−";
           var inp = document.createElement("input");
           inp.type = "number";
           inp.min = "0";
           inp.max = it.cantidad;
           inp.step = "any";
           inp.value = it.cantidad;
-          inp.style.width = "70px";
           inp.className = "fr-item-cantidad";
           inp.dataset.idDetalle = it.id_detalle;
           inp.dataset.cantidadOriginal = it.cantidad;
           inp.dataset.precioUnitario = it.precio;
           inp.addEventListener("input", actualizarTotalFirmaRemota);
-          tdCantidad.appendChild(inp);
-          var tdSubtotal = document.createElement("td");
-          tdSubtotal.className = "fr-item-subtotal";
-          tdSubtotal.dataset.idDetalle = it.id_detalle;
-          tdSubtotal.textContent = formatoMoneda(it.cantidad * it.precio);
-          tr.appendChild(tdNombre);
-          tr.appendChild(tdPrecioUnit);
-          tr.appendChild(tdCantidad);
-          tr.appendChild(tdSubtotal);
-          cuerpo.appendChild(tr);
+          var btnMas = document.createElement("button");
+          btnMas.type = "button";
+          btnMas.textContent = "+";
+          btnMenos.addEventListener("click", function () {
+            var v = (Number(inp.value) || 0) - pasoStepper;
+            inp.value = Math.max(0, v);
+            actualizarTotalFirmaRemota();
+          });
+          btnMas.addEventListener("click", function () {
+            var v = (Number(inp.value) || 0) + pasoStepper;
+            inp.value = Math.min(Number(inp.dataset.cantidadOriginal), v);
+            actualizarTotalFirmaRemota();
+          });
+          stepper.appendChild(btnMenos);
+          stepper.appendChild(inp);
+          stepper.appendChild(btnMas);
+          controles.appendChild(stepper);
+
+          fila.appendChild(controles);
+
+          var subtotal = document.createElement("div");
+          subtotal.className = "fr-item-subtotal";
+          subtotal.textContent = "Subtotal: " + formatoMoneda(it.cantidad * it.precio);
+          fila.appendChild(subtotal);
+
+          cuerpo.appendChild(fila);
         });
         actualizarTotalFirmaRemota();
         inicializarCanvasRemota();
@@ -12784,10 +12852,12 @@ against the dark UI.
     }
     var idsRechazados = [];
     var cantidades = {};
-    Array.prototype.slice.call(document.querySelectorAll(".fr-item-cantidad")).forEach(function (inp) {
+    Array.prototype.slice.call(document.querySelectorAll(".fr-item-fila")).forEach(function (fila) {
+      var chk = fila.querySelector(".fr-item-rechazar");
+      var inp = fila.querySelector(".fr-item-cantidad");
       var original = Number(inp.dataset.cantidadOriginal) || 0;
       var nueva = Number(inp.value);
-      if (!(nueva > 0)) {
+      if (chk.checked || !(nueva > 0)) {
         idsRechazados.push(inp.dataset.idDetalle);
       } else if (nueva < original) {
         cantidades[inp.dataset.idDetalle] = nueva;
