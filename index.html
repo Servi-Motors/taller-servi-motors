@@ -6732,6 +6732,126 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   function ultimoDiaMes(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 0); }
   function aFechaISO(d) { return d.toISOString().slice(0, 10); }
 
+  // =====================================================================
+  // FESTIVOS DE COLOMBIA (Ley Emiliani) — se usan para el pago por día de
+  // empleados como Juan Andrade (no se les paga si el día cae festivo).
+  // =====================================================================
+
+  // Domingo de resurrección (algoritmo de Gauss/Meeus, calendario gregoriano).
+  function calcularPascua(anio) {
+    var a = anio % 19, b = Math.floor(anio / 100), c = anio % 100;
+    var d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+    var g = Math.floor((b - f + 1) / 3);
+    var h = (19 * a + b - d - g + 15) % 30;
+    var i = Math.floor(c / 4), k = c % 4;
+    var l = (32 + 2 * e + 2 * i - h - k) % 7;
+    var m = Math.floor((a + 11 * h + 22 * l) / 451);
+    var mes = Math.floor((h + l - 7 * m + 114) / 31);
+    var dia = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(anio, mes - 1, dia);
+  }
+
+  function sumarDiasFecha(fecha, dias) {
+    var f = new Date(fecha);
+    f.setDate(f.getDate() + dias);
+    return f;
+  }
+
+  // Ley Emiliani: si el festivo no cae lunes, se traslada al lunes siguiente.
+  function siguienteLunes(fecha) {
+    var f = new Date(fecha);
+    f.setDate(f.getDate() + ((1 - f.getDay() + 7) % 7));
+    return f;
+  }
+
+  var cacheFestivosColombia = {};
+  function festivosColombia(anio) {
+    if (cacheFestivosColombia[anio]) return cacheFestivosColombia[anio];
+    var pascua = calcularPascua(anio);
+    var fijos = [
+      new Date(anio, 0, 1),        // Año Nuevo
+      new Date(anio, 4, 1),        // Día del Trabajo
+      new Date(anio, 6, 20),       // Día de la Independencia
+      new Date(anio, 7, 7),        // Batalla de Boyacá
+      new Date(anio, 11, 8),       // Inmaculada Concepción
+      new Date(anio, 11, 25),      // Navidad
+      sumarDiasFecha(pascua, -3),  // Jueves Santo
+      sumarDiasFecha(pascua, -2)   // Viernes Santo
+    ];
+    var trasladadosALunes = [
+      new Date(anio, 0, 6),          // Reyes Magos
+      new Date(anio, 2, 19),         // San José
+      sumarDiasFecha(pascua, 39),    // Ascensión del Señor
+      sumarDiasFecha(pascua, 60),    // Corpus Christi
+      sumarDiasFecha(pascua, 68),    // Sagrado Corazón de Jesús
+      new Date(anio, 5, 29),         // San Pedro y San Pablo
+      new Date(anio, 7, 15),         // Asunción de la Virgen
+      new Date(anio, 9, 12),         // Día de la Raza
+      new Date(anio, 10, 1),         // Todos los Santos
+      new Date(anio, 10, 11)         // Independencia de Cartagena
+    ].map(siguienteLunes);
+    var set = {};
+    fijos.concat(trasladadosALunes).forEach(function (f) { set[aFechaISO(f)] = true; });
+    cacheFestivosColombia[anio] = set;
+    return set;
+  }
+
+  function esFestivoColombia(fecha) {
+    return !!festivosColombia(fecha.getFullYear())[aFechaISO(fecha)];
+  }
+
+  // ¿El período coincide exactamente con una quincena estándar (1 al 15, o
+  // 16 al último día del mes)? Si es así, la nómina paga la mitad exacta
+  // del salario mensual, sin importar si ese medio mes tiene 15 o 16 días
+  // (así se paga la nómina en Colombia — no se prorratea por día exacto
+  // dentro de una quincena normal). Para cualquier otro período (un mes
+  // completo, o alguien que entra/sale a mitad de mes) se sigue
+  // prorrateando por día como antes.
+  function esQuincenaEstandar(inicioStr, finStr) {
+    var inicio = new Date(inicioStr + "T00:00:00");
+    var fin = new Date(finStr + "T00:00:00");
+    if (inicio.getFullYear() !== fin.getFullYear() || inicio.getMonth() !== fin.getMonth()) return false;
+    var ultimoDia = ultimoDiaMes(inicio).getDate();
+    var esPrimeraQuincena = inicio.getDate() === 1 && fin.getDate() === 15;
+    var esSegundaQuincena = inicio.getDate() === 16 && fin.getDate() === ultimoDia;
+    return esPrimeraQuincena || esSegundaQuincena;
+  }
+
+  // Cuenta cuántos días del período caen en alguno de los días de la
+  // semana indicados (0=domingo … 6=sábado) y NO son festivo en Colombia.
+  function contarDiasPagoSemana(inicioStr, finStr, diasSemana) {
+    var f = new Date(inicioStr + "T00:00:00");
+    var fin = new Date(finStr + "T00:00:00");
+    var contador = 0;
+    while (f <= fin) {
+      if (diasSemana.indexOf(f.getDay()) !== -1 && !esFestivoColombia(f)) contador++;
+      f.setDate(f.getDate() + 1);
+    }
+    return contador;
+  }
+
+  // Texto del "salario base" de una liquidación ya guardada, según haya
+  // sido pago por día (Juan Andrade), quincena estándar (mitad exacta del
+  // mensual) o un período prorrateado por días (caso especial, no quincena).
+  function textoBaseLiquidacion(l) {
+    if (l.es_pago_por_dia) {
+      var dias = l.dias_pagados || 0;
+      return "Pago por día " + formatoMoneda(l.salario_base) + " (" + dias + " día" + (dias === 1 ? "" : "s") + " hábil" + (dias === 1 ? "" : "es") + " × " + formatoMoneda(l.valor_dia_habil) + ")";
+    }
+    if (l.es_quincena_estandar) {
+      return "Base " + formatoMoneda(l.salario_base) + " (quincena completa, mitad de mensual " + formatoMoneda(l.salario_mensual_base) + ")";
+    }
+    return "Base " + formatoMoneda(l.salario_base) + (Number(l.dias_periodo) > 0 ? " (" + l.dias_periodo + "/30 días de mensual " + formatoMoneda(l.salario_mensual_base) + ")" : "");
+  }
+
+  // Muestra la venta que originó la comisión (no solo el resultado en
+  // pesos), para que quede claro de dónde sale cada monto.
+  function textoComisionLiquidacion(l) {
+    if (!(Number(l.num_ordenes_asesor) > 0)) return "";
+    return " (mano de obra vendida " + formatoMoneda(l.valor_mano_obra_asesor) + " × " + (Number(l.pct_comision_mano_obra) * 100).toFixed(2) + "% = " + formatoMoneda(l.comision_mano_obra) +
+      " + margen otros " + formatoMoneda(l.margen_otros_asesor) + " × " + (Number(l.pct_comision_margen_otros) * 100).toFixed(2) + "% = " + formatoMoneda(l.comision_margen_otros) + ")";
+  }
+
   function cargarNomina() {
     ocultarError("nomina-error");
     $("nomina-resultado").classList.add("oculto");
@@ -6768,7 +6888,9 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         opt.setAttribute("data-rol", u.rol || "");
         opt.setAttribute("data-salario", emp.salario_base);
         opt.setAttribute("data-carga-prestacional", emp.aplica_carga_prestacional ? "1" : "0");
-        opt.textContent = nombreEmpleado + (u.rol ? " (" + u.rol + ")" : " (sin acceso)") + (emp.aplica_carga_prestacional ? " · formal" : "");
+        opt.setAttribute("data-valor-dia-habil", emp.valor_dia_habil || "");
+        opt.setAttribute("data-dias-pago-semana", emp.dias_pago_semana ? JSON.stringify(emp.dias_pago_semana) : "");
+        opt.textContent = nombreEmpleado + (u.rol ? " (" + u.rol + ")" : " (sin acceso)") + (emp.aplica_carga_prestacional ? " · formal" : "") + (emp.valor_dia_habil ? " · por día" : "");
         sel.appendChild(opt);
       });
       if (valorPrevio) sel.value = valorPrevio;
@@ -6781,8 +6903,8 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         fila.className = "fila-renglon";
         fila.innerHTML =
           "<span>" + nombreEmp + " <span class=\"fila-detalle\">(" + l.periodo_inicio + " a " + l.periodo_fin + ")</span><br>" +
-          "<span class=\"fila-detalle\">Base " + formatoMoneda(l.salario_base) + (Number(l.dias_periodo) > 0 ? " (" + l.dias_periodo + "/30 días de mensual " + formatoMoneda(l.salario_mensual_base) + ")" : "")
-            + " + comisiones " + formatoMoneda(l.comisiones) + (Number(l.num_ordenes_asesor) > 0 ? " (mano obra " + formatoMoneda(l.comision_mano_obra) + " a " + (Number(l.pct_comision_mano_obra) * 100).toFixed(2) + "% + margen otros " + formatoMoneda(l.comision_margen_otros) + " a " + (Number(l.pct_comision_margen_otros) * 100).toFixed(2) + "%)" : "")
+          "<span class=\"fila-detalle\">" + textoBaseLiquidacion(l)
+            + " + comisiones " + formatoMoneda(l.comisiones) + textoComisionLiquidacion(l)
             + " + variable " + formatoMoneda(l.variable_tecnico) + (Number(l.horas_tramo_base) > 0 || Number(l.horas_tramo_extra) > 0 ? " (" + Number(l.horas_tramo_base).toFixed(2) + "h base + " + Number(l.horas_tramo_extra).toFixed(2) + "h extra)" : "")
             + " + bonif. " + formatoMoneda(l.bonificaciones) + " − deducciones " + formatoMoneda(Number(l.deduccion_prestamo) + Number(l.otras_deducciones)) + "</span></span>" +
           "<span><b>" + formatoMoneda(l.total) + "</b></span>";
@@ -6804,7 +6926,11 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       var horasBase = Number(l.horas_tramo_base) || 0;
       var horasExtra = Number(l.horas_tramo_extra) || 0;
       var diasPeriodoL = Number(l.dias_periodo) || 0;
-      var filaSalario = diasPeriodoL > 0
+      var filaSalario = l.es_pago_por_dia
+        ? "<tr><td>Pago por día<br><span class=\"fila-detalle\">&nbsp;&nbsp;· " + (l.dias_pagados || 0) + " día(s) hábil(es) × " + formatoMoneda(l.valor_dia_habil) + "</span></td><td>" + formatoMoneda(l.salario_base) + "</td></tr>"
+        : l.es_quincena_estandar
+        ? "<tr><td>Salario base<br><span class=\"fila-detalle\">&nbsp;&nbsp;· Quincena completa, mitad de mensual " + formatoMoneda(l.salario_mensual_base) + "</span></td><td>" + formatoMoneda(l.salario_base) + "</td></tr>"
+        : diasPeriodoL > 0
         ? "<tr><td>Salario base<br><span class=\"fila-detalle\">&nbsp;&nbsp;· " + diasPeriodoL + " de 30 días, sobre mensual " + formatoMoneda(l.salario_mensual_base) + "</span></td><td>" + formatoMoneda(l.salario_base) + "</td></tr>"
         : "<tr><td>Salario base</td><td>" + formatoMoneda(l.salario_base) + "</td></tr>";
       var filasVariable = (horasBase > 0 || horasExtra > 0)
@@ -6909,20 +7035,42 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
     var rol = opt.getAttribute("data-rol");
     var salarioMensual = parseFloat(opt.getAttribute("data-salario")) || 0;
     var aplicaCargaPrestacional = opt.getAttribute("data-carga-prestacional") === "1";
+    var valorDiaHabil = parseFloat(opt.getAttribute("data-valor-dia-habil")) || 0;
+    var diasPagoSemanaAttr = opt.getAttribute("data-dias-pago-semana");
+    var diasPagoSemana = diasPagoSemanaAttr ? JSON.parse(diasPagoSemanaAttr) : [];
+    var esPagoPorDia = valorDiaHabil > 0 && diasPagoSemana.length > 0;
     var inicio = $("nomina-inicio").value;
     var fin = $("nomina-fin").value;
     if (!inicio || !fin || inicio > fin) { mostrarError("nomina-error", "Escribe un período válido."); return; }
 
-    // El salario base configurado es MENSUAL. Se prorratea sobre una base de 30 días
-    // (estándar de nómina en Colombia), así un período de 15 días paga la mitad, etc.
     var diasPeriodo = Math.round((new Date(fin + "T00:00:00") - new Date(inicio + "T00:00:00")) / 86400000) + 1;
-    var salarioBase = Math.round(salarioMensual * diasPeriodo / 30);
+    var esQuincena = esQuincenaEstandar(inicio, fin);
+    var diasPagados = 0;
+    var salarioBase;
+    if (esPagoPorDia) {
+      // Caso especial (ej. Juan Andrade): no tiene salario mensual, se le
+      // paga un valor fijo por cada día de la semana que le corresponde
+      // (ej. martes/jueves/sábado), sin contar festivos colombianos.
+      diasPagados = contarDiasPagoSemana(inicio, fin, diasPagoSemana);
+      salarioBase = Math.round(diasPagados * valorDiaHabil);
+    } else if (esQuincena) {
+      // Quincena estándar (1-15 o 16-fin de mes): se paga exactamente la
+      // mitad del salario mensual, sin importar si esa mitad tiene 15 o 16
+      // días — así se calcula la nómina en Colombia, no se prorratea día
+      // por día dentro de una quincena normal.
+      salarioBase = Math.round(salarioMensual / 2);
+    } else {
+      // Período fuera de una quincena estándar (ej. un mes completo, o
+      // alguien que entra/sale a mitad de mes): se prorratea por día sobre
+      // una base de 30, como siempre.
+      salarioBase = Math.round(salarioMensual * diasPeriodo / 30);
+    }
 
     var finExclusivo = new Date(fin + "T00:00:00");
     finExclusivo.setDate(finExclusivo.getDate() + 1);
     var finExclusivoISO = aFechaISO(finExclusivo);
 
-    var filtroRol = rol === "asesor" ? "id_asesor" : (rol === "tecnico" ? "id_tecnico" : null);
+    var filtroRol = esPagoPorDia ? null : (rol === "asesor" ? "id_asesor" : (rol === "tecnico" ? "id_tecnico" : null));
 
     // Al técnico se le paga la mano de obra de lo que vendió, sin importar si el
     // cliente ya pagó o quedó a crédito (el técnico ya hizo el trabajo).
@@ -7010,7 +7158,11 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         tarifa_hora_base: rol === "tecnico" ? tarifaBase : 0,
         tarifa_hora_extra: rol === "tecnico" ? tarifaExtra : 0,
         variable_tecnico: variableTecnico,
-        horas_trabajadas: horas
+        horas_trabajadas: horas,
+        es_pago_por_dia: esPagoPorDia,
+        valor_dia_habil: esPagoPorDia ? valorDiaHabil : null,
+        dias_pagados: esPagoPorDia ? diasPagados : null,
+        es_quincena_estandar: !esPagoPorDia && esQuincena
       };
 
       var detalleCalculo = rol === "asesor"
@@ -7024,9 +7176,14 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
             + (horasTramoExtra > 0 ? "<br>&nbsp;&nbsp;" + horasTramoExtra.toFixed(2) + " h excedentes × " + formatoMoneda(tarifaExtra) + " = " + formatoMoneda(horasTramoExtra * tarifaExtra) : ""))
         : "Este rol no tiene comisión ni variable automática — solo salario base.";
 
-      $("nomina-resumen").innerHTML = "<b>Salario base: " + formatoMoneda(salarioBase) + "</b>"
-        + "(" + diasPeriodo + " días de 30, sobre salario mensual de " + formatoMoneda(salarioMensual) + ")"
-        + detalleCalculo
+      var etiquetaBase = esPagoPorDia
+        ? ("<b>Pago por día: " + formatoMoneda(salarioBase) + "</b> (" + diasPagados + " día" + (diasPagados === 1 ? "" : "s") + " hábil" + (diasPagados === 1 ? "" : "es") + " × " + formatoMoneda(valorDiaHabil) + " — no se cuentan festivos colombianos)")
+        : esQuincena
+        ? ("<b>Salario base: " + formatoMoneda(salarioBase) + "</b> (quincena completa — mitad exacta del salario mensual de " + formatoMoneda(salarioMensual) + ")")
+        : ("<b>Salario base: " + formatoMoneda(salarioBase) + "</b> (" + diasPeriodo + " días de 30, sobre salario mensual de " + formatoMoneda(salarioMensual) + " — este período no es una quincena estándar de 1-15 o 16-fin de mes)");
+
+      $("nomina-resumen").innerHTML = etiquetaBase
+        + (esPagoPorDia ? "" : detalleCalculo)
         + (aplicaCargaPrestacional
             ? ("<br><b>+ Carga prestacional (" + (pctCargaPrestacionalActual * 100).toFixed(2) + "%): " + formatoMoneda(cargaPrestacionalValor) + "</b> — costo adicional del taller (seguridad social y prestaciones sociales). No se paga al empleado ni se descuenta de su liquidación; se registra como un gasto aparte.")
             : "");
@@ -7154,6 +7311,10 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
           deduccion_prestamo: dedPrestamo,
           otras_deducciones: otrasDeducciones,
           carga_prestacional: nominaCalculo.carga_prestacional || 0,
+          es_pago_por_dia: nominaCalculo.es_pago_por_dia || false,
+          valor_dia_habil: nominaCalculo.valor_dia_habil,
+          dias_pagados: nominaCalculo.dias_pagados,
+          es_quincena_estandar: nominaCalculo.es_quincena_estandar || false,
           id_egreso: idEgresoNomina,
           id_egreso_carga_prestacional: idEgresoCarga,
           id_usuario_registro: usuarioActualId
