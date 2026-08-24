@@ -795,17 +795,33 @@ against the dark UI.
           <table class="tabla-datos tabla-items-orden" id="tabla-mano-obra">
             <thead><tr><th>Código</th><th>Descripción</th><th>Precio/hora</th><th>Horas</th><th>% Dscto</th><th>Total Dscto</th><th>Total</th><th>Estado</th><th>Avance del técnico</th></tr></thead>
             <tbody id="cuerpo-mano-obra"></tbody>
-            <tfoot>
-              <tr class="fila-agregar">
-                <td><input id="mo-codigo" type="text" placeholder="Cód."></td>
-                <td><input id="mo-nombre" type="text" placeholder="Ej. Cambio de pastillas" list="lista-servicios-mano-obra" autocomplete="off"><datalist id="lista-servicios-mano-obra"></datalist></td>
-                <td><input id="mo-precio" type="number" disabled placeholder="—"></td>
-                <td><input id="mo-horas" type="number" min="0.01" step="0.01" value="1"></td>
-                <td><input id="mo-descuento" type="number" min="0" max="100" step="0.01" value="0"></td>
-                <td colspan="4"><button type="button" id="btn-agregar-mano-obra">+ Agregar</button></td>
-              </tr>
-            </tfoot>
           </table>
+        </div>
+        <div class="fila-agregar-item">
+          <div class="campo-codigo">
+            <label for="mo-codigo">Código</label>
+            <input id="mo-codigo" type="text" placeholder="Cód.">
+          </div>
+          <div class="campo-ancho">
+            <label for="mo-nombre">Descripción</label>
+            <input id="mo-nombre" type="text" placeholder="Ej. Cambio de pastillas" list="lista-servicios-mano-obra" autocomplete="off">
+            <datalist id="lista-servicios-mano-obra"></datalist>
+          </div>
+          <div class="campo-estrecho">
+            <label for="mo-precio">Precio/hora</label>
+            <input id="mo-precio" type="number" disabled placeholder="—">
+          </div>
+          <div class="campo-estrecho">
+            <label for="mo-horas">Horas</label>
+            <input id="mo-horas" type="number" min="0.01" step="0.01" value="1">
+          </div>
+          <div class="campo-estrecho">
+            <label for="mo-descuento">% Dscto</label>
+            <input id="mo-descuento" type="number" min="0" max="100" step="0.01" value="0">
+          </div>
+          <div class="campo-boton">
+            <button type="button" id="btn-agregar-mano-obra">+ Agregar</button>
+          </div>
         </div>
 
         <h3>Repuestos e insumos</h3>
@@ -813,26 +829,43 @@ against the dark UI.
           <table class="tabla-datos tabla-items-orden" id="tabla-partes">
             <thead><tr><th>Código</th><th>Tipo</th><th>Cant.</th><th>Descripción</th><th>De tu stock</th><th>Costo</th><th>% Dscto</th><th>Total Dscto</th><th>Total</th><th>Estado</th></tr></thead>
             <tbody id="cuerpo-partes"></tbody>
-            <tfoot>
-              <tr class="fila-agregar">
-                <td><input id="pa-codigo" type="text" placeholder="Cód."></td>
-                <td>
-                  <select id="pa-tipo">
-                    <option value="repuesto">Repuesto</option>
-                    <option value="insumo">Insumo</option>
-                  </select>
-                </td>
-                <td><input id="pa-cantidad" type="number" min="0.01" step="0.01" value="1"></td>
-                <td><input id="pa-nombre" type="text" placeholder="Ej. Filtro de aceite"></td>
-                <td>
-                  <select id="pa-stock"><option value="">Compra nueva</option></select>
-                </td>
-                <td><input id="pa-costo" type="number" min="0" step="0.01" placeholder="Lo que te cuesta"></td>
-                <td><input id="pa-descuento" type="number" min="0" max="100" step="0.01" value="0"></td>
-                <td colspan="3"><button type="button" id="btn-agregar-parte">+ Agregar</button></td>
-              </tr>
-            </tfoot>
           </table>
+        </div>
+        <div class="fila-agregar-item">
+          <div class="campo-codigo">
+            <label for="pa-codigo">Código</label>
+            <input id="pa-codigo" type="text" placeholder="Cód.">
+          </div>
+          <div class="campo-estrecho">
+            <label for="pa-tipo">Tipo</label>
+            <select id="pa-tipo">
+              <option value="repuesto">Repuesto</option>
+              <option value="insumo">Insumo</option>
+            </select>
+          </div>
+          <div class="campo-estrecho">
+            <label for="pa-cantidad">Cant.</label>
+            <input id="pa-cantidad" type="number" min="0.01" step="0.01" value="1">
+          </div>
+          <div class="campo-ancho">
+            <label for="pa-nombre">Descripción</label>
+            <input id="pa-nombre" type="text" placeholder="Ej. Filtro de aceite">
+          </div>
+          <div class="campo-medio">
+            <label for="pa-stock">De tu stock</label>
+            <select id="pa-stock"><option value="">Compra nueva</option></select>
+          </div>
+          <div class="campo-estrecho">
+            <label for="pa-costo">Costo</label>
+            <input id="pa-costo" type="number" min="0" step="0.01" placeholder="Lo que te cuesta">
+          </div>
+          <div class="campo-estrecho">
+            <label for="pa-descuento">% Dscto</label>
+            <input id="pa-descuento" type="number" min="0" max="100" step="0.01" value="0">
+          </div>
+          <div class="campo-boton">
+            <button type="button" id="btn-agregar-parte">+ Agregar</button>
+          </div>
         </div>
 
         <div id="bloque-trabajos-externos">
@@ -841,15 +874,25 @@ against the dark UI.
           <table class="tabla-datos tabla-items-orden" id="tabla-externos">
             <thead><tr><th>Descripción</th><th>Costo</th><th>% Dscto</th><th>Total Dscto</th><th>Total</th><th>Estado</th></tr></thead>
             <tbody id="cuerpo-externos"></tbody>
-            <tfoot>
-              <tr class="fila-agregar">
-                <td><input id="ex-nombre" type="text" placeholder="Ej. Servicio de grúa" list="lista-trabajos-externos" autocomplete="off"><datalist id="lista-trabajos-externos"></datalist></td>
-                <td><input id="ex-costo" type="number" min="0" step="0.01"></td>
-                <td><input id="ex-descuento" type="number" min="0" max="100" step="0.01" value="0"></td>
-                <td colspan="3"><button type="button" id="btn-agregar-externo">+ Agregar</button></td>
-              </tr>
-            </tfoot>
           </table>
+        </div>
+        <div class="fila-agregar-item">
+          <div class="campo-ancho">
+            <label for="ex-nombre">Descripción</label>
+            <input id="ex-nombre" type="text" placeholder="Ej. Servicio de grúa" list="lista-trabajos-externos" autocomplete="off">
+            <datalist id="lista-trabajos-externos"></datalist>
+          </div>
+          <div class="campo-estrecho">
+            <label for="ex-costo">Costo</label>
+            <input id="ex-costo" type="number" min="0" step="0.01">
+          </div>
+          <div class="campo-estrecho">
+            <label for="ex-descuento">% Dscto</label>
+            <input id="ex-descuento" type="number" min="0" max="100" step="0.01" value="0">
+          </div>
+          <div class="campo-boton">
+            <button type="button" id="btn-agregar-externo">+ Agregar</button>
+          </div>
         </div>
         </div>
 
@@ -2926,6 +2969,30 @@ against the dark UI.
   }
   .fila-agregar td { background: var(--gris-claro); vertical-align: middle; }
   table.tabla-items-orden td.celda-numero { text-align: right; }
+
+  /* Módulo "agregar ítem" de la orden (mano de obra / repuestos e insumos /
+     trabajos externos): en vez de ir apretado dentro de una fila de la
+     tabla (todas las columnas del mismo ancho angosto), es una mini-tarjeta
+     aparte con etiqueta por campo y ancho proporcional a lo que necesita
+     cada dato — la Descripción usa varias veces más espacio que el % de
+     descuento, por ejemplo — y se acomoda sola según el tamaño de pantalla. */
+  .fila-agregar-item {
+    display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px;
+    background: var(--gris-claro); border: 1px solid var(--borde);
+    border-radius: 8px; padding: 12px 14px 14px; margin: 0 0 18px;
+  }
+  .fila-agregar-item > div { display: flex; flex-direction: column; gap: 3px; margin: 0; min-width: 0; }
+  .fila-agregar-item label { margin: 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; color: var(--gris); }
+  .fila-agregar-item input, .fila-agregar-item select { margin: 0; padding: 8px 9px; font-size: 14px; }
+  .fila-agregar-item .campo-codigo { flex: 0 1 88px; }
+  .fila-agregar-item .campo-estrecho { flex: 1 1 96px; }
+  .fila-agregar-item .campo-medio { flex: 1.4 1 150px; }
+  .fila-agregar-item .campo-ancho { flex: 3 1 240px; }
+  .fila-agregar-item .campo-boton { flex: 0 0 auto; }
+  .fila-agregar-item .campo-boton button { width: auto; padding: 9px 20px; margin: 0; white-space: nowrap; }
+  @media (max-width: 480px) {
+    .fila-agregar-item .campo-boton button { width: 100%; }
+  }
   /* Caja de totales con el mismo estilo del recuadro de totales del
      presupuesto impreso (Total MO / Total partes / Total externos /
      Descuento / IVA / Total general). */
