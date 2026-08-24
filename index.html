@@ -574,7 +574,10 @@ against the dark UI.
           <h3 style="margin-top:20px;">Checklist de recepción del vehículo</h3>
           <div class="nota-ayuda">Registra en qué estado llega el vehículo. Queda impreso en el presupuesto/orden/factura y firmado por quien lo entrega.</div>
 
-          <label>Exteriores</label>
+          <div class="fila-label-accion">
+            <label style="margin-bottom:0;">Exteriores</label>
+            <button type="button" class="secundario btn-marcar-todo-sino" data-grupo="checklist-exteriores-grupo" style="width:auto;padding:4px 10px;font-size:12px;margin:0;">✓ Marcar todo como Sí</button>
+          </div>
           <div id="checklist-exteriores-grupo" class="grupo-sino"></div>
 
           <label>Daños en la carrocería — toca el dibujo donde haya un rayón, golpe o abolladura</label>
@@ -640,12 +643,18 @@ against the dark UI.
             </div>
           </div>
 
-          <label>Accesorios</label>
+          <div class="fila-label-accion">
+            <label style="margin-bottom:0;">Accesorios</label>
+            <button type="button" class="secundario btn-marcar-todo-sino" data-grupo="checklist-accesorios-grupo" style="width:auto;padding:4px 10px;font-size:12px;margin:0;">✓ Marcar todo como Sí</button>
+          </div>
           <div id="checklist-accesorios-grupo" class="grupo-sino"></div>
           <label for="checklist-accesorios-otros">Otros accesorios (opcional)</label>
           <input id="checklist-accesorios-otros" type="text" placeholder="Ej. Silla para bebé, decoración">
 
-          <label>Interiores</label>
+          <div class="fila-label-accion">
+            <label style="margin-bottom:0;">Interiores</label>
+            <button type="button" class="secundario btn-marcar-todo-sino" data-grupo="checklist-interiores-grupo" style="width:auto;padding:4px 10px;font-size:12px;margin:0;">✓ Marcar todo como Sí</button>
+          </div>
           <div id="checklist-interiores-grupo" class="grupo-sino"></div>
 
           <label>Testigos encendidos al ingresar — marca los que estén prendidos en el tablero</label>
@@ -2926,6 +2935,7 @@ against the dark UI.
 
   /* Checklist de recepción: grupos "SÍ/NO" por ítem (exteriores, accesorios,
      interiores) — imitan el formato en papel de toda la vida. */
+  .fila-label-accion { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
   .grupo-sino { border: 1px solid var(--borde); border-radius: 8px; overflow: hidden; margin: 6px 0 14px; }
   .grupo-sino-header { display: grid; grid-template-columns: 1fr 46px 46px; background: var(--gris-claro); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; color: var(--gris); padding: 6px 10px; }
   .grupo-sino-header span:not(:first-child) { text-align: center; }
@@ -12330,6 +12340,24 @@ against the dark UI.
   renderizarGrupoSiNo("checklist-interiores-grupo", LISTA_INTERIORES);
   ["checklist-exteriores-grupo", "checklist-accesorios-grupo", "checklist-interiores-grupo"].forEach(function (id) {
     $(id).addEventListener("change", manejarClicGrupoSiNo);
+  });
+
+  // Botón "Marcar todo como Sí" por casilla (exteriores/accesorios/interiores):
+  // pone todos los ítems del grupo en "Sí" de un solo clic, para que el asesor
+  // solo tenga que desmarcar y pasar a "No" las pocas excepciones que note en
+  // la recepción, en vez de marcar renglón por renglón cuando todo está bien.
+  function marcarTodoSiGrupoSiNo(idContenedor) {
+    document.querySelectorAll("#" + idContenedor + " .grupo-sino-fila").forEach(function (fila) {
+      fila.querySelectorAll("input[data-valor]").forEach(function (cb) {
+        cb.checked = cb.getAttribute("data-valor") === "si";
+      });
+    });
+  }
+  document.querySelectorAll(".btn-marcar-todo-sino").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      marcarChecklistRecepcionTocado();
+      marcarTodoSiGrupoSiNo(btn.getAttribute("data-grupo"));
+    });
   });
 
   $("checklist-testigos-grupo").innerHTML = LISTA_TESTIGOS.map(function (nombre) {
