@@ -2323,7 +2323,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
 
       <div class="tarjeta">
         <h2>Planilla para firmar (todos los empleados)</h2>
-        <div class="nota-ayuda">Genera un solo documento en tabla con todos los empleados ya liquidados en el período de arriba (Período — inicio/fin), con un espacio de firma al frente de cada uno — así no imprimes un recibo por persona.</div>
+        <div class="nota-ayuda">Genera un solo documento en tabla con todos los empleados ya liquidados en el período de arriba (Período — inicio/fin) — así no imprimes un recibo por persona.</div>
         <label for="planilla-fecha-liquidacion">Fecha de liquidación</label>
         <input id="planilla-fecha-liquidacion" type="date">
         <button id="btn-imprimir-planilla" class="secundario">🖨️ Imprimir planilla del período</button>
@@ -6983,7 +6983,6 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
           "<td>" + formatoMoneda(l.bonificaciones) + "</td>" +
           "<td>−" + formatoMoneda(deducciones) + "</td>" +
           "<td><b>" + formatoMoneda(l.total) + "</b></td>" +
-          "<td style=\"min-width:130px;\">&nbsp;</td>" +
           "</tr>";
       }).join("");
       var contenido =
@@ -6991,7 +6990,7 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         "<div class=\"bloque\"><b>Período liquidado</b>" + formatoFechaCorta(new Date(periodoInicio + "T00:00:00")) + " a " + formatoFechaCorta(new Date(periodoFin + "T00:00:00")) + "</div>" +
         "<div class=\"bloque\"><b>Fecha de liquidación</b>" + formatoFechaCorta(new Date(fechaLiquidacion + "T00:00:00")) + "</div>" +
         "</div>" +
-        "<table><thead><tr><th>#</th><th>Empleado</th><th>Salario base</th><th>Comisión/Variable</th><th>Bonific.</th><th>Deducciones</th><th>Total</th><th>Firma</th></tr></thead>" +
+        "<table><thead><tr><th>#</th><th>Empleado</th><th>Salario base</th><th>Comisión/Variable</th><th>Bonific.</th><th>Deducciones</th><th>Total</th></tr></thead>" +
         "<tbody>" + filas + "</tbody></table>" +
         "<div class=\"total-final\">Total planilla: " + formatoMoneda(totalGeneral) + "</div>";
       abrirVentanaImpresion("Planilla de liquidación de nómina", contenido, taller);
