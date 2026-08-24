@@ -90,9 +90,9 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         <div id="fr-fotos-galeria" class="galeria-evidencias"></div>
       </div>
 
-      <p class="nota-ayuda">Desmarca los servicios que <b>no</b> autorizas. Los que dejes marcados se cobran; los que desmarques quedan rechazados y no se cobran ni se realizan.</p>
+      <p class="nota-ayuda">Revisa la cantidad de cada servicio. Si quieres menos de lo cotizado, baja el número; si pones <b>0</b>, ese servicio queda rechazado y no se cobra ni se realiza. Lo que dejes igual se autoriza completo.</p>
       <table>
-        <thead><tr><th>Autorizo</th><th>Descripción</th><th>Cant.</th><th>Precio</th></tr></thead>
+        <thead><tr><th>Descripción</th><th>Precio unit.</th><th>Cant. a autorizar</th><th>Subtotal</th></tr></thead>
         <tbody id="fr-items-cuerpo"></tbody>
       </table>
       <p><b>Total a autorizar: <span id="fr-total"></span></b></p>
@@ -12637,12 +12637,20 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
   var canvasRemota, ctxRemota, dibujandoRemota = false, tokenFirmaRemotaActual = null;
   var itemsFirmaRemotaActual = [];
 
-  // Recalcula "Total a autorizar" según lo que el cliente vaya dejando
-  // marcado (lo desmarcado no se cobra ni se autoriza).
+  // Recalcula el subtotal de cada línea y el total según la cantidad que
+  // el cliente vaya dejando en cada ítem (0 = rechazado).
   function actualizarTotalFirmaRemota() {
     var total = 0;
-    document.querySelectorAll(".fr-item-check").forEach(function (chk) {
-      if (chk.checked) total += Number(chk.dataset.precio) || 0;
+    document.querySelectorAll(".fr-item-cantidad").forEach(function (inp) {
+      var original = Number(inp.dataset.cantidadOriginal) || 0;
+      var precioUnit = Number(inp.dataset.precioUnitario) || 0;
+      var nueva = Number(inp.value);
+      if (!(nueva >= 0)) nueva = 0;
+      if (nueva > original) { nueva = original; inp.value = original; }
+      var subtotal = nueva * precioUnit;
+      var celda = document.querySelector('.fr-item-subtotal[data-id-detalle="' + inp.dataset.idDetalle + '"]');
+      if (celda) celda.textContent = formatoMoneda(subtotal);
+      total += subtotal;
     });
     $("fr-total").textContent = formatoMoneda(total);
   }
@@ -12713,25 +12721,32 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         cuerpo.innerHTML = "";
         itemsFirmaRemotaActual.forEach(function (it) {
           var tr = document.createElement("tr");
-          var tdCheck = document.createElement("td");
-          var chk = document.createElement("input");
-          chk.type = "checkbox";
-          chk.checked = true;
-          chk.className = "fr-item-check";
-          chk.dataset.idDetalle = it.id_detalle;
-          chk.dataset.precio = it.cantidad * it.precio;
-          chk.addEventListener("change", actualizarTotalFirmaRemota);
-          tdCheck.appendChild(chk);
           var tdNombre = document.createElement("td");
           tdNombre.textContent = it.nombre || "";
+          var tdPrecioUnit = document.createElement("td");
+          tdPrecioUnit.textContent = formatoMoneda(it.precio);
           var tdCantidad = document.createElement("td");
-          tdCantidad.textContent = it.cantidad;
-          var tdPrecio = document.createElement("td");
-          tdPrecio.textContent = formatoMoneda(it.precio);
-          tr.appendChild(tdCheck);
+          var inp = document.createElement("input");
+          inp.type = "number";
+          inp.min = "0";
+          inp.max = it.cantidad;
+          inp.step = "any";
+          inp.value = it.cantidad;
+          inp.style.width = "70px";
+          inp.className = "fr-item-cantidad";
+          inp.dataset.idDetalle = it.id_detalle;
+          inp.dataset.cantidadOriginal = it.cantidad;
+          inp.dataset.precioUnitario = it.precio;
+          inp.addEventListener("input", actualizarTotalFirmaRemota);
+          tdCantidad.appendChild(inp);
+          var tdSubtotal = document.createElement("td");
+          tdSubtotal.className = "fr-item-subtotal";
+          tdSubtotal.dataset.idDetalle = it.id_detalle;
+          tdSubtotal.textContent = formatoMoneda(it.cantidad * it.precio);
           tr.appendChild(tdNombre);
+          tr.appendChild(tdPrecioUnit);
           tr.appendChild(tdCantidad);
-          tr.appendChild(tdPrecio);
+          tr.appendChild(tdSubtotal);
           cuerpo.appendChild(tr);
         });
         actualizarTotalFirmaRemota();
@@ -12761,10 +12776,19 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
       mostrarError("firma-remota-error", "No se capturó ninguna firma. Dibújala en el recuadro.");
       return;
     }
-    var idsRechazados = Array.prototype.slice.call(document.querySelectorAll(".fr-item-check"))
-      .filter(function (chk) { return !chk.checked; })
-      .map(function (chk) { return chk.dataset.idDetalle; });
-    if (idsRechazados.length && !window.confirm("Vas a rechazar " + idsRechazados.length + " de los " + itemsFirmaRemotaActual.length + " servicios cotizados. Esos no se van a realizar ni cobrar. ¿Confirmas?")) {
+    var idsRechazados = [];
+    var cantidades = {};
+    Array.prototype.slice.call(document.querySelectorAll(".fr-item-cantidad")).forEach(function (inp) {
+      var original = Number(inp.dataset.cantidadOriginal) || 0;
+      var nueva = Number(inp.value);
+      if (!(nueva > 0)) {
+        idsRechazados.push(inp.dataset.idDetalle);
+      } else if (nueva < original) {
+        cantidades[inp.dataset.idDetalle] = nueva;
+      }
+    });
+    var totalModificados = idsRechazados.length + Object.keys(cantidades).length;
+    if (totalModificados && !window.confirm("Vas a autorizar menos de lo cotizado en " + totalModificados + " de los " + itemsFirmaRemotaActual.length + " servicios (" + idsRechazados.length + " rechazado(s) por completo). Lo que reduzcas o rechaces no se realiza ni se cobra. ¿Confirmas?")) {
       return;
     }
     var firmaDataUrl = canvasRemota.toDataURL("image/png");
@@ -12774,7 +12798,8 @@ banners) switch to translucent rgba washes instead of pastel hex, so they don't 
         p_nombre_firmante: nombreFirmante,
         p_documento_firmante: documento || null,
         p_firma_imagen: firmaDataUrl,
-        p_ids_rechazados: idsRechazados
+        p_ids_rechazados: idsRechazados,
+        p_cantidades: cantidades
       }
     }).then(function () {
       $("firma-remota-contenido").classList.add("oculto");
