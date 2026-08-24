@@ -790,7 +790,7 @@ against the dark UI.
         </div>
 
         <h3>Mano de obra</h3>
-        <div class="nota-ayuda">El precio por hora lo fija el administrador en Contabilidad. Aquí solo se define el nombre y las horas. La columna "Avance del técnico" registra la hora real de inicio y fin de cada servicio (solo mientras la orden está en proceso).</div>
+        <div class="nota-ayuda">El precio por hora lo fija el administrador en Contabilidad. Aquí solo se define el nombre y las horas. La columna "Avance del técnico" registra la hora real de inicio y fin de cada servicio (solo mientras la orden está en proceso). Si hay que detener el trabajo (esperando un repuesto, el técnico sale, etc.), usa "⏸ Pausar" y escribe el motivo — ese tiempo pausado no cuenta como horas reales trabajadas en el vehículo.</div>
         <div class="tabla-scroll">
           <table class="tabla-datos tabla-items-orden" id="tabla-mano-obra">
             <thead><tr><th>Código</th><th>Descripción</th><th>Precio/hora</th><th>Horas</th><th>% Dscto</th><th>Total Dscto</th><th>Total</th><th>Estado</th><th>Avance del técnico</th></tr></thead>
@@ -2626,7 +2626,7 @@ against the dark UI.
 
       <div class="tarjeta">
         <h2>Productividad real por técnico (mes actual)</h2>
-        <div class="nota-ayuda">Según la hora de inicio y fin que cada técnico va registrando por servicio (columna "Avance del técnico" en la orden). Eficiencia = horas cotizadas ÷ horas reales invertidas; por encima de 100% significa que el técnico terminó más rápido de lo cotizado. Si un servicio duró menos de 2 minutos o más de 12 horas seguidas, aparece un aviso ⚠️ porque probablemente no refleja trabajo real (clic de prueba o se olvidaron de dar clic en "Terminar").</div>
+        <div class="nota-ayuda">Según la hora de inicio y fin que cada técnico va registrando por servicio (columna "Avance del técnico" en la orden). Las horas reales ya vienen sin el tiempo en pausas (esperando repuestos, etc.). Eficiencia = horas cotizadas ÷ horas reales invertidas; por encima de 100% significa que el técnico terminó más rápido de lo cotizado. Si un servicio duró menos de 2 minutos o más de 12 horas seguidas, aparece un aviso ⚠️ porque probablemente no refleja trabajo real (clic de prueba o se olvidaron de dar clic en "Terminar").</div>
         <div id="tabla-productividad-real"></div>
       </div>
 
@@ -8213,7 +8213,7 @@ against the dark UI.
       restRequest("GET", "vista_facturacion", { query: "select=total,forma_pago&estado_pago=eq.pagada&fecha_pago=gte." + inicioMes + "&fecha_pago=lt." + inicioMesSiguiente }),
       restRequest("GET", "pagos_factura", { query: "select=forma_pago,monto&fecha_pago=gte." + inicioMes + "&fecha_pago=lt." + inicioMesSiguiente }),
       restRequest("GET", "ot_detalle", {
-        query: "select=cantidad,fecha_inicio_real,fecha_fin_real,ordenes_trabajo(id_tecnico,tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre))&fecha_fin_real=gte." + inicioMes + "&fecha_fin_real=lt." + inicioMesSiguiente
+        query: "select=cantidad,fecha_inicio_real,fecha_fin_real,pausas_avance_ot(hora_inicio,hora_fin),ordenes_trabajo(id_tecnico,tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre))&fecha_fin_real=gte." + inicioMes + "&fecha_fin_real=lt." + inicioMesSiguiente
       })
     ]).then(function (r) {
       var resultadoMensual = r[0] || [];
@@ -8356,7 +8356,11 @@ against the dark UI.
         var idTec = ot.id_tecnico || "sin_tecnico";
         var nombreTec = (ot.tecnico && ot.tecnico.nombre) || "Sin técnico asignado";
         if (!productividadPorTecnico[idTec]) productividadPorTecnico[idTec] = { nombre: nombreTec, servicios: 0, horasReales: 0, horasCotizadas: 0, serviciosCortos: 0, serviciosLargos: 0 };
-        var horasReales = (new Date(f.fecha_fin_real) - new Date(f.fecha_inicio_real)) / 3600000;
+        var minPausadosServicio = (f.pausas_avance_ot || []).reduce(function (acc, p) {
+          if (!p.hora_fin) return acc;
+          return acc + Math.max(0, (new Date(p.hora_fin) - new Date(p.hora_inicio)) / 60000);
+        }, 0);
+        var horasReales = ((new Date(f.fecha_fin_real) - new Date(f.fecha_inicio_real)) / 60000 - minPausadosServicio) / 60;
         productividadPorTecnico[idTec].servicios += 1;
         productividadPorTecnico[idTec].horasReales += Math.max(0, horasReales);
         productividadPorTecnico[idTec].horasCotizadas += Number(f.cantidad) || 0;
@@ -11408,18 +11412,49 @@ against the dark UI.
     });
   }
 
+  // Minutos que este servicio ha estado en pausa (solo cuenta pausas ya
+  // cerradas, con hora_fin — mientras una pausa está abierta se muestra por
+  // aparte como "Pausado desde...", no se suma aquí todavía).
+  function minutosPausadosLinea(f) {
+    var pausas = f.pausas_avance_ot || [];
+    return pausas.reduce(function (acc, p) {
+      if (!p.hora_fin) return acc;
+      return acc + Math.max(0, (new Date(p.hora_fin) - new Date(p.hora_inicio)) / 60000);
+    }, 0);
+  }
+
+  function pausaAbiertaLinea(f) {
+    var pausas = f.pausas_avance_ot || [];
+    return pausas.filter(function (p) { return !p.hora_fin; })[0] || null;
+  }
+
   function celdaAvanceLinea(f) {
     var puedeOperar = ordenActual.estado === "en_proceso";
+    var pausaAbierta = pausaAbiertaLinea(f);
+    var minPausados = Math.round(minutosPausadosLinea(f));
+
     if (f.fecha_inicio_real && f.fecha_fin_real) {
-      var duracionMin = Math.max(0, Math.round((new Date(f.fecha_fin_real) - new Date(f.fecha_inicio_real)) / 60000));
+      var duracionBrutaMin = Math.max(0, Math.round((new Date(f.fecha_fin_real) - new Date(f.fecha_inicio_real)) / 60000));
+      var duracionRealMin = Math.max(0, duracionBrutaMin - minPausados);
       var esAdminOAsesor = rolActual === "administrador" || rolActual === "asesor";
-      return '<span style="color:var(--verde);font-weight:600;">✅ ' + formatoDuracionMinutos(duracionMin) + '</span>' +
-        (esAdminOAsesor ? ' <button type="button" style="width:auto;padding:2px 6px;font-size:10px;" title="Corregir (borra el avance)" onclick="window.reiniciarAvanceServicio(\'' + f.id_detalle + '\')">↺</button>' : '');
+      return '<span style="color:var(--verde);font-weight:600;">✅ ' + formatoDuracionMinutos(duracionRealMin) + '</span>' +
+        (minPausados > 0 ? '<br><span class="nota-ayuda" style="margin:2px 0 0;">(' + formatoDuracionMinutos(minPausados) + ' en pausas, ya descontados)</span>' : '') +
+        (esAdminOAsesor ? ' <button type="button" style="width:auto;padding:2px 6px;font-size:10px;" title="Corregir (borra el avance y las pausas)" onclick="window.reiniciarAvanceServicio(\'' + f.id_detalle + '\')">↺</button>' : '');
     }
+
+    if (pausaAbierta) {
+      var txtP = '⏸ Pausado desde ' + formatoFechaHoraCorta(new Date(pausaAbierta.hora_inicio)).slice(-5) + ' — ' + (pausaAbierta.motivo || "sin motivo");
+      if (!puedeOperar) return '<span style="color:#b45309;font-weight:600;">' + txtP + '</span>';
+      return '<span style="color:#b45309;font-weight:600;">' + txtP + '</span><br>' +
+        '<button type="button" class="secundario" style="width:auto;padding:4px 8px;font-size:11px;margin-top:4px;" onclick="window.reanudarAvanceServicio(\'' + f.id_detalle + '\')">▶ Reanudar</button>';
+    }
+
     if (f.fecha_inicio_real && !f.fecha_fin_real) {
       var txt = 'En curso desde ' + formatoFechaHoraCorta(new Date(f.fecha_inicio_real)).slice(-5);
+      if (minPausados > 0) txt += ' (' + formatoDuracionMinutos(minPausados) + ' en pausas)';
       if (!puedeOperar) return '<span style="color:#b45309;font-weight:600;">' + txt + '</span>';
       return '<span style="color:#b45309;font-weight:600;">' + txt + '</span><br>' +
+        '<button type="button" class="secundario" style="width:auto;padding:4px 8px;font-size:11px;margin-top:4px;" onclick="window.pausarAvanceServicio(\'' + f.id_detalle + '\')">⏸ Pausar</button> ' +
         '<button type="button" class="secundario" style="width:auto;padding:4px 8px;font-size:11px;margin-top:4px;" onclick="window.terminarAvanceServicio(\'' + f.id_detalle + '\')">Terminar</button>';
     }
     if (!puedeOperar) return "—";
@@ -11561,7 +11596,7 @@ against the dark UI.
   }
 
   function cargarItemsDeOrden() {
-    var queryItems = "select=id_detalle,id_item,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,fecha_inicio_real,fecha_fin_real,meses_garantia,items(nombre,tipo,costo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
+    var queryItems = "select=id_detalle,id_item,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,fecha_inicio_real,fecha_fin_real,meses_garantia,pausas_avance_ot(id_pausa,motivo,hora_inicio,hora_fin),items(nombre,tipo,costo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
     var queryOrden = "select=estado,tipo_orden,token_consulta,fecha_apertura,fecha_cierre,diagnostico,presupuesto_tentativo,hallazgos_diagnostico,veces_devuelta_calidad,motivo_devolucion_calidad,fecha_devolucion_calidad,id_asesor,id_tecnico,asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre),clientes(nombre,telefono,documento,direccion),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,transmision,version,vin,kilometraje)&id_ot=eq." + ordenActual.id_ot;
     return Promise.all([
       restRequest("GET", "ot_detalle", { query: queryItems }),
@@ -12767,9 +12802,11 @@ against the dark UI.
   // (no un PATCH directo) porque el técnico solo tiene permiso de insertar
   // ítems, no de editarlos — así se registra el avance sin abrirle la puerta
   // a cambiar precios ni cantidades.
-  function registrarProgresoServicio(idDetalle, accion) {
+  function registrarProgresoServicio(idDetalle, accion, motivo) {
     ocultarError("item-error");
-    return restRequest("POST", "rpc/registrar_progreso_servicio", { body: { p_id_detalle: idDetalle, p_accion: accion } })
+    var cuerpo = { p_id_detalle: idDetalle, p_accion: accion };
+    if (motivo) cuerpo.p_motivo = motivo;
+    return restRequest("POST", "rpc/registrar_progreso_servicio", { body: cuerpo })
       .then(function () { return cargarItemsDeOrden(); })
       .catch(function (err) {
         mostrarError("item-error", "No se pudo registrar el avance: " + err.message);
@@ -12777,8 +12814,19 @@ against the dark UI.
   }
   window.iniciarAvanceServicio = function (idDetalle) { registrarProgresoServicio(idDetalle, "iniciar"); };
   window.terminarAvanceServicio = function (idDetalle) { registrarProgresoServicio(idDetalle, "terminar"); };
+  // Pausar exige un motivo (esperando repuesto, el técnico salió, etc.) para
+  // que quede constancia de por qué se detuvo el trabajo — no se descuenta
+  // como horas reales invertidas en el vehículo mientras está pausado.
+  window.pausarAvanceServicio = function (idDetalle) {
+    var motivo = window.prompt("¿Por qué se pausa este trabajo? (ej. Esperando repuesto, el técnico fue al baño, etc.)");
+    if (motivo === null) return;
+    motivo = motivo.trim();
+    if (!motivo) { window.alert("Escribe un motivo para poder pausar."); return; }
+    registrarProgresoServicio(idDetalle, "pausar", motivo);
+  };
+  window.reanudarAvanceServicio = function (idDetalle) { registrarProgresoServicio(idDetalle, "reanudar"); };
   window.reiniciarAvanceServicio = function (idDetalle) {
-    if (!window.confirm("¿Borrar el avance registrado en este servicio (hora de inicio y fin)? Esta acción no se puede deshacer.")) return;
+    if (!window.confirm("¿Borrar el avance registrado en este servicio (hora de inicio, fin y todas sus pausas)? Esta acción no se puede deshacer.")) return;
     registrarProgresoServicio(idDetalle, "reiniciar");
   };
 
