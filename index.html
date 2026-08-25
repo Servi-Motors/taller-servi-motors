@@ -2263,7 +2263,22 @@ against the dark UI.
 
       <div class="tarjeta">
         <h2>Caja menor</h2>
+        <div class="nota-ayuda">Caja menor y la cuenta "Efectivo" son la misma plata: el dinero en efectivo que reciben los clientes entra aquí, y los gastos pequeños salen de aquí. No debe manejarse efectivo por fuera de este registro.</div>
         <div id="caja-menor-resumen" class="info-vehiculo"></div>
+        <div id="caja-menor-excedente" class="info-vehiculo oculto" style="border:2px solid #b45309;"></div>
+        <div id="caja-menor-form-excedente" class="oculto" style="margin-top:8px;">
+          <div class="fila-2col">
+            <div>
+              <label for="cm-excedente-monto">Monto a consignar/transferir</label>
+              <input id="cm-excedente-monto" type="number" min="0" step="0.01">
+            </div>
+            <div>
+              <label for="cm-excedente-cuenta">¿A cuál cuenta?</label>
+              <select id="cm-excedente-cuenta"></select>
+            </div>
+          </div>
+          <button type="button" id="btn-cm-consignar-excedente" class="secundario">Registrar consignación del excedente</button>
+        </div>
         <div class="tabla-scroll">
           <table class="tabla-datos" id="tabla-caja-menor">
             <thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Monto</th><th>Usuario</th></tr></thead>
@@ -2277,9 +2292,17 @@ against the dark UI.
         <input id="cm-gasto-monto" type="number" min="0" step="0.01">
         <button id="btn-cm-gasto">Registrar gasto</button>
         <h3>Reponer caja menor</h3>
-        <div class="nota-ayuda">Esto no es un gasto — es plata que entra a caja menor desde otra fuente (caja del día, banco, etc.) para volver a completar el fondo.</div>
-        <label for="cm-reponer-monto">Monto a reponer</label>
-        <input id="cm-reponer-monto" type="number" min="0" step="0.01">
+        <div class="nota-ayuda">Usa esto cuando saques efectivo de un banco para completar el fondo de caja menor. Queda registrado como una transferencia normal de esa cuenta hacia Efectivo.</div>
+        <div class="fila-2col">
+          <div>
+            <label for="cm-reponer-monto">Monto a reponer</label>
+            <input id="cm-reponer-monto" type="number" min="0" step="0.01">
+          </div>
+          <div>
+            <label for="cm-reponer-cuenta">¿Desde cuál cuenta?</label>
+            <select id="cm-reponer-cuenta"></select>
+          </div>
+        </div>
         <button id="btn-cm-reponer" class="secundario">Reponer</button>
       </div>
 
@@ -2469,6 +2492,9 @@ against the dark UI.
           </div>
         </div>
         <div class="nota-ayuda">El recordatorio de mantenimiento solo aplica a vehículos sin fecha ni kilometraje de próximo mantenimiento definidos. Se usa en Comunicaciones → Próximo mantenimiento.</div>
+        <label for="taller-cuenta-excedente-caja">Cuenta para consignar el excedente de caja menor</label>
+        <select id="taller-cuenta-excedente-caja"><option value="">— Sin definir —</option></select>
+        <div class="nota-ayuda">Cuando en Caja el efectivo disponible supere el fondo objetivo de arriba, se propondrá consignar el excedente a esta cuenta (se puede cambiar cada vez).</div>
         <label for="taller-enlace-resenas">Enlace para pedir reseñas (opcional)</label>
         <input id="taller-enlace-resenas" type="text" placeholder="Ej. enlace de reseñas de Google">
         <div class="nota-ayuda">Se usa en Comunicaciones para pedirle al cliente que deje su opinión después de entregar el vehículo.</div>
@@ -7297,15 +7323,20 @@ against the dark UI.
       restRequest("GET", "empleados", { query: "select=*,usuarios(nombre,rol,correo)&order=creado_en.desc" }),
       restRequest("GET", "usuarios", { query: "select=id_usuario,nombre,rol&estado=eq.activo&order=nombre.asc" }),
       restRequest("GET", "prestamos", { query: "select=*,empleados(nombre,usuarios(nombre))&order=fecha.desc" }),
-      restRequest("GET", "parametros_taller", { query: "select=nombre_taller,nit,direccion,telefono,regimen_tributario,responsable_iva,horarios_semana,prefijo_ot,prefijo_factura,monto_fondo_caja_menor,enlace_resenas,dias_sin_visita_mantenimiento,cupos_agenda_por_turno,valor_uvt_actual,pct_carga_prestacional&id=eq.1" }),
-      restRequest("GET", "plantillas_mensajes", { query: "select=*&order=etiqueta.asc" })
+      restRequest("GET", "parametros_taller", { query: "select=nombre_taller,nit,direccion,telefono,regimen_tributario,responsable_iva,horarios_semana,prefijo_ot,prefijo_factura,monto_fondo_caja_menor,enlace_resenas,dias_sin_visita_mantenimiento,cupos_agenda_por_turno,valor_uvt_actual,pct_carga_prestacional,id_cuenta_excedente_caja_menor&id=eq.1" }),
+      restRequest("GET", "plantillas_mensajes", { query: "select=*&order=etiqueta.asc" }),
+      restRequest("GET", "cuentas_taller", { query: "select=id_cuenta,nombre,tipo&activa=eq.true&order=orden.asc" })
     ]).then(function (r) {
       var empleados = r[0] || [];
       var usuarios = r[1] || [];
       var prestamos = r[2] || [];
       var datosTaller = (r[3] && r[3][0]) || {};
       var plantillas = r[4] || [];
+      var cuentasBanco = (r[5] || []).filter(function (c) { return c.tipo !== "efectivo"; });
       renderizarPlantillasMensajes(plantillas);
+      $("taller-cuenta-excedente-caja").innerHTML = "<option value=\"\">— Sin definir —</option>" +
+        cuentasBanco.map(function (c) { return "<option value=\"" + c.id_cuenta + "\">" + c.nombre + "</option>"; }).join("");
+      $("taller-cuenta-excedente-caja").value = datosTaller.id_cuenta_excedente_caja_menor || "";
 
       $("taller-nombre").value = datosTaller.nombre_taller || "";
       $("taller-nit").value = datosTaller.nit || "";
@@ -7415,6 +7446,7 @@ against the dark UI.
     var valorUvt = valorUvtTexto === "" ? 52374 : parseFloat(valorUvtTexto);
     var pctCargaPrestacionalTexto = $("taller-pct-carga-prestacional").value.trim();
     var pctCargaPrestacional = pctCargaPrestacionalTexto === "" ? 0.45 : parseFloat(pctCargaPrestacionalTexto) / 100;
+    var idCuentaExcedenteCaja = $("taller-cuenta-excedente-caja").value || null;
     if (!nombre) {
       mostrarError("datos-taller-error", "Escribe el nombre del taller.");
       return;
@@ -7450,7 +7482,8 @@ against the dark UI.
         enlace_resenas: enlaceResenas || null,
         dias_sin_visita_mantenimiento: diasSinVisita,
         valor_uvt_actual: valorUvt,
-        pct_carga_prestacional: pctCargaPrestacional
+        pct_carga_prestacional: pctCargaPrestacional,
+        id_cuenta_excedente_caja_menor: idCuentaExcedenteCaja
       }
     }).then(function () {
       prefijoOT = prefOT;
@@ -10950,6 +10983,13 @@ against the dark UI.
   // CAJA — caja menor (fondo fijo) y cierre de caja diario (arqueo)
   // =====================================================================
   var cajaTotalesHoy = { efectivo: 0, tarjeta: 0, transferencia: 0, egresosEfectivo: 0 };
+  var idCuentaEfectivoCaja = null;
+  var cuentasBancoParaCaja = []; // cuentas_taller activas, sin la de efectivo
+  var cajaMenorFormExcedenteTocado = false; // true en cuanto la persona edita el mini-formulario de consignación, para no pisarle lo que escribió
+
+  function llenarSelectorCuentasBancoCaja(select) {
+    select.innerHTML = cuentasBancoParaCaja.map(function (c) { return "<option value=\"" + c.id_cuenta + "\">" + c.nombre + "</option>"; }).join("");
+  }
 
   function cargarCaja() {
     ocultarError("caja-error");
@@ -10959,16 +10999,19 @@ against the dark UI.
     var manana = aFechaISO(mananaDate);
 
     return Promise.all([
-      restRequest("GET", "parametros_taller", { query: "select=monto_fondo_caja_menor&id=eq.1" }),
+      restRequest("GET", "parametros_taller", { query: "select=monto_fondo_caja_menor,id_cuenta_excedente_caja_menor&id=eq.1" }),
       restRequest("GET", "caja_menor_movimientos", { query: "select=*,usuarios(nombre)&order=fecha.desc,creado_en.desc&limit=100" }),
       restRequest("GET", "vista_facturacion", { query: "select=total,forma_pago,fecha_pago&estado_pago=eq.pagada&forma_pago=neq.credito&fecha_pago=gte." + hoy + "&fecha_pago=lt." + manana }),
       restRequest("GET", "egresos", { query: "select=monto&estado_pago=eq.pagado&forma_pago=eq.efectivo&fecha=eq." + hoy }),
       restRequest("GET", "cierres_caja", { query: "select=*&order=fecha.desc&limit=15" }),
       restRequest("GET", "abonos_cuentas_cobrar", { query: "select=monto,forma_pago&fecha=eq." + hoy }),
       restRequest("GET", "abonos_cuentas_pagar", { query: "select=monto&forma_pago=eq.efectivo&fecha=eq." + hoy }),
-      restRequest("GET", "pagos_factura", { query: "select=forma_pago,monto&fecha_pago=gte." + hoy + "&fecha_pago=lt." + manana })
+      restRequest("GET", "pagos_factura", { query: "select=forma_pago,monto&fecha_pago=gte." + hoy + "&fecha_pago=lt." + manana }),
+      restRequest("GET", "cuentas_taller", { query: "select=id_cuenta,nombre,tipo&activa=eq.true&order=orden.asc" }),
+      restRequest("POST", "rpc/rpc_saldo_caja_menor", { body: {} })
     ]).then(function (resultados) {
       var fondoObjetivo = (resultados[0][0] && resultados[0][0].monto_fondo_caja_menor) || 0;
+      var idCuentaExcedenteConfigurada = resultados[0][0] && resultados[0][0].id_cuenta_excedente_caja_menor;
       var movimientos = resultados[1] || [];
       var pagosHoy = resultados[2] || [];
       var gastosEfectivoHoy = resultados[3] || [];
@@ -10976,28 +11019,51 @@ against the dark UI.
       var abonosCobradosHoy = resultados[5] || [];
       var abonosPagadosEfectivoHoy = resultados[6] || [];
       var pagosDivididosHoy = resultados[7] || [];
+      var cuentasTaller = resultados[8] || [];
+      var saldoCajaMenor = Number(resultados[9] || 0);
 
-      // --- Caja menor: saldo = reposiciones - gastos ---
-      var saldoCajaMenor = 0;
-      movimientos.forEach(function (m) {
-        saldoCajaMenor += m.tipo === "reposicion" ? Number(m.monto) : -Number(m.monto);
-      });
+      idCuentaEfectivoCaja = (cuentasTaller.filter(function (c) { return c.tipo === "efectivo"; })[0] || {}).id_cuenta || null;
+      cuentasBancoParaCaja = cuentasTaller.filter(function (c) { return c.tipo !== "efectivo"; });
+      llenarSelectorCuentasBancoCaja($("cm-reponer-cuenta"));
+      llenarSelectorCuentasBancoCaja($("cm-excedente-cuenta"));
+
+      // --- Caja menor: el saldo real es el mismo de la cuenta "Efectivo"
+      // (pagos en efectivo de clientes, menos gastos de caja menor, más/menos
+      // reposiciones y consignaciones con los bancos) ---
       var resumenCM = $("caja-menor-resumen");
       resumenCM.innerHTML =
         "<div><strong>Saldo actual:</strong> " + formatoMoneda(saldoCajaMenor) + "</div>" +
         "<div><strong>Fondo objetivo:</strong> " + formatoMoneda(fondoObjetivo) + "</div>" +
         (saldoCajaMenor < fondoObjetivo ? "<div style=\"color:#b45309;\">Falta reponer " + formatoMoneda(fondoObjetivo - saldoCajaMenor) + " para llegar al fondo objetivo.</div>" : "");
 
+      var excedente = saldoCajaMenor - fondoObjetivo;
+      var elExcedente = $("caja-menor-excedente");
+      var elFormExcedente = $("caja-menor-form-excedente");
+      if (excedente > 0.01 && cuentasBancoParaCaja.length) {
+        elExcedente.classList.remove("oculto");
+        elFormExcedente.classList.remove("oculto");
+        elExcedente.innerHTML = "<strong style=\"color:#b45309;\">Tienes " + formatoMoneda(excedente) + " de más sobre tu fondo objetivo.</strong> Te recomendamos consignarlo o transferirlo a una de tus cuentas bancarias.";
+        if (!cajaMenorFormExcedenteTocado) {
+          $("cm-excedente-monto").value = excedente.toFixed(2);
+          $("cm-excedente-cuenta").value = idCuentaExcedenteConfigurada || cuentasBancoParaCaja[0].id_cuenta;
+        }
+      } else {
+        elExcedente.classList.add("oculto");
+        elFormExcedente.classList.add("oculto");
+      }
+
       var cuerpoCM = $("cuerpo-caja-menor");
       cuerpoCM.innerHTML = movimientos.length ? "" : "<tr><td colspan=\"5\" class=\"tabla-vacia\">Sin movimientos.</td></tr>";
+      var ETIQUETAS_TIPO_CM = { reposicion: "Reposición", gasto: "Gasto", consignacion: "Consignación" };
       movimientos.forEach(function (m) {
+        var esEntrada = m.tipo === "reposicion";
         var tr = document.createElement("tr");
         tr.innerHTML =
           "<td>" + formatoFechaCorta(new Date(m.fecha + "T00:00:00")) + "</td>" +
-          "<td>" + (m.tipo === "reposicion" ? "Reposición" : "Gasto") + "</td>" +
+          "<td>" + (ETIQUETAS_TIPO_CM[m.tipo] || m.tipo) + "</td>" +
           "<td>" + m.concepto + "</td>" +
-          "<td class=\"celda-numero\" style=\"color:" + (m.tipo === "reposicion" ? "var(--verde)" : "var(--rojo)") + ";\">" +
-          (m.tipo === "reposicion" ? "+" : "-") + formatoMoneda(m.monto) + "</td>" +
+          "<td class=\"celda-numero\" style=\"color:" + (esEntrada ? "var(--verde)" : "var(--rojo)") + ";\">" +
+          (esEntrada ? "+" : "-") + formatoMoneda(m.monto) + "</td>" +
           "<td>" + (m.usuarios ? m.usuarios.nombre : "—") + "</td>";
         cuerpoCM.appendChild(tr);
       });
@@ -11135,7 +11201,7 @@ against the dark UI.
     return restRequest("POST", "egresos", {
       body: {
         fecha: hoy, concepto: concepto, categoria: "gasto", monto: monto,
-        forma_pago: "efectivo", id_usuario_registro: usuarioActualId
+        forma_pago: "efectivo", id_cuenta: idCuentaEfectivoCaja, id_usuario_registro: usuarioActualId
       }
     }).then(function (filasEgreso) {
       return restRequest("POST", "caja_menor_movimientos", {
@@ -11161,18 +11227,23 @@ against the dark UI.
   $("btn-cm-reponer").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("caja-error");
     var monto = parseFloat($("cm-reponer-monto").value);
+    var idCuentaBanco = $("cm-reponer-cuenta").value;
     if (!(monto > 0)) {
       mostrarError("caja-error", "Escribe un monto válido para la reposición.");
+      return;
+    }
+    if (!idCuentaBanco) {
+      mostrarError("caja-error", "Elige desde cuál cuenta sacaste la plata para reponer caja menor.");
       return;
     }
     var btnCmReponer = $("btn-cm-reponer");
     btnCmReponer.disabled = true;
     btnCmReponer.textContent = "Reponiendo…";
-    return restRequest("POST", "caja_menor_movimientos", {
-      body: {
-        fecha: aFechaISO(new Date()), tipo: "reposicion", monto: monto,
-        concepto: "Reposición de fondo de caja menor", id_usuario_registro: usuarioActualId
-      }
+    // Esto es una transferencia real: sale del banco elegido y entra a
+    // Efectivo/caja menor — reutiliza la misma validación de saldo que las
+    // transferencias normales entre cuentas.
+    return restRequest("POST", "rpc/registrar_movimiento_caja_menor", {
+      body: { p_id_cuenta_banco: idCuentaBanco, p_monto: monto, p_tipo: "reposicion", p_nota: null }
     }).then(function () {
       $("cm-reponer-monto").value = "";
       return cargarCaja();
@@ -11182,6 +11253,39 @@ against the dark UI.
     }).catch(function (err) {
       btnCmReponer.disabled = false;
       btnCmReponer.textContent = "Reponer";
+      throw err;
+    });
+  }, "caja-error"));
+
+  $("cm-excedente-monto").addEventListener("input", function () { cajaMenorFormExcedenteTocado = true; });
+  $("cm-excedente-cuenta").addEventListener("change", function () { cajaMenorFormExcedenteTocado = true; });
+
+  $("btn-cm-consignar-excedente").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("caja-error");
+    var monto = parseFloat($("cm-excedente-monto").value);
+    var idCuentaBanco = $("cm-excedente-cuenta").value;
+    if (!(monto > 0)) {
+      mostrarError("caja-error", "Escribe un monto válido para la consignación.");
+      return;
+    }
+    if (!idCuentaBanco) {
+      mostrarError("caja-error", "Elige a cuál cuenta vas a consignar el excedente.");
+      return;
+    }
+    var btnConsignar = $("btn-cm-consignar-excedente");
+    btnConsignar.disabled = true;
+    btnConsignar.textContent = "Registrando…";
+    return restRequest("POST", "rpc/registrar_movimiento_caja_menor", {
+      body: { p_id_cuenta_banco: idCuentaBanco, p_monto: monto, p_tipo: "consignacion", p_nota: null }
+    }).then(function () {
+      cajaMenorFormExcedenteTocado = false;
+      return cargarCaja();
+    }).then(function () {
+      btnConsignar.disabled = false;
+      btnConsignar.textContent = "Registrar consignación del excedente";
+    }).catch(function (err) {
+      btnConsignar.disabled = false;
+      btnConsignar.textContent = "Registrar consignación del excedente";
       throw err;
     });
   }, "caja-error"));
