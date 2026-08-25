@@ -6921,6 +6921,8 @@ against the dark UI.
       llenarSelectCuentas($("transf-origen"), false);
       llenarSelectCuentas($("transf-destino"), false);
       renderizarSaldoCuentas(r[7] || []);
+      saldosPorCuenta = {};
+      (r[7] || []).forEach(function (f) { saldosPorCuenta[f.id_cuenta] = Number(f.saldo_calculado); });
       renderizarListaTransferencias(r[8] || []);
       if (!$("transf-fecha").value) $("transf-fecha").value = aFechaISO(new Date());
 
@@ -11231,6 +11233,7 @@ against the dark UI.
   var cxcSeleccionada = null; // { id_ot, saldo }
   var cxpSeleccionada = null; // { id_egreso, saldo }
   var todasCuentasTaller = [];
+  var saldosPorCuenta = {}; // id_cuenta -> saldo_calculado (para avisar de una vez si no alcanza para una transferencia)
 
   function llenarSelectCuentas(select, incluirVacio) {
     select.innerHTML = (incluirVacio ? "<option value=\"\">— Sin especificar —</option>" : "") +
@@ -11494,6 +11497,14 @@ against the dark UI.
     }
     if (!(monto > 0)) {
       mostrarError("transferencia-error", "Escribe un monto válido.");
+      return;
+    }
+    // Aviso inmediato con el saldo que ya se cargó en pantalla — la
+    // validación real (por si el saldo cambió mientras tanto) la hace la
+    // base de datos y bloquea la transferencia igual.
+    var saldoOrigen = saldosPorCuenta[origen];
+    if (saldoOrigen !== undefined && monto > saldoOrigen + 0.01) {
+      mostrarError("transferencia-error", "Esa cuenta no tiene saldo suficiente: disponible " + formatoMoneda(saldoOrigen) + ", intentaste transferir " + formatoMoneda(monto) + ".");
       return;
     }
     return restRequest("POST", "transferencias_entre_cuentas", {
