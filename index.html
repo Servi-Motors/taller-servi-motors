@@ -2625,17 +2625,8 @@ against the dark UI.
       </div>
 
       <div class="tarjeta">
-        <h2>Planilla para firmar (todos los empleados)</h2>
-        <div class="nota-ayuda">Genera un solo documento en tabla con todos los empleados que tengan una liquidación dentro del rango de arriba (Período — inicio/fin) — no hace falta que coincida exacto, por ejemplo un rango de todo el mes trae también las liquidaciones hechas por quincena. Así no imprimes un recibo por persona.</div>
-        <label for="planilla-fecha-liquidacion">Fecha de liquidación</label>
-        <input id="planilla-fecha-liquidacion" type="date">
-        <button id="btn-imprimir-planilla" class="secundario">🖨️ Imprimir planilla del período</button>
-        <div id="planilla-error" class="mensaje-error"></div>
-      </div>
-
-      <div class="tarjeta">
         <h2>Historial de liquidaciones</h2>
-        <div class="nota-ayuda">Filtra por año, por mes o por quincena para revisar e imprimir las liquidaciones de ese período.</div>
+        <div class="nota-ayuda">Filtra por año, por mes o por quincena para revisar e imprimir las liquidaciones de ese período. El botón "Imprimir este período" genera una sola planilla con todos los empleados y una columna de firma, para no imprimir un recibo por persona.</div>
         <div class="fila-3col">
           <div>
             <label for="historial-filtro-tipo">Filtrar por</label>
@@ -2663,9 +2654,13 @@ against the dark UI.
             </select>
           </div>
         </div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap; margin:10px 0;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; margin:10px 0;">
           <button type="button" id="btn-filtrar-historial" class="secundario">Filtrar</button>
-          <button type="button" id="btn-imprimir-historial" class="secundario">🖨️ Imprimir este período</button>
+          <div>
+            <label for="historial-fecha-firma" style="font-size:12px;">Fecha de pago (planilla impresa)</label>
+            <input id="historial-fecha-firma" type="date">
+          </div>
+          <button type="button" id="btn-imprimir-historial" class="secundario">🖨️ Imprimir planilla de este período (para firmar)</button>
         </div>
         <div id="historial-liq-error" class="mensaje-error"></div>
         <div id="historial-resumen" class="info-vehiculo oculto"></div>
@@ -7836,8 +7831,7 @@ against the dark UI.
     var hoy = new Date();
     if (!$("nomina-inicio").value) $("nomina-inicio").value = aFechaISO(primerDiaMes(hoy));
     if (!$("nomina-fin").value) $("nomina-fin").value = aFechaISO(ultimoDiaMes(hoy));
-    if (!$("planilla-fecha-liquidacion").value) $("planilla-fecha-liquidacion").value = aFechaISO(hoy);
-    ocultarError("planilla-error");
+    if (!$("historial-fecha-firma").value) $("historial-fecha-firma").value = aFechaISO(hoy);
 
     return Promise.all([
       restRequest("GET", "empleados", { query: "select=*,usuarios(nombre,rol)&activo=eq.true&order=creado_en.desc" }),
@@ -8017,6 +8011,7 @@ against the dark UI.
         return;
       }
       return obtenerDatosTaller().then(function (taller) {
+        var fechaPago = $("historial-fecha-firma").value || aFechaISO(new Date());
         var totalGeneral = 0;
         var filas = liquidaciones.map(function (l, i) {
           var nombreEmp = nombreEmpleadoLiquidacion(l);
@@ -8031,17 +8026,19 @@ against the dark UI.
             "<td>" + formatoMoneda(l.bonificaciones) + "</td>" +
             "<td>−" + formatoMoneda(deducciones) + "</td>" +
             "<td><b>" + formatoMoneda(l.total) + "</b></td>" +
+            "<td style=\"min-width:110px;\">&nbsp;</td>" +
             "</tr>";
         }).join("");
         var contenido =
           "<div class=\"datos-doc\">" +
           "<div class=\"bloque\"><b>Período</b>" + historialLiquidacionesEtiqueta + "</div>" +
+          "<div class=\"bloque\"><b>Fecha de pago</b>" + formatoFechaCorta(new Date(fechaPago + "T00:00:00")) + "</div>" +
           "<div class=\"bloque\"><b>Liquidaciones incluidas</b>" + liquidaciones.length + "</div>" +
           "</div>" +
-          "<table><thead><tr><th>#</th><th>Empleado</th><th>Período exacto</th><th>Salario base</th><th>Variable/Comisiones</th><th>Bonific.</th><th>Deducciones</th><th>Total</th></tr></thead>" +
+          "<table><thead><tr><th>#</th><th>Empleado</th><th>Período exacto</th><th>Salario base</th><th>Variable/Comisiones</th><th>Bonific.</th><th>Deducciones</th><th>Total</th><th>Firma</th></tr></thead>" +
           "<tbody>" + filas + "</tbody></table>" +
           "<div class=\"total-final\">Total del período: " + formatoMoneda(totalGeneral) + "</div>";
-        abrirVentanaImpresion("Historial de liquidaciones — " + historialLiquidacionesEtiqueta, contenido, taller, null, ventanaPendiente, { horizontal: true });
+        abrirVentanaImpresion("Planilla de liquidación de nómina — " + historialLiquidacionesEtiqueta, contenido, taller, null, ventanaPendiente, { horizontal: true });
       });
     }).catch(function (err) {
       if (ventanaPendiente && !ventanaPendiente.closed) ventanaPendiente.close();
@@ -8104,65 +8101,6 @@ against the dark UI.
       mostrarError("nomina-error", "No se pudo preparar el recibo: " + err.message);
     });
   }
-
-  // Un solo documento con todos los empleados que tengan una liquidación
-  // registrada dentro del rango de fechas de arriba (Período — inicio/fin),
-  // en tabla, con espacio de firma al frente de cada uno — para no imprimir
-  // un recibo por persona. No exige que el período de cada liquidación
-  // coincida exactamente con el rango (normalmente vas a liquidar por
-  // quincenas, así que el rango de arriba puede cubrir varias).
-  function imprimirPlanillaLiquidacion(liquidaciones, periodoInicio, periodoFin, fechaLiquidacion) {
-    return obtenerDatosTaller().then(function (taller) {
-      var totalGeneral = 0;
-      var filas = liquidaciones.map(function (l, i) {
-        var nombreEmp = (l.empleados && (l.empleados.nombre || (l.empleados.usuarios && l.empleados.usuarios.nombre))) || "—";
-        var deducciones = Number(l.deduccion_prestamo || 0) + Number(l.otras_deducciones || 0);
-        totalGeneral += Number(l.total || 0);
-        return "<tr>" +
-          "<td>" + (i + 1) + "</td>" +
-          "<td>" + nombreEmp + "</td>" +
-          "<td>" + formatoFechaCorta(new Date(l.periodo_inicio + "T00:00:00")) + " – " + formatoFechaCorta(new Date(l.periodo_fin + "T00:00:00")) + "</td>" +
-          "<td>" + formatoMoneda(l.salario_base) + "</td>" +
-          "<td>" + formatoMoneda(Number(l.comisiones || 0) + Number(l.variable_tecnico || 0)) + "</td>" +
-          "<td>" + formatoMoneda(l.bonificaciones) + "</td>" +
-          "<td>−" + formatoMoneda(deducciones) + "</td>" +
-          "<td><b>" + formatoMoneda(l.total) + "</b></td>" +
-          "</tr>";
-      }).join("");
-      var contenido =
-        "<div class=\"datos-doc\">" +
-        "<div class=\"bloque\"><b>Rango consultado</b>" + formatoFechaCorta(new Date(periodoInicio + "T00:00:00")) + " a " + formatoFechaCorta(new Date(periodoFin + "T00:00:00")) + "</div>" +
-        "<div class=\"bloque\"><b>Fecha de liquidación</b>" + formatoFechaCorta(new Date(fechaLiquidacion + "T00:00:00")) + "</div>" +
-        "</div>" +
-        "<table><thead><tr><th>#</th><th>Empleado</th><th>Período</th><th>Salario base</th><th>Comisión/Variable</th><th>Bonific.</th><th>Deducciones</th><th>Total</th></tr></thead>" +
-        "<tbody>" + filas + "</tbody></table>" +
-        "<div class=\"total-final\">Total planilla: " + formatoMoneda(totalGeneral) + "</div>";
-      abrirVentanaImpresion("Planilla de liquidación de nómina", contenido, taller);
-    }).catch(function (err) {
-      mostrarError("planilla-error", "No se pudo preparar la planilla: " + err.message);
-    });
-  }
-
-  $("btn-imprimir-planilla").addEventListener("click", conManejoDeErrores(function () {
-    ocultarError("planilla-error");
-    var periodoInicio = $("nomina-inicio").value;
-    var periodoFin = $("nomina-fin").value;
-    var fechaLiquidacion = $("planilla-fecha-liquidacion").value || aFechaISO(new Date());
-    if (!periodoInicio || !periodoFin) {
-      mostrarError("planilla-error", "Elige el período (inicio y fin) arriba, en \"Liquidar período\", antes de generar la planilla.");
-      return;
-    }
-    return restRequest("GET", "liquidaciones", {
-      query: "select=*,empleados(nombre,usuarios(nombre))&periodo_inicio=gte." + periodoInicio + "&periodo_fin=lte." + periodoFin + "&order=periodo_inicio.asc,creado_en.asc"
-    }).then(function (liquidaciones) {
-      liquidaciones = liquidaciones || [];
-      if (!liquidaciones.length) {
-        mostrarError("planilla-error", "Todavía no hay liquidaciones registradas dentro de ese rango de fechas.");
-        return;
-      }
-      return imprimirPlanillaLiquidacion(liquidaciones, periodoInicio, periodoFin, fechaLiquidacion);
-    });
-  }, "planilla-error"));
 
   $("btn-calcular-nomina").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("nomina-error");
