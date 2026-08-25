@@ -2641,6 +2641,30 @@ against the dark UI.
         <h2>Rentabilidad por orden de trabajo</h2>
         <div class="nota-ayuda">Las 20 órdenes cerradas más recientes.</div>
         <div id="tabla-rentabilidad-ot"></div>
+
+        <h3 style="margin-top:16px;">Imprimir por rango de fechas</h3>
+        <div class="nota-ayuda">Genera un documento para imprimir o guardar en PDF con la rentabilidad de todas las órdenes cerradas en el rango y estado de pago que elijas.</div>
+        <div class="fila-3col">
+          <div>
+            <label for="rentabilidad-desde">Desde</label>
+            <input id="rentabilidad-desde" type="date">
+          </div>
+          <div>
+            <label for="rentabilidad-hasta">Hasta</label>
+            <input id="rentabilidad-hasta" type="date">
+          </div>
+          <div>
+            <label for="rentabilidad-estado-pago">Estado de pago</label>
+            <select id="rentabilidad-estado-pago">
+              <option value="">Todas</option>
+              <option value="pagada">Pagada</option>
+              <option value="credito">A crédito</option>
+              <option value="pendiente">Pendiente</option>
+            </select>
+          </div>
+        </div>
+        <button type="button" id="btn-imprimir-rentabilidad">🖨️ Generar / Imprimir rentabilidad</button>
+        <div id="rentabilidad-imprimir-error" class="mensaje-error"></div>
       </div>
 
       <div class="tarjeta">
@@ -8237,8 +8261,104 @@ against the dark UI.
     return '<span class="kpi-flecha ' + clase + '">' + flecha + " " + Math.abs(cambioPct).toFixed(0) + "%</span>";
   }
 
+  // Rentabilidad por orden (imprimible): igual que el resumen de facturas,
+  // pero centrado en el margen (ingreso, costo, margen, % margen) y en la
+  // productividad real (horas cotizadas vs. reales, eficiencia) de cada
+  // orden cerrada, filtrable por rango de fechas y por estado de pago.
+  var ETIQUETAS_ESTADO_PAGO_REPORTE = { pagada: "Pagada", credito: "A crédito", pendiente: "Pendiente" };
+  function imprimirRentabilidadOrdenes() {
+    ocultarError("rentabilidad-imprimir-error");
+    var desde = $("rentabilidad-desde").value;
+    var hasta = $("rentabilidad-hasta").value;
+    var estadoPago = $("rentabilidad-estado-pago").value;
+    if (!desde || !hasta) {
+      mostrarError("rentabilidad-imprimir-error", "Elige la fecha desde y la fecha hasta.");
+      return;
+    }
+    if (desde > hasta) {
+      mostrarError("rentabilidad-imprimir-error", "La fecha \"desde\" no puede ser posterior a la fecha \"hasta\".");
+      return;
+    }
+    var ventanaPendiente = abrirVentanaImpresionPendiente();
+    var hastaExclusivo = aFechaISO(new Date(new Date(hasta + "T00:00:00").getTime() + 24 * 60 * 60 * 1000));
+    var query = "select=*&fecha_cierre=gte." + desde + "&fecha_cierre=lt." + hastaExclusivo +
+      (estadoPago ? "&estado_pago=eq." + estadoPago : "") + "&order=fecha_cierre.asc&limit=1000";
+
+    return Promise.all([
+      restRequest("GET", "vista_rentabilidad_ot", { query: query }),
+      obtenerDatosTaller()
+    ]).then(function (r) {
+      var ordenes = r[0] || [];
+      var taller = r[1] || {};
+
+      var totales = { ingreso: 0, costo: 0, margen: 0, horasCot: 0, horasReal: 0 };
+      var filasHtml = ordenes.length ? ordenes.map(function (o, i) {
+        var ingreso = Number(o.ingreso) || 0;
+        var costo = Number(o.costo) || 0;
+        var margen = Number(o.margen) || 0;
+        var margenPct = o.margen_pct === null || o.margen_pct === undefined ? null : Number(o.margen_pct) * 100;
+        var horasCot = Number(o.horas_facturadas) || 0;
+        var horasReal = o.horas_reales_invertidas === null || o.horas_reales_invertidas === undefined ? null : Number(o.horas_reales_invertidas);
+        var eficiencia = o.eficiencia_tiempo_real_pct === null || o.eficiencia_tiempo_real_pct === undefined ? null : Number(o.eficiencia_tiempo_real_pct);
+        // Si las horas reales quedaron en prácticamente cero (menos de 2 min —
+        // normalmente un iniciar/terminar de prueba, no trabajo real), la
+        // eficiencia da un número absurdo (miles o millones de %). Se muestra
+        // como "—" en vez de un dato que no significa nada.
+        if (horasReal !== null && horasReal < (2 / 60)) eficiencia = null;
+        totales.ingreso += ingreso; totales.costo += costo; totales.margen += margen;
+        totales.horasCot += horasCot; if (horasReal !== null) totales.horasReal += horasReal;
+        var vehiculo = [o.marca, o.modelo].filter(Boolean).join(" ");
+        return "<tr><td>" + (i + 1) + "</td>" +
+          "<td>" + prefijoOT + o.numero_ot + "</td>" +
+          "<td>" + (o.numero_factura ? prefijoFactura + o.numero_factura : "—") + "</td>" +
+          "<td>" + (o.fecha_cierre ? formatoFechaCorta(new Date(o.fecha_cierre)) : "—") + "</td>" +
+          "<td>" + (o.cliente_nombre || "—") + "</td>" +
+          "<td>" + (o.vehiculo_placa || "—") + (vehiculo ? " · " + vehiculo : "") + "</td>" +
+          "<td style=\"text-align:right;\">" + formatoMoneda(ingreso) + "</td>" +
+          "<td style=\"text-align:right;\">" + formatoMoneda(costo) + "</td>" +
+          "<td style=\"text-align:right;\"><b>" + formatoMoneda(margen) + "</b></td>" +
+          "<td style=\"text-align:right;\">" + (margenPct === null ? "—" : margenPct.toFixed(0) + "%") + "</td>" +
+          "<td style=\"text-align:right;\">" + horasCot.toFixed(2) + "</td>" +
+          "<td style=\"text-align:right;\">" + (horasReal === null ? "—" : horasReal.toFixed(2)) + "</td>" +
+          "<td style=\"text-align:right;\">" + (eficiencia === null ? "—" : eficiencia.toFixed(0) + "%") + "</td>" +
+          "<td style=\"text-align:center;\">" + (o.veces_devuelta_calidad > 0 ? o.veces_devuelta_calidad : "—") + "</td>" +
+          "<td>" + (ETIQUETAS_ESTADO_PAGO_REPORTE[o.estado_pago] || o.estado_pago || "—") + "</td></tr>";
+      }).join("") : "<tr><td colspan=\"15\" class=\"tabla-vacia\">No hay órdenes cerradas en este rango de fechas y estado.</td></tr>";
+
+      var margenPctTotal = totales.ingreso > 0 ? (totales.margen / totales.ingreso) * 100 : null;
+      var eficienciaTotal = totales.horasReal > 0 ? (totales.horasCot / totales.horasReal) * 100 : null;
+      var filaTotales = "<tr style=\"font-weight:700;background:#f3f4f6;\"><td colspan=\"6\">TOTALES (" + ordenes.length + " orden" + (ordenes.length === 1 ? "" : "es") + ")</td>" +
+        "<td style=\"text-align:right;\">" + formatoMoneda(totales.ingreso) + "</td>" +
+        "<td style=\"text-align:right;\">" + formatoMoneda(totales.costo) + "</td>" +
+        "<td style=\"text-align:right;\">" + formatoMoneda(totales.margen) + "</td>" +
+        "<td style=\"text-align:right;\">" + (margenPctTotal === null ? "—" : margenPctTotal.toFixed(0) + "%") + "</td>" +
+        "<td style=\"text-align:right;\">" + totales.horasCot.toFixed(2) + "</td>" +
+        "<td style=\"text-align:right;\">" + totales.horasReal.toFixed(2) + "</td>" +
+        "<td style=\"text-align:right;\">" + (eficienciaTotal === null ? "—" : eficienciaTotal.toFixed(0) + "%") + "</td>" +
+        "<td></td><td></td></tr>";
+
+      var etiquetaEstado = estadoPago ? (" — Estado de pago: " + (ETIQUETAS_ESTADO_PAGO_REPORTE[estadoPago] || estadoPago)) : " — Todos los estados de pago";
+      var contenido =
+        "<div class=\"nota-periodo\">Órdenes cerradas desde el " + formatoFechaCorta(new Date(desde + "T00:00:00")) +
+        " hasta el " + formatoFechaCorta(new Date(hasta + "T00:00:00")) + etiquetaEstado + "</div>" +
+        "<table><thead><tr>" +
+        "<th>#</th><th>OT</th><th>Factura</th><th>Fecha cierre</th><th>Cliente</th><th>Vehículo</th>" +
+        "<th>Ingreso</th><th>Costo</th><th>Margen</th><th>Margen %</th><th>H. Cotiz.</th><th>H. Reales</th><th>Eficiencia</th><th>Devuelta</th><th>Pago</th>" +
+        "</tr></thead><tbody>" + filasHtml + filaTotales + "</tbody></table>";
+
+      var titulo = "Rentabilidad por orden de trabajo desde el " + formatoFechaCorta(new Date(desde + "T00:00:00")) +
+        " hasta el " + formatoFechaCorta(new Date(hasta + "T00:00:00"));
+      abrirVentanaImpresion(titulo, contenido, taller, null, ventanaPendiente, { horizontal: true, mostrarFechaImpresion: true });
+    }).catch(function (err) {
+      mostrarError("rentabilidad-imprimir-error", "No se pudo generar el reporte: " + err.message);
+    });
+  }
+  $("btn-imprimir-rentabilidad").addEventListener("click", conManejoDeErrores(imprimirRentabilidadOrdenes, "rentabilidad-imprimir-error"));
+
   function cargarReportes() {
     ocultarError("reportes-error");
+    if (!$("rentabilidad-desde").value) $("rentabilidad-desde").value = aFechaISO(primerDiaMes(new Date()));
+    if (!$("rentabilidad-hasta").value) $("rentabilidad-hasta").value = aFechaISO(new Date());
 
     var hoy = new Date();
     var inicioMes = aFechaISO(primerDiaMes(hoy));
