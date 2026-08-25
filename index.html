@@ -2635,7 +2635,48 @@ against the dark UI.
 
       <div class="tarjeta">
         <h2>Historial de liquidaciones</h2>
-        <div id="lista-liquidaciones"></div>
+        <div class="nota-ayuda">Filtra por año, por mes o por quincena para revisar e imprimir las liquidaciones de ese período.</div>
+        <div class="fila-3col">
+          <div>
+            <label for="historial-filtro-tipo">Filtrar por</label>
+            <select id="historial-filtro-tipo">
+              <option value="anio">Año completo</option>
+              <option value="mes" selected>Mes</option>
+              <option value="quincena">Quincena</option>
+            </select>
+          </div>
+          <div>
+            <label for="historial-anio">Año</label>
+            <select id="historial-anio"></select>
+          </div>
+          <div id="historial-mes-cont">
+            <label for="historial-mes">Mes</label>
+            <select id="historial-mes"></select>
+          </div>
+        </div>
+        <div class="fila-3col oculto" id="historial-quincena-cont">
+          <div>
+            <label for="historial-quincena">Quincena</label>
+            <select id="historial-quincena">
+              <option value="1">1.ª quincena (día 1 al 15)</option>
+              <option value="2">2.ª quincena (día 16 al fin de mes)</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin:10px 0;">
+          <button type="button" id="btn-filtrar-historial" class="secundario">Filtrar</button>
+          <button type="button" id="btn-imprimir-historial" class="secundario">🖨️ Imprimir este período</button>
+        </div>
+        <div id="historial-liq-error" class="mensaje-error"></div>
+        <div id="historial-resumen" class="info-vehiculo oculto"></div>
+        <div class="tabla-scroll">
+          <table class="tabla-datos" id="tabla-historial-liquidaciones">
+            <thead>
+              <tr><th>Empleado</th><th>Período</th><th>Salario base</th><th>Variable/Comisiones</th><th>Bonificaciones</th><th>Deducciones</th><th>Total</th><th></th></tr>
+            </thead>
+            <tbody id="cuerpo-tabla-historial-liquidaciones"></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
@@ -7800,15 +7841,13 @@ against the dark UI.
 
     return Promise.all([
       restRequest("GET", "empleados", { query: "select=*,usuarios(nombre,rol)&activo=eq.true&order=creado_en.desc" }),
-      restRequest("GET", "liquidaciones", { query: "select=*,empleados(nombre,salario_base,usuarios(nombre))&order=periodo_inicio.desc&limit=20" }),
       restRequest("GET", "cuentas_taller", { query: "select=id_cuenta,nombre,tipo&activa=eq.true&order=orden.asc" }),
       restRequest("GET", "parametros_taller", { query: "select=pct_carga_prestacional&id=eq.1" })
     ]).then(function (r) {
       var empleados = r[0] || [];
-      var liquidaciones = r[1] || [];
-      todasCuentasTaller = r[2] || [];
+      todasCuentasTaller = r[1] || [];
       llenarSelectCuentas($("nomina-cuenta"), false);
-      pctCargaPrestacionalActual = (r[3] && r[3][0]) ? Number(r[3][0].pct_carga_prestacional) : 0.45;
+      pctCargaPrestacionalActual = (r[2] && r[2][0]) ? Number(r[2][0].pct_carga_prestacional) : 0.45;
 
       var sel = $("nomina-empleado");
       var valorPrevio = sel.value;
@@ -7829,29 +7868,196 @@ against the dark UI.
       });
       if (valorPrevio) sel.value = valorPrevio;
 
-      var lista = $("lista-liquidaciones");
-      lista.innerHTML = liquidaciones.length ? "" : "<p class=\"nota-ayuda\">Todavía no hay liquidaciones registradas.</p>";
-      liquidaciones.forEach(function (l) {
-        var nombreEmp = (l.empleados && (l.empleados.nombre || (l.empleados.usuarios && l.empleados.usuarios.nombre))) || "—";
-        var fila = document.createElement("div");
-        fila.className = "fila-renglon";
-        fila.innerHTML =
-          "<span>" + nombreEmp + " <span class=\"fila-detalle\">(" + l.periodo_inicio + " a " + l.periodo_fin + ")</span><br>" +
-          "<span class=\"fila-detalle\">" + textoBaseLiquidacion(l)
-            + " + comisiones " + formatoMoneda(l.comisiones) + textoComisionLiquidacion(l)
-            + " + variable " + formatoMoneda(l.variable_tecnico) + (Number(l.horas_tramo_base) > 0 || Number(l.horas_tramo_extra) > 0 ? " (" + Number(l.horas_tramo_base).toFixed(2) + "h base + " + Number(l.horas_tramo_extra).toFixed(2) + "h extra)" : "")
-            + " + bonif. " + formatoMoneda(l.bonificaciones) + " − deducciones " + formatoMoneda(Number(l.deduccion_prestamo) + Number(l.otras_deducciones)) + "</span></span>" +
-          "<span><b>" + formatoMoneda(l.total) + "</b></span>";
-        var btnImprimirRecibo = document.createElement("button");
-        btnImprimirRecibo.type = "button";
-        btnImprimirRecibo.className = "secundario";
-        btnImprimirRecibo.textContent = "Imprimir recibo";
-        btnImprimirRecibo.addEventListener("click", conManejoDeErrores(function () { return imprimirReciboPago(l, nombreEmp); }, "nomina-error"));
-        fila.appendChild(btnImprimirRecibo);
-        lista.appendChild(fila);
-      });
+      inicializarFiltroHistorialLiquidaciones();
+      return cargarHistorialLiquidaciones();
     });
   }
+
+  // ---- Historial de liquidaciones (filtrable por año / mes / quincena) ----
+
+  var historialLiquidacionesActual = [];
+  var historialLiquidacionesEtiqueta = "";
+  var NOMBRES_MESES_HISTORIAL = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+    "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+  function nombreEmpleadoLiquidacion(l) {
+    return (l.empleados && (l.empleados.nombre || (l.empleados.usuarios && l.empleados.usuarios.nombre))) || "—";
+  }
+
+  function inicializarFiltroHistorialLiquidaciones() {
+    var selAnio = $("historial-anio");
+    if (!selAnio.options.length) {
+      var anioActual = new Date().getFullYear();
+      for (var a = anioActual + 1; a >= anioActual - 4; a--) {
+        var optA = document.createElement("option");
+        optA.value = a;
+        optA.textContent = a;
+        if (a === anioActual) optA.selected = true;
+        selAnio.appendChild(optA);
+      }
+    }
+    var selMes = $("historial-mes");
+    if (!selMes.options.length) {
+      NOMBRES_MESES_HISTORIAL.forEach(function (nombreMes, i) {
+        var optM = document.createElement("option");
+        optM.value = i + 1;
+        optM.textContent = nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1);
+        if (i + 1 === new Date().getMonth() + 1) optM.selected = true;
+        selMes.appendChild(optM);
+      });
+    }
+    actualizarVisibilidadFiltroHistorial();
+  }
+
+  function actualizarVisibilidadFiltroHistorial() {
+    var tipo = $("historial-filtro-tipo").value;
+    $("historial-mes-cont").classList.toggle("oculto", tipo === "anio");
+    $("historial-quincena-cont").classList.toggle("oculto", tipo !== "quincena");
+  }
+
+  function rangoFechasHistorialLiquidaciones() {
+    var tipo = $("historial-filtro-tipo").value;
+    var anio = parseInt($("historial-anio").value, 10);
+    if (tipo === "anio") {
+      return { inicio: anio + "-01-01", finExclusivo: (anio + 1) + "-01-01", etiqueta: "Año " + anio };
+    }
+    var mes = parseInt($("historial-mes").value, 10);
+    var nombreMes = NOMBRES_MESES_HISTORIAL[mes - 1];
+    if (tipo === "mes") {
+      return {
+        inicio: aFechaISO(new Date(anio, mes - 1, 1)),
+        finExclusivo: aFechaISO(new Date(anio, mes, 1)),
+        etiqueta: nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1) + " de " + anio
+      };
+    }
+    var quincena = $("historial-quincena").value;
+    if (quincena === "1") {
+      return {
+        inicio: aFechaISO(new Date(anio, mes - 1, 1)),
+        finExclusivo: aFechaISO(new Date(anio, mes - 1, 16)),
+        etiqueta: "1.ª quincena de " + nombreMes + " de " + anio
+      };
+    }
+    return {
+      inicio: aFechaISO(new Date(anio, mes - 1, 16)),
+      finExclusivo: aFechaISO(new Date(anio, mes, 1)),
+      etiqueta: "2.ª quincena de " + nombreMes + " de " + anio
+    };
+  }
+
+  function ordenarLiquidacionesPorEmpleado(liquidaciones) {
+    return liquidaciones.slice().sort(function (x, y) {
+      var nx = nombreEmpleadoLiquidacion(x), ny = nombreEmpleadoLiquidacion(y);
+      if (nx !== ny) return nx < ny ? -1 : 1;
+      return x.periodo_inicio < y.periodo_inicio ? -1 : (x.periodo_inicio > y.periodo_inicio ? 1 : 0);
+    });
+  }
+
+  function cargarHistorialLiquidaciones() {
+    ocultarError("historial-liq-error");
+    var rango = rangoFechasHistorialLiquidaciones();
+    historialLiquidacionesEtiqueta = rango.etiqueta;
+    return restRequest("GET", "liquidaciones", {
+      query: "select=*,empleados(nombre,usuarios(nombre))&periodo_inicio=gte." + rango.inicio + "&periodo_inicio=lt." + rango.finExclusivo + "&order=periodo_inicio.asc"
+    }).then(function (liquidaciones) {
+      historialLiquidacionesActual = liquidaciones || [];
+      renderizarTablaHistorialLiquidaciones();
+    }).catch(function (err) {
+      mostrarError("historial-liq-error", "No se pudo cargar el historial: " + err.message);
+    });
+  }
+
+  function renderizarTablaHistorialLiquidaciones() {
+    var cuerpo = $("cuerpo-tabla-historial-liquidaciones");
+    cuerpo.innerHTML = "";
+    var liquidaciones = ordenarLiquidacionesPorEmpleado(historialLiquidacionesActual);
+    var resumen = $("historial-resumen");
+    if (!liquidaciones.length) {
+      cuerpo.innerHTML = "<tr><td colspan=\"8\" class=\"nota-ayuda\">No hay liquidaciones registradas en ese período.</td></tr>";
+      resumen.classList.add("oculto");
+      return;
+    }
+    var totalGeneral = 0;
+    liquidaciones.forEach(function (l) {
+      var nombreEmp = nombreEmpleadoLiquidacion(l);
+      var deducciones = Number(l.deduccion_prestamo || 0) + Number(l.otras_deducciones || 0) + Number(l.carga_prestacional || 0);
+      var variable = Number(l.comisiones || 0) + Number(l.variable_tecnico || 0);
+      totalGeneral += Number(l.total || 0);
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + nombreEmp + "</td>" +
+        "<td>" + formatoFechaCorta(new Date(l.periodo_inicio + "T00:00:00")) + " – " + formatoFechaCorta(new Date(l.periodo_fin + "T00:00:00")) + "</td>" +
+        "<td>" + formatoMoneda(l.salario_base) + "</td>" +
+        "<td>" + formatoMoneda(variable) + "</td>" +
+        "<td>" + formatoMoneda(l.bonificaciones) + "</td>" +
+        "<td>−" + formatoMoneda(deducciones) + "</td>" +
+        "<td><b>" + formatoMoneda(l.total) + "</b></td>";
+      var tdBtn = document.createElement("td");
+      var btnRecibo = document.createElement("button");
+      btnRecibo.type = "button";
+      btnRecibo.className = "secundario";
+      btnRecibo.textContent = "Recibo";
+      btnRecibo.addEventListener("click", conManejoDeErrores(function () { return imprimirReciboPago(l, nombreEmp); }, "historial-liq-error"));
+      tdBtn.appendChild(btnRecibo);
+      tr.appendChild(tdBtn);
+      cuerpo.appendChild(tr);
+    });
+    resumen.classList.remove("oculto");
+    resumen.textContent = liquidaciones.length + " liquidación(es) — " + historialLiquidacionesEtiqueta + " — Total del período: " + formatoMoneda(totalGeneral);
+  }
+
+  function imprimirHistorialLiquidaciones() {
+    ocultarError("historial-liq-error");
+    var ventanaPendiente = abrirVentanaImpresionPendiente();
+    return cargarHistorialLiquidaciones().then(function () {
+      var liquidaciones = ordenarLiquidacionesPorEmpleado(historialLiquidacionesActual);
+      if (!liquidaciones.length) {
+        if (ventanaPendiente && !ventanaPendiente.closed) ventanaPendiente.close();
+        mostrarError("historial-liq-error", "No hay liquidaciones para imprimir en ese período.");
+        return;
+      }
+      return obtenerDatosTaller().then(function (taller) {
+        var totalGeneral = 0;
+        var filas = liquidaciones.map(function (l, i) {
+          var nombreEmp = nombreEmpleadoLiquidacion(l);
+          var deducciones = Number(l.deduccion_prestamo || 0) + Number(l.otras_deducciones || 0) + Number(l.carga_prestacional || 0);
+          totalGeneral += Number(l.total || 0);
+          return "<tr>" +
+            "<td>" + (i + 1) + "</td>" +
+            "<td>" + nombreEmp + "</td>" +
+            "<td>" + formatoFechaCorta(new Date(l.periodo_inicio + "T00:00:00")) + " – " + formatoFechaCorta(new Date(l.periodo_fin + "T00:00:00")) + "</td>" +
+            "<td>" + formatoMoneda(l.salario_base) + "</td>" +
+            "<td>" + formatoMoneda(Number(l.comisiones || 0) + Number(l.variable_tecnico || 0)) + "</td>" +
+            "<td>" + formatoMoneda(l.bonificaciones) + "</td>" +
+            "<td>−" + formatoMoneda(deducciones) + "</td>" +
+            "<td><b>" + formatoMoneda(l.total) + "</b></td>" +
+            "</tr>";
+        }).join("");
+        var contenido =
+          "<div class=\"datos-doc\">" +
+          "<div class=\"bloque\"><b>Período</b>" + historialLiquidacionesEtiqueta + "</div>" +
+          "<div class=\"bloque\"><b>Liquidaciones incluidas</b>" + liquidaciones.length + "</div>" +
+          "</div>" +
+          "<table><thead><tr><th>#</th><th>Empleado</th><th>Período exacto</th><th>Salario base</th><th>Variable/Comisiones</th><th>Bonific.</th><th>Deducciones</th><th>Total</th></tr></thead>" +
+          "<tbody>" + filas + "</tbody></table>" +
+          "<div class=\"total-final\">Total del período: " + formatoMoneda(totalGeneral) + "</div>";
+        abrirVentanaImpresion("Historial de liquidaciones — " + historialLiquidacionesEtiqueta, contenido, taller, null, ventanaPendiente, { horizontal: true });
+      });
+    }).catch(function (err) {
+      if (ventanaPendiente && !ventanaPendiente.closed) ventanaPendiente.close();
+      mostrarError("historial-liq-error", "No se pudo preparar la impresión: " + err.message);
+    });
+  }
+
+  $("historial-filtro-tipo").addEventListener("change", conManejoDeErrores(function () {
+    actualizarVisibilidadFiltroHistorial();
+    return cargarHistorialLiquidaciones();
+  }, "historial-liq-error"));
+  $("historial-anio").addEventListener("change", conManejoDeErrores(cargarHistorialLiquidaciones, "historial-liq-error"));
+  $("historial-mes").addEventListener("change", conManejoDeErrores(cargarHistorialLiquidaciones, "historial-liq-error"));
+  $("historial-quincena").addEventListener("change", conManejoDeErrores(cargarHistorialLiquidaciones, "historial-liq-error"));
+  $("btn-filtrar-historial").addEventListener("click", conManejoDeErrores(cargarHistorialLiquidaciones, "historial-liq-error"));
+  $("btn-imprimir-historial").addEventListener("click", conManejoDeErrores(imprimirHistorialLiquidaciones, "historial-liq-error"));
 
   function imprimirReciboPago(l, nombreEmp) {
     ocultarError("nomina-error");
