@@ -10369,6 +10369,25 @@ against the dark UI.
   // Ganancia por categoría + gráfico de pastel Costos% vs Ganancia%, al
   // estilo del reporte "Total de facturas revisadas" del sistema anterior.
   var ETIQUETAS_CATEGORIA_RESUMEN = { mano_obra: "Mano de obra", repuesto: "Repuestos", insumo: "Insumos", trabajo_externo: "Trabajos externos" };
+
+  // Calcula, a partir del desglose por tipo de ítem, las filas y totales del
+  // resumen Ventas/Costos/Ganancias por categoría. Se usa tanto para la vista
+  // rápida en pantalla como para el bloque que se imprime con el reporte, así
+  // los dos siempre muestran exactamente los mismos números.
+  function calcularResumenCategorias(desglose) {
+    var categorias = ["mano_obra", "repuesto", "insumo", "trabajo_externo"];
+    var totalCosto = 0, totalVenta = 0;
+    var filas = categorias.map(function (cat) {
+      var d = desglose[cat];
+      var ganancia = d.venta - d.costo;
+      totalCosto += d.costo; totalVenta += d.venta;
+      return { etiqueta: ETIQUETAS_CATEGORIA_RESUMEN[cat], costo: d.costo, venta: d.venta, ganancia: ganancia };
+    });
+    var totalGanancia = totalVenta - totalCosto;
+    var utilidadPct = totalVenta > 0 ? (totalGanancia / totalVenta) * 100 : null;
+    return { filas: filas, totalCosto: totalCosto, totalVenta: totalVenta, totalGanancia: totalGanancia, utilidadPct: utilidadPct };
+  }
+
   function renderizarResumenGraficoFacturas(desglose, cantidadFacturas) {
     var cont = $("resumen-facturas-grafico-cont");
     if (!cantidadFacturas) {
@@ -10379,49 +10398,46 @@ against the dark UI.
     cont.classList.remove("oculto");
     $("resumen-facturas-conteo").textContent = cantidadFacturas + " orden" + (cantidadFacturas === 1 ? "" : "es") + " en el rango elegido";
 
-    var categorias = ["mano_obra", "repuesto", "insumo", "trabajo_externo"];
-    var totalCosto = 0, totalVenta = 0;
-    var filasHtml = categorias.map(function (cat) {
-      var d = desglose[cat];
-      var ganancia = d.venta - d.costo;
-      totalCosto += d.costo; totalVenta += d.venta;
-      return "<tr><td>" + ETIQUETAS_CATEGORIA_RESUMEN[cat] + "</td>" +
-        "<td style=\"text-align:right;\">" + formatoMoneda(d.costo) + "</td>" +
-        "<td style=\"text-align:right;\">" + formatoMoneda(d.venta) + "</td>" +
-        "<td style=\"text-align:right;color:" + (ganancia >= 0 ? "var(--verde)" : "var(--rojo)") + ";font-weight:600;\">" + formatoMoneda(ganancia) + "</td></tr>";
+    var resumen = calcularResumenCategorias(desglose);
+    var filasHtml = resumen.filas.map(function (f) {
+      return "<tr><td>" + f.etiqueta + "</td>" +
+        "<td style=\"text-align:right;\">" + formatoMoneda(f.venta) + "</td>" +
+        "<td style=\"text-align:right;\">" + formatoMoneda(f.costo) + "</td>" +
+        "<td style=\"text-align:right;color:" + (f.ganancia >= 0 ? "var(--verde)" : "var(--rojo)") + ";font-weight:600;\">" + formatoMoneda(f.ganancia) + "</td></tr>";
     }).join("");
-    var totalGanancia = totalVenta - totalCosto;
-    var utilidadPct = totalVenta > 0 ? (totalGanancia / totalVenta) * 100 : null;
     filasHtml += "<tr style=\"font-weight:700;background:var(--gris-claro);\"><td>TOTALES</td>" +
-      "<td style=\"text-align:right;\">" + formatoMoneda(totalCosto) + "</td>" +
-      "<td style=\"text-align:right;\">" + formatoMoneda(totalVenta) + "</td>" +
-      "<td style=\"text-align:right;\">" + formatoMoneda(totalGanancia) + "</td></tr>";
+      "<td style=\"text-align:right;\">" + formatoMoneda(resumen.totalVenta) + "</td>" +
+      "<td style=\"text-align:right;\">" + formatoMoneda(resumen.totalCosto) + "</td>" +
+      "<td style=\"text-align:right;\">" + formatoMoneda(resumen.totalGanancia) + "</td></tr>";
 
     $("tabla-resumen-facturas-costos").innerHTML =
-      "<div class=\"tabla-scroll\"><table class=\"tabla-datos\"><thead><tr><th>Categoría</th><th>Costo</th><th>Venta</th><th>Ganancia</th></tr></thead>" +
+      "<div class=\"tabla-scroll\"><table class=\"tabla-datos\"><thead><tr><th>Categoría</th><th>Venta</th><th>Costo</th><th>Ganancia</th></tr></thead>" +
       "<tbody>" + filasHtml + "</tbody></table></div>" +
-      "<div style=\"text-align:right;margin-top:8px;font-weight:700;\">Utilidad: " + (utilidadPct === null ? "—" : utilidadPct.toFixed(1) + "%") + "</div>";
+      "<div style=\"text-align:right;margin-top:8px;font-weight:700;\">Utilidad: " + (resumen.utilidadPct === null ? "—" : resumen.utilidadPct.toFixed(1) + "%") + "</div>";
 
     if (graficoResumenFacturasCostos) { graficoResumenFacturasCostos.destroy(); graficoResumenFacturasCostos = null; }
-    if (typeof Chart === "undefined" || totalVenta <= 0) return;
+    if (typeof Chart === "undefined" || resumen.totalVenta <= 0) return;
     graficoResumenFacturasCostos = new Chart($("grafico-resumen-facturas-costos").getContext("2d"), {
       type: "doughnut",
       data: {
         labels: ["Costos", "Ganancia"],
         datasets: [{
-          data: [Math.max(0, totalCosto), Math.max(0, totalGanancia)],
+          data: [Math.max(0, resumen.totalCosto), Math.max(0, resumen.totalGanancia)],
           backgroundColor: ["#ef4444", "#22c55e"]
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        // Sin animación: así el gráfico queda dibujado de inmediato y se
+        // puede "fotografiar" (toDataURL) para incluirlo en el impreso.
+        animation: false,
         plugins: {
           title: { display: true, text: "Costos / Ganancia" },
           tooltip: {
             callbacks: {
               label: function (ctx) {
-                var pct = totalVenta > 0 ? (ctx.parsed / totalVenta) * 100 : 0;
+                var pct = resumen.totalVenta > 0 ? (ctx.parsed / resumen.totalVenta) * 100 : 0;
                 return ctx.label + ": " + formatoMoneda(ctx.parsed) + " (" + pct.toFixed(0) + "%)";
               }
             }
@@ -10429,6 +10445,24 @@ against the dark UI.
         }
       }
     });
+  }
+
+  // Arma el mismo resumen de categorías, pero con las etiquetas/estilos del
+  // documento impreso (usa las mismas clases que el resto del reporte), para
+  // incluirlo al principio del reporte impreso junto con el gráfico.
+  function tablaHtmlResumenCategoriasImpresion(resumen) {
+    var filasHtml = resumen.filas.map(function (f) {
+      return "<tr><td>" + f.etiqueta + "</td>" +
+        "<td style=\"text-align:right;\">" + formatoMoneda(f.venta) + "</td>" +
+        "<td style=\"text-align:right;\">" + formatoMoneda(f.costo) + "</td>" +
+        "<td style=\"text-align:right;\"><b>" + formatoMoneda(f.ganancia) + "</b></td></tr>";
+    }).join("");
+    filasHtml += "<tr style=\"font-weight:700;background:#f3f4f6;\"><td>TOTALES</td>" +
+      "<td style=\"text-align:right;\">" + formatoMoneda(resumen.totalVenta) + "</td>" +
+      "<td style=\"text-align:right;\">" + formatoMoneda(resumen.totalCosto) + "</td>" +
+      "<td style=\"text-align:right;\">" + formatoMoneda(resumen.totalGanancia) + "</td></tr>";
+    return "<table><thead><tr><th>Categoría</th><th>Venta</th><th>Costo</th><th>Ganancia</th></tr></thead><tbody>" + filasHtml + "</tbody></table>" +
+      "<div class=\"total-final\">Utilidad: " + (resumen.utilidadPct === null ? "—" : resumen.utilidadPct.toFixed(1) + "%") + "</div>";
   }
 
   // Resumen de facturas de reparaciones (imprimible): lista, para el rango de
@@ -10536,9 +10570,35 @@ against the dark UI.
         "<td style=\"text-align:right;\">" + formatoMoneda(totales.total) + "</td>" +
         "<td style=\"text-align:right;\">" + formatoMoneda(totales.cobrado) + "</td></tr>";
 
+      // Resumen general (Ventas/Costos/Ganancias por categoría) + gráfico de
+      // pastel, al principio del reporte impreso — el gráfico se "fotografía"
+      // del que ya se dibujó en pantalla (toDataURL) porque la ventana de
+      // impresión es HTML simple y no carga Chart.js.
+      var resumenImpresoHtml = "";
+      if (filas.length) {
+        var resumenCategorias = calcularResumenCategorias(desglose);
+        var imagenGraficoHtml = "";
+        try {
+          if (graficoResumenFacturasCostos && resumenCategorias.totalVenta > 0) {
+            var urlImagenGrafico = $("grafico-resumen-facturas-costos").toDataURL("image/png", 1.0);
+            imagenGraficoHtml = "<div style=\"flex-shrink:0;text-align:center;\">" +
+              "<img src=\"" + urlImagenGrafico + "\" style=\"width:190px;height:190px;\" alt=\"Gráfico costos vs ganancia\">" +
+              "<div style=\"font-size:10px;color:#4b5563;\">Costos / Ganancia</div></div>";
+          }
+        } catch (e) { /* si el navegador no permite leer el canvas, se omite el gráfico */ }
+        resumenImpresoHtml =
+          "<h3>Resumen general (" + filas.length + " factura" + (filas.length === 1 ? "" : "s") + ")</h3>" +
+          "<div style=\"display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px;\">" +
+          "<div style=\"flex:1;min-width:280px;\">" + tablaHtmlResumenCategoriasImpresion(resumenCategorias) + "</div>" +
+          imagenGraficoHtml +
+          "</div>";
+      }
+
       var contenido =
+        resumenImpresoHtml +
         "<div class=\"nota-periodo\">Órdenes cerradas desde el " + formatoFechaCorta(new Date(desde + "T00:00:00")) +
         " hasta el " + formatoFechaCorta(new Date(hasta + "T00:00:00")) + "</div>" +
+        "<h3>Detalle de facturas</h3>" +
         "<table><thead><tr>" +
         "<th>#</th><th>Factura</th><th>Fecha</th><th>Matrícula</th><th>Modelo</th><th>Cliente</th>" +
         "<th>Mto. M.O.</th><th>Mto. Partes</th><th>Mto. Externos</th><th>IVA</th><th>Total</th><th>Mto. Cobrado</th>" +
