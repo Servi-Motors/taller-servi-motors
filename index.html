@@ -2633,6 +2633,15 @@ against the dark UI.
       </div>
 
       <div class="tarjeta">
+        <h2>Pausas y demoras de los técnicos (mes actual)</h2>
+        <div class="nota-ayuda">Cada vez que un técnico pausa un servicio en curso (esperando repuestos, salió, etc.) queda el motivo registrado. Úsalo para ver qué está frenando más el trabajo y corregirlo — por ejemplo, si "esperando repuesto" acumula muchas horas, puede ser momento de revisar el proceso de compras.</div>
+        <h3 style="margin-top:14px;">Resumen por motivo</h3>
+        <div id="tabla-pausas-resumen"></div>
+        <h3 style="margin-top:14px;">Detalle de cada pausa</h3>
+        <div id="tabla-pausas-detalle"></div>
+      </div>
+
+      <div class="tarjeta">
         <h2>Nómina consolidada por período</h2>
         <div id="tabla-nomina-consolidada"></div>
       </div>
@@ -8231,6 +8240,9 @@ against the dark UI.
       restRequest("GET", "pagos_factura", { query: "select=forma_pago,monto&fecha_pago=gte." + inicioMes + "&fecha_pago=lt." + inicioMesSiguiente }),
       restRequest("GET", "ot_detalle", {
         query: "select=cantidad,fecha_inicio_real,fecha_fin_real,pausas_avance_ot(hora_inicio,hora_fin),ordenes_trabajo(id_tecnico,tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre))&fecha_fin_real=gte." + inicioMes + "&fecha_fin_real=lt." + inicioMesSiguiente
+      }),
+      restRequest("GET", "pausas_avance_ot", {
+        query: "select=motivo,hora_inicio,hora_fin,ot_detalle(items(nombre),ordenes_trabajo(numero_ot,tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre)))&hora_inicio=gte." + inicioMes + "&hora_inicio=lt." + inicioMesSiguiente + "&order=hora_inicio.desc&limit=300"
       })
     ]).then(function (r) {
       var resultadoMensual = r[0] || [];
@@ -8243,6 +8255,7 @@ against the dark UI.
       var facturasPagadasMes = r[7] || [];
       var pagosDivididosMes = r[8] || [];
       var avanceServiciosMes = r[9] || [];
+      var pausasMes = r[10] || [];
 
       // --- KPIs del mes actual ---
       var filaMesActual = resultadoMensual.filter(function (f) { return f.periodo === inicioMes; })[0];
@@ -8401,6 +8414,51 @@ against the dark UI.
           (eficiencia === null ? "" : "<br><b style=\"color:" + (eficiencia >= 100 ? "var(--verde)" : "#b45309") + ";\">Eficiencia " + eficiencia.toFixed(0) + "%</b>") +
           (avisos.length ? "<br><span style=\"color:#b45309;font-size:12px;\">⚠️ " + avisos.join(" · ") + "</span>" : "") + "</span>";
         tProd.appendChild(fila);
+      });
+
+      // --- Pausas y demoras de los técnicos: resumen por motivo + detalle ---
+      // Ojo con las pausas todavía abiertas (hora_fin null, el técnico las dejó
+      // pausadas y no ha reanudado): se cuentan igual, con el tiempo transcurrido
+      // hasta ahora, para que no "desaparezcan" del reporte mientras siguen abiertas.
+      var resumenPorMotivo = {};
+      pausasMes.forEach(function (p) {
+        var fin = p.hora_fin ? new Date(p.hora_fin) : new Date();
+        var minutos = Math.max(0, (fin - new Date(p.hora_inicio)) / 60000);
+        var clave = p.motivo || "Sin motivo especificado";
+        if (!resumenPorMotivo[clave]) resumenPorMotivo[clave] = { motivo: clave, veces: 0, minutos: 0 };
+        resumenPorMotivo[clave].veces += 1;
+        resumenPorMotivo[clave].minutos += minutos;
+      });
+      var listaResumenPausas = Object.keys(resumenPorMotivo).map(function (k) { return resumenPorMotivo[k]; })
+        .sort(function (a, b) { return b.minutos - a.minutos; });
+      var tPausasResumen = $("tabla-pausas-resumen");
+      tPausasResumen.innerHTML = listaResumenPausas.length ? "" : "<p class=\"nota-ayuda\">No se registraron pausas este mes.</p>";
+      listaResumenPausas.forEach(function (m) {
+        var fila = document.createElement("div");
+        fila.className = "fila-renglon";
+        fila.innerHTML =
+          "<span>" + m.motivo + " <span class=\"fila-detalle\">(" + m.veces + " vez" + (m.veces === 1 ? "" : "es") + ")</span></span>" +
+          "<span><b>" + formatoDuracionMinutos(Math.round(m.minutos)) + "</b></span>";
+        tPausasResumen.appendChild(fila);
+      });
+
+      var tPausasDetalle = $("tabla-pausas-detalle");
+      tPausasDetalle.innerHTML = pausasMes.length ? "" : "<p class=\"nota-ayuda\">No se registraron pausas este mes.</p>";
+      pausasMes.forEach(function (p) {
+        var det = p.ot_detalle || {};
+        var ot = det.ordenes_trabajo || {};
+        var servicio = det.items ? det.items.nombre : "—";
+        var tecnico = (ot.tecnico && ot.tecnico.nombre) || "Sin técnico asignado";
+        var abierta = !p.hora_fin;
+        var fin = abierta ? new Date() : new Date(p.hora_fin);
+        var minutos = Math.max(0, Math.round((fin - new Date(p.hora_inicio)) / 60000));
+        var fila = document.createElement("div");
+        fila.className = "fila-renglon";
+        fila.innerHTML =
+          "<span><b>" + servicio + "</b> <span class=\"fila-detalle\">OT #" + (ot.numero_ot || "—") + " · " + tecnico + "</span><br>" +
+          "<span class=\"fila-detalle\">" + formatoFechaHoraCorta(new Date(p.hora_inicio)) + " — " + (p.motivo || "sin motivo") + "</span></span>" +
+          "<span>" + (abierta ? "<b style=\"color:#b45309;\">Pausado ahora (" + formatoDuracionMinutos(minutos) + ")</b>" : "<b>" + formatoDuracionMinutos(minutos) + "</b>") + "</span>";
+        tPausasDetalle.appendChild(fila);
       });
 
       // --- Nómina consolidada por período ---
