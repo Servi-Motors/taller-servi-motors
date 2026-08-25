@@ -10308,7 +10308,7 @@ against the dark UI.
   // Junta en un solo recibo TODO lo que el cliente ha pagado por esa orden
   // (anticipos + abonos a crédito + pagos de factura), sin importar desde
   // cuál pantalla se generó, y muestra cuánto falta contra lo cotizado.
-  function imprimirReciboPagoCliente(idOt) {
+  function imprimirReciboPagoCliente(idOt, ventanaExistente) {
     return Promise.all([
       restRequest("GET", "ordenes_trabajo", {
         query: "select=numero_ot,clientes(nombre,telefono,documento),vehiculos(placa,marca,modelo),ot_detalle(cantidad,precio_aplicado_cliente,pct_descuento,estado_autorizacion)&id_ot=eq." + idOt
@@ -10354,7 +10354,7 @@ against the dark UI.
         "<div class=\"total-final\">RESTA POR PAGAR: " + formatoMoneda(resta) + "</div>" +
         "</div>";
 
-      abrirVentanaImpresion("Recibo de pago — " + prefijoOT + orden.numero_ot, contenido, taller);
+      abrirVentanaImpresion("Recibo de pago — " + prefijoOT + orden.numero_ot, contenido, taller, null, ventanaExistente);
     });
   }
 
@@ -10820,10 +10820,11 @@ against the dark UI.
               }
             }).then(function () { return cargarFacturacion(); });
           }
+          var ventanaPendiente = abrirVentanaImpresionPendiente();
           return restRequest("PATCH", "ordenes_trabajo", {
             query: "id_ot=eq." + f.id_ot,
             body: { estado_pago: "pagada", fecha_pago: new Date().toISOString(), forma_pago: selFormaPago.value, id_cuenta: selCuentaPago.value || null }
-          }).then(function () { return imprimirReciboPagoCliente(f.id_ot); }).then(function () { return cargarFacturacion(); });
+          }).then(function () { return imprimirReciboPagoCliente(f.id_ot, ventanaPendiente); }).then(function () { return cargarFacturacion(); });
         }, "facturacion-error"));
 
         // --- Pago dividido entre varias formas de pago ---
@@ -10903,6 +10904,7 @@ against the dark UI.
             mostrarError("facturacion-error", "La suma de los montos (" + formatoMoneda(suma) + ") debe ser igual a lo que resta por cobrar (" + formatoMoneda(montoAPagar) + ").");
             return;
           }
+          var ventanaPendiente = abrirVentanaImpresionPendiente();
           return restRequest("PATCH", "ordenes_trabajo", {
             query: "id_ot=eq." + f.id_ot,
             body: { estado_pago: "pagada", fecha_pago: new Date().toISOString(), forma_pago: "mixto" }
@@ -10910,7 +10912,7 @@ against the dark UI.
             return restRequest("POST", "pagos_factura", {
               body: partes.map(function (p) { return { id_ot: f.id_ot, forma_pago: p.forma_pago, monto: p.monto, id_usuario_registro: usuarioActualId, id_cuenta: p.id_cuenta }; })
             });
-          }).then(function () { return imprimirReciboPagoCliente(f.id_ot); }).then(function () { return cargarFacturacion(); });
+          }).then(function () { return imprimirReciboPagoCliente(f.id_ot, ventanaPendiente); }).then(function () { return cargarFacturacion(); });
         }, "facturacion-error"));
       }
       tr.appendChild(tdAcciones);
@@ -11364,6 +11366,7 @@ against the dark UI.
     var btnCxcAbono = $("btn-cxc-registrar-abono");
     btnCxcAbono.disabled = true;
     btnCxcAbono.textContent = "Registrando…";
+    var ventanaPendiente = abrirVentanaImpresionPendiente();
     return restRequest("POST", "abonos_cuentas_cobrar", {
       body: { id_ot: idOt, monto: monto, forma_pago: formaPago, fecha: fecha, id_usuario_registro: usuarioActualId, id_cuenta: $("cxc-abono-cuenta").value || null }
     }).then(function () {
@@ -11374,7 +11377,7 @@ against the dark UI.
         });
       }
     }).then(function () {
-      return imprimirReciboPagoCliente(idOt);
+      return imprimirReciboPagoCliente(idOt, ventanaPendiente);
     }).then(function () {
       cxcSeleccionada = null;
       $("cxc-abono-panel").classList.add("oculto");
@@ -12082,13 +12085,18 @@ against the dark UI.
     var btn = $("btn-registrar-anticipo");
     btn.disabled = true;
     btn.textContent = "Registrando…";
+    // Se abre la ventana de impresión YA (dentro del clic) para que el
+    // navegador no la bloquee — de lo contrario, tras esperar el registro
+    // del anticipo, el clic ya no cuenta como "reciente" para el navegador
+    // y el recibo no se abre (parece que la pantalla se quedó pegada).
+    var ventanaPendiente = abrirVentanaImpresionPendiente();
     return restRequest("POST", "anticipos_ot", {
       body: { id_ot: ordenActual.id_ot, monto: monto, forma_pago: formaPago, id_cuenta: idCuenta, id_usuario_registro: usuarioActualId }
     }).then(function () {
       $("anticipo-monto").value = "";
       return cargarAnticiposOrden();
     }).then(function () {
-      return imprimirReciboPagoCliente(ordenActual.id_ot);
+      return imprimirReciboPagoCliente(ordenActual.id_ot, ventanaPendiente);
     }).then(function () {
       btn.disabled = false;
       btn.textContent = "Registrar anticipo e imprimir recibo";
