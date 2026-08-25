@@ -2206,6 +2206,23 @@ against the dark UI.
       <div id="facturacion-error" class="mensaje-error"></div>
 
       <div class="tarjeta">
+        <h2>Resumen de facturas de reparaciones (imprimible)</h2>
+        <div class="nota-ayuda">Genera un documento para imprimir o guardar en PDF con el detalle de las órdenes cerradas en el rango de fechas que elijas, discriminado por mano de obra, repuestos, externos, IVA, total y lo que ya se ha cobrado de cada una.</div>
+        <div class="fila-2col">
+          <div>
+            <label for="resumen-facturas-desde">Desde</label>
+            <input id="resumen-facturas-desde" type="date">
+          </div>
+          <div>
+            <label for="resumen-facturas-hasta">Hasta</label>
+            <input id="resumen-facturas-hasta" type="date">
+          </div>
+        </div>
+        <button type="button" id="btn-imprimir-resumen-facturas">🖨️ Generar / Imprimir resumen</button>
+        <div id="resumen-facturas-error" class="mensaje-error"></div>
+      </div>
+
+      <div class="tarjeta">
         <div class="tabla-toolbar">
           <label>Buscar <input id="facturacion-buscar" type="text" placeholder="Cliente, placa o N.º"></label>
         </div>
@@ -10200,8 +10217,113 @@ against the dark UI.
   var pagosDivididosPorOt = {};
   var anticiposPorOt = {};
 
+  // Resumen de facturas de reparaciones (imprimible): lista, para el rango de
+  // fechas elegido, cada orden cerrada con su desglose de mano de obra,
+  // repuestos, externos, IVA, total y lo ya cobrado — igual al reporte que se
+  // usaba en el sistema anterior del taller, para poder revisar el mes de un
+  // vistazo o entregárselo al contador.
+  function imprimirResumenFacturas() {
+    ocultarError("resumen-facturas-error");
+    var desde = $("resumen-facturas-desde").value;
+    var hasta = $("resumen-facturas-hasta").value;
+    if (!desde || !hasta) {
+      mostrarError("resumen-facturas-error", "Elige la fecha desde y la fecha hasta.");
+      return;
+    }
+    if (desde > hasta) {
+      mostrarError("resumen-facturas-error", "La fecha \"desde\" no puede ser posterior a la fecha \"hasta\".");
+      return;
+    }
+    // Abrir la ventana YA (dentro del clic) para que el navegador no la
+    // bloquee — se rellena más abajo cuando ya tengamos los datos.
+    var ventanaPendiente = abrirVentanaImpresionPendiente();
+    var hastaExclusivo = aFechaISO(new Date(new Date(hasta + "T00:00:00").getTime() + 24 * 60 * 60 * 1000));
+    var queryOrdenes = "select=numero_ot,numero_factura,fecha_cierre,estado_pago,clientes(nombre)," +
+      "vehiculos(placa,marca,modelo),ot_detalle(cantidad,precio_aplicado_cliente,pct_descuento,estado_autorizacion,items(tipo))," +
+      "anticipos_ot(monto),abonos_cuentas_cobrar(monto)" +
+      "&estado=eq.cerrada&fecha_cierre=gte." + desde + "&fecha_cierre=lt." + hastaExclusivo + "&order=fecha_cierre.asc&limit=1000";
+
+    return Promise.all([
+      restRequest("GET", "ordenes_trabajo", { query: queryOrdenes }),
+      obtenerDatosTaller()
+    ]).then(function (r) {
+      var ordenes = r[0] || [];
+      var taller = r[1] || {};
+      var pctIva = taller.pct_iva || 0;
+
+      var filas = ordenes.map(function (o) {
+        var detalle = (o.ot_detalle || []).filter(function (d) { return d.estado_autorizacion !== "rechazado"; });
+        function sumaTipo(tipos) {
+          return detalle.filter(function (d) { return tipos.indexOf(d.items.tipo) !== -1; })
+            .reduce(function (a, d) { return a + d.cantidad * d.precio_aplicado_cliente * (1 - (d.pct_descuento || 0) / 100); }, 0);
+        }
+        var mo = sumaTipo(["mano_obra"]);
+        var partes = sumaTipo(["repuesto", "insumo"]);
+        var externos = sumaTipo(["trabajo_externo"]);
+        var subtotal = mo + partes + externos;
+        var iva = subtotal * pctIva / 100;
+        var total = subtotal + iva;
+        // Si ya está "pagada", el total quedó 100% cobrado (ya sea de una vez o
+        // dividido). Si sigue a crédito o pendiente, lo cobrado hasta ahora es
+        // solo lo que ha entrado por anticipos y abonos.
+        var anticipos = (o.anticipos_ot || []).reduce(function (a, x) { return a + Number(x.monto); }, 0);
+        var abonos = (o.abonos_cuentas_cobrar || []).reduce(function (a, x) { return a + Number(x.monto); }, 0);
+        var cobrado = o.estado_pago === "pagada" ? total : (anticipos + abonos);
+        return {
+          factura: o.numero_factura ? prefijoFactura + o.numero_factura : "—",
+          fecha: o.fecha_cierre ? formatoFechaCorta(new Date(o.fecha_cierre)) : "—",
+          placa: o.vehiculos ? o.vehiculos.placa : "—",
+          modelo: o.vehiculos ? [o.vehiculos.marca, o.vehiculos.modelo].filter(Boolean).join(" ") : "—",
+          cliente: o.clientes ? o.clientes.nombre : "—",
+          mo: mo, partes: partes, externos: externos, iva: iva, total: total, cobrado: cobrado
+        };
+      });
+
+      var totales = filas.reduce(function (a, f) {
+        a.mo += f.mo; a.partes += f.partes; a.externos += f.externos; a.iva += f.iva; a.total += f.total; a.cobrado += f.cobrado;
+        return a;
+      }, { mo: 0, partes: 0, externos: 0, iva: 0, total: 0, cobrado: 0 });
+
+      var filasHtml = filas.length ? filas.map(function (f, i) {
+        return "<tr><td>" + (i + 1) + "</td><td>" + f.factura + "</td><td>" + f.fecha + "</td><td>" + f.placa + "</td>" +
+          "<td>" + f.modelo + "</td><td>" + f.cliente + "</td>" +
+          "<td style=\"text-align:right;\">" + formatoMoneda(f.mo) + "</td>" +
+          "<td style=\"text-align:right;\">" + formatoMoneda(f.partes) + "</td>" +
+          "<td style=\"text-align:right;\">" + formatoMoneda(f.externos) + "</td>" +
+          "<td style=\"text-align:right;\">" + formatoMoneda(f.iva) + "</td>" +
+          "<td style=\"text-align:right;\"><b>" + formatoMoneda(f.total) + "</b></td>" +
+          "<td style=\"text-align:right;\">" + formatoMoneda(f.cobrado) + "</td></tr>";
+      }).join("") : "<tr><td colspan=\"12\" class=\"tabla-vacia\">No hay órdenes cerradas en este rango de fechas.</td></tr>";
+
+      var filaTotales = "<tr style=\"font-weight:700;background:#f3f4f6;\"><td colspan=\"6\">TOTALES (" + filas.length + " factura" + (filas.length === 1 ? "" : "s") + ")</td>" +
+        "<td style=\"text-align:right;\">" + formatoMoneda(totales.mo) + "</td>" +
+        "<td style=\"text-align:right;\">" + formatoMoneda(totales.partes) + "</td>" +
+        "<td style=\"text-align:right;\">" + formatoMoneda(totales.externos) + "</td>" +
+        "<td style=\"text-align:right;\">" + formatoMoneda(totales.iva) + "</td>" +
+        "<td style=\"text-align:right;\">" + formatoMoneda(totales.total) + "</td>" +
+        "<td style=\"text-align:right;\">" + formatoMoneda(totales.cobrado) + "</td></tr>";
+
+      var contenido =
+        "<div class=\"nota-periodo\">Órdenes cerradas desde el " + formatoFechaCorta(new Date(desde + "T00:00:00")) +
+        " hasta el " + formatoFechaCorta(new Date(hasta + "T00:00:00")) + "</div>" +
+        "<table><thead><tr>" +
+        "<th>#</th><th>Factura</th><th>Fecha</th><th>Matrícula</th><th>Modelo</th><th>Cliente</th>" +
+        "<th>Mto. M.O.</th><th>Mto. Partes</th><th>Mto. Externos</th><th>IVA</th><th>Total</th><th>Mto. Cobrado</th>" +
+        "</tr></thead><tbody>" + filasHtml + filaTotales + "</tbody></table>";
+
+      var titulo = "Resumen de facturas de reparaciones desde el " + formatoFechaCorta(new Date(desde + "T00:00:00")) +
+        " hasta el " + formatoFechaCorta(new Date(hasta + "T00:00:00"));
+      abrirVentanaImpresion(titulo, contenido, taller, null, ventanaPendiente);
+    }).catch(function (err) {
+      mostrarError("resumen-facturas-error", "No se pudo generar el resumen: " + err.message);
+    });
+  }
+  $("btn-imprimir-resumen-facturas").addEventListener("click", conManejoDeErrores(imprimirResumenFacturas, "resumen-facturas-error"));
+
   function cargarFacturacion() {
     ocultarError("facturacion-error");
+    if (!$("resumen-facturas-desde").value) $("resumen-facturas-desde").value = aFechaISO(primerDiaMes(new Date()));
+    if (!$("resumen-facturas-hasta").value) $("resumen-facturas-hasta").value = aFechaISO(new Date());
     return Promise.all([
       restRequest("GET", "vista_facturacion", { query: "select=*&order=numero_factura.desc" }),
       restRequest("GET", "pagos_factura", { query: "select=id_ot,forma_pago,monto&order=fecha_pago.asc" }),
