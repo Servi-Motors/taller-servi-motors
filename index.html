@@ -9738,7 +9738,8 @@ against the dark UI.
     return it.cantidad * it.precio_aplicado_cliente * (1 - (it.pct_descuento || 0) / 100);
   }
 
-  function abrirVentanaImpresion(titulo, contenidoHtml, datosTaller, urlConsultaQr, ventanaExistente) {
+  function abrirVentanaImpresion(titulo, contenidoHtml, datosTaller, urlConsultaQr, ventanaExistente, opciones) {
+    opciones = opciones || {};
     var t = datosTaller || {};
     var nombreTaller = t.nombre_taller || "Taller Servi Motors";
     var infoTaller = [t.direccion, t.telefono].filter(Boolean).join(" · ");
@@ -9748,7 +9749,22 @@ against the dark UI.
       t.responsable_iva === true ? "Responsable de IVA" : (t.responsable_iva === false ? "No responsable de IVA" : null)
     ].filter(Boolean).join(" · ");
 
+    // La esquina derecha del membrete muestra el código QR de consulta (en
+    // órdenes/facturas), o si no hay QR y se pidió explícitamente, la fecha y
+    // hora en que se generó el documento (útil en reportes de rango de
+    // fechas, para saber cuándo se imprimió el corte).
+    var cajaEsquina = "";
+    if (urlConsultaQr) {
+      cajaEsquina = "<div class=\"cabecera-qr\"><img src=\"https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=" + encodeURIComponent(urlConsultaQr) + "\" alt=\"Código QR de consulta\"><div>Consulte su orden en línea</div></div>";
+    } else if (opciones.mostrarFechaImpresion) {
+      var ahoraImpresion = new Date();
+      cajaEsquina = "<div class=\"cabecera-fecha-impresion\">Fecha: " + formatoFechaCorta(ahoraImpresion) +
+        "<br>Hora: " + String(ahoraImpresion.getHours()).padStart(2, "0") + ":" + String(ahoraImpresion.getMinutes()).padStart(2, "0") +
+        ":" + String(ahoraImpresion.getSeconds()).padStart(2, "0") + "</div>";
+    }
+
     var html = "<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"utf-8\"><title>" + titulo + "</title><style>" +
+      (opciones.horizontal ? "@page{size:landscape;}" : "") +
       "body{font-family:Arial,Helvetica,sans-serif;color:#111827;margin:0;padding:24px;font-size:13px;}" +
       ".cabecera{display:flex;align-items:center;border-bottom:2px solid #111827;padding-bottom:12px;margin-bottom:16px;}" +
       ".cabecera>img{width:98px;height:98px;object-fit:contain;flex-shrink:0;}" +
@@ -9756,6 +9772,7 @@ against the dark UI.
       ".cabecera-qr{width:98px;flex-shrink:0;text-align:center;}" +
       ".cabecera-qr img{width:82px;height:82px;object-fit:contain;}" +
       ".cabecera-qr div{font-size:8.5px;color:#4b5563;margin-top:2px;line-height:1.3;}" +
+      ".cabecera-fecha-impresion{width:130px;flex-shrink:0;text-align:center;align-self:flex-start;border:1px solid #111827;border-radius:4px;padding:6px 8px;font-size:11px;line-height:1.6;}" +
       ".cabecera h1{font-size:26px;margin:0;}" +
       ".eslogan-taller{font-size:12.5px;font-style:italic;color:#374151;margin:2px 0 5px;}" +
       ".info-taller{font-size:11px;color:#4b5563;margin-top:2px;}" +
@@ -9784,7 +9801,7 @@ against the dark UI.
       "<div class=\"info-taller\">" + infoTaller + "</div>" +
       "<div class=\"info-taller\">" + infoFiscal + "</div>" +
       "</div>" +
-      (urlConsultaQr ? "<div class=\"cabecera-qr\"><img src=\"https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=" + encodeURIComponent(urlConsultaQr) + "\" alt=\"Código QR de consulta\"><div>Consulte su orden en línea</div></div>" : "") +
+      cajaEsquina +
       "</div>" +
       "<h2>" + titulo + "</h2>" +
       contenidoHtml +
@@ -10313,7 +10330,7 @@ against the dark UI.
 
       var titulo = "Resumen de facturas de reparaciones desde el " + formatoFechaCorta(new Date(desde + "T00:00:00")) +
         " hasta el " + formatoFechaCorta(new Date(hasta + "T00:00:00"));
-      abrirVentanaImpresion(titulo, contenido, taller, null, ventanaPendiente);
+      abrirVentanaImpresion(titulo, contenido, taller, null, ventanaPendiente, { horizontal: true, mostrarFechaImpresion: true });
     }).catch(function (err) {
       mostrarError("resumen-facturas-error", "No se pudo generar el resumen: " + err.message);
     });
