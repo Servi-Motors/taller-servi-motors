@@ -2220,6 +2220,16 @@ against the dark UI.
         </div>
         <button type="button" id="btn-imprimir-resumen-facturas">🖨️ Generar / Imprimir resumen</button>
         <div id="resumen-facturas-error" class="mensaje-error"></div>
+
+        <div id="resumen-facturas-grafico-cont" class="oculto">
+          <h3 style="margin-top:16px;">Vista rápida en pantalla — <span id="resumen-facturas-conteo"></span></h3>
+          <div class="grid-graficos">
+            <div id="tabla-resumen-facturas-costos"></div>
+            <div class="grafico-cont" style="height:170px;">
+              <canvas id="grafico-resumen-facturas-costos"></canvas>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="tarjeta">
@@ -3298,6 +3308,7 @@ against the dark UI.
   var graficoMediosPago = null;
   var graficoProductividadTecnico = null;
   var graficoProductividadAsesor = null;
+  var graficoResumenFacturasCostos = null;
 
   function $(id) { return document.getElementById(id); }
 
@@ -10354,6 +10365,72 @@ against the dark UI.
   var pagosDivididosPorOt = {};
   var anticiposPorOt = {};
 
+  // Vista rápida en pantalla del mismo rango de fechas: tabla de Costo/Venta/
+  // Ganancia por categoría + gráfico de pastel Costos% vs Ganancia%, al
+  // estilo del reporte "Total de facturas revisadas" del sistema anterior.
+  var ETIQUETAS_CATEGORIA_RESUMEN = { mano_obra: "Mano de obra", repuesto: "Repuestos", insumo: "Insumos", trabajo_externo: "Trabajos externos" };
+  function renderizarResumenGraficoFacturas(desglose, cantidadFacturas) {
+    var cont = $("resumen-facturas-grafico-cont");
+    if (!cantidadFacturas) {
+      cont.classList.add("oculto");
+      if (graficoResumenFacturasCostos) { graficoResumenFacturasCostos.destroy(); graficoResumenFacturasCostos = null; }
+      return;
+    }
+    cont.classList.remove("oculto");
+    $("resumen-facturas-conteo").textContent = cantidadFacturas + " orden" + (cantidadFacturas === 1 ? "" : "es") + " en el rango elegido";
+
+    var categorias = ["mano_obra", "repuesto", "insumo", "trabajo_externo"];
+    var totalCosto = 0, totalVenta = 0;
+    var filasHtml = categorias.map(function (cat) {
+      var d = desglose[cat];
+      var ganancia = d.venta - d.costo;
+      totalCosto += d.costo; totalVenta += d.venta;
+      return "<tr><td>" + ETIQUETAS_CATEGORIA_RESUMEN[cat] + "</td>" +
+        "<td style=\"text-align:right;\">" + formatoMoneda(d.costo) + "</td>" +
+        "<td style=\"text-align:right;\">" + formatoMoneda(d.venta) + "</td>" +
+        "<td style=\"text-align:right;color:" + (ganancia >= 0 ? "var(--verde)" : "var(--rojo)") + ";font-weight:600;\">" + formatoMoneda(ganancia) + "</td></tr>";
+    }).join("");
+    var totalGanancia = totalVenta - totalCosto;
+    var utilidadPct = totalVenta > 0 ? (totalGanancia / totalVenta) * 100 : null;
+    filasHtml += "<tr style=\"font-weight:700;background:var(--gris-claro);\"><td>TOTALES</td>" +
+      "<td style=\"text-align:right;\">" + formatoMoneda(totalCosto) + "</td>" +
+      "<td style=\"text-align:right;\">" + formatoMoneda(totalVenta) + "</td>" +
+      "<td style=\"text-align:right;\">" + formatoMoneda(totalGanancia) + "</td></tr>";
+
+    $("tabla-resumen-facturas-costos").innerHTML =
+      "<div class=\"tabla-scroll\"><table class=\"tabla-datos\"><thead><tr><th>Categoría</th><th>Costo</th><th>Venta</th><th>Ganancia</th></tr></thead>" +
+      "<tbody>" + filasHtml + "</tbody></table></div>" +
+      "<div style=\"text-align:right;margin-top:8px;font-weight:700;\">Utilidad: " + (utilidadPct === null ? "—" : utilidadPct.toFixed(1) + "%") + "</div>";
+
+    if (graficoResumenFacturasCostos) { graficoResumenFacturasCostos.destroy(); graficoResumenFacturasCostos = null; }
+    if (typeof Chart === "undefined" || totalVenta <= 0) return;
+    graficoResumenFacturasCostos = new Chart($("grafico-resumen-facturas-costos").getContext("2d"), {
+      type: "doughnut",
+      data: {
+        labels: ["Costos", "Ganancia"],
+        datasets: [{
+          data: [Math.max(0, totalCosto), Math.max(0, totalGanancia)],
+          backgroundColor: ["#ef4444", "#22c55e"]
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          title: { display: true, text: "Costos / Ganancia" },
+          tooltip: {
+            callbacks: {
+              label: function (ctx) {
+                var pct = totalVenta > 0 ? (ctx.parsed / totalVenta) * 100 : 0;
+                return ctx.label + ": " + formatoMoneda(ctx.parsed) + " (" + pct.toFixed(0) + "%)";
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
   // Resumen de facturas de reparaciones (imprimible): lista, para el rango de
   // fechas elegido, cada orden cerrada con su desglose de mano de obra,
   // repuestos, externos, IVA, total y lo ya cobrado — igual al reporte que se
@@ -10376,7 +10453,7 @@ against the dark UI.
     var ventanaPendiente = abrirVentanaImpresionPendiente();
     var hastaExclusivo = aFechaISO(new Date(new Date(hasta + "T00:00:00").getTime() + 24 * 60 * 60 * 1000));
     var queryOrdenes = "select=numero_ot,numero_factura,fecha_cierre,estado_pago,clientes(nombre)," +
-      "vehiculos(placa,marca,modelo),ot_detalle(cantidad,precio_aplicado_cliente,pct_descuento,estado_autorizacion,items(tipo))," +
+      "vehiculos(placa,marca,modelo),ot_detalle(cantidad,precio_aplicado_cliente,costo_interno,pct_descuento,estado_autorizacion,items(tipo))," +
       "anticipos_ot(monto),abonos_cuentas_cobrar(monto)" +
       "&estado=eq.cerrada&fecha_cierre=gte." + desde + "&fecha_cierre=lt." + hastaExclusivo + "&order=fecha_cierre.asc&limit=1000";
 
@@ -10388,8 +10465,25 @@ against the dark UI.
       var taller = r[1] || {};
       var pctIva = taller.pct_iva || 0;
 
+      // Desglose acumulado por categoría (mano de obra / repuestos / insumos /
+      // externos), en costo y venta, para la vista rápida en pantalla con el
+      // gráfico de costos vs. ganancia — se junta al mismo tiempo que se arma
+      // cada fila del listado, para no repetir la consulta.
+      var desglose = {
+        mano_obra: { costo: 0, venta: 0 },
+        repuesto: { costo: 0, venta: 0 },
+        insumo: { costo: 0, venta: 0 },
+        trabajo_externo: { costo: 0, venta: 0 }
+      };
+
       var filas = ordenes.map(function (o) {
         var detalle = (o.ot_detalle || []).filter(function (d) { return d.estado_autorizacion !== "rechazado"; });
+        detalle.forEach(function (d) {
+          var tipo = d.items.tipo;
+          if (!desglose[tipo]) return;
+          desglose[tipo].costo += d.cantidad * (d.costo_interno || 0);
+          desglose[tipo].venta += d.cantidad * d.precio_aplicado_cliente * (1 - (d.pct_descuento || 0) / 100);
+        });
         function sumaTipo(tipos) {
           return detalle.filter(function (d) { return tipos.indexOf(d.items.tipo) !== -1; })
             .reduce(function (a, d) { return a + d.cantidad * d.precio_aplicado_cliente * (1 - (d.pct_descuento || 0) / 100); }, 0);
@@ -10415,6 +10509,8 @@ against the dark UI.
           mo: mo, partes: partes, externos: externos, iva: iva, total: total, cobrado: cobrado
         };
       });
+
+      renderizarResumenGraficoFacturas(desglose, filas.length);
 
       var totales = filas.reduce(function (a, f) {
         a.mo += f.mo; a.partes += f.partes; a.externos += f.externos; a.iva += f.iva; a.total += f.total; a.cobrado += f.cobrado;
