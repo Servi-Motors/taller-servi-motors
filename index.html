@@ -2716,15 +2716,17 @@ against the dark UI.
         <div id="sin-datos-medios-pago" class="nota-ayuda oculto"></div>
       </div>
 
-      <div class="tarjeta">
-        <h2>Estado de resultados por mes</h2>
-        <div id="tabla-resultado-mensual"></div>
-      </div>
+      <div class="grid-2col-parejo">
+        <div class="tarjeta">
+          <h2>Estado de resultados por mes</h2>
+          <div id="tabla-resultado-mensual"></div>
+        </div>
 
-      <div class="tarjeta">
-        <h2>Precio sugerido vs aplicado (mano de obra)</h2>
-        <div class="nota-ayuda">Si el promedio aplicado queda muy por debajo del sugerido, se están dando muchos descuentos frente a lo que el sistema recomienda cobrar.</div>
-        <div id="tabla-precio-hora"></div>
+        <div class="tarjeta">
+          <h2>Precio sugerido vs aplicado (mano de obra)</h2>
+          <div class="nota-ayuda">Si el promedio aplicado queda muy por debajo del sugerido, se están dando muchos descuentos frente a lo que el sistema recomienda cobrar.</div>
+          <div id="tabla-precio-hora"></div>
+        </div>
       </div>
 
       <div class="tarjeta">
@@ -3214,6 +3216,8 @@ against the dark UI.
   :root.tema-oscuro .etiqueta-garantia { color: #c4b5fd; background: rgba(124,58,237,0.22); }
   :root.tema-oscuro .etiqueta-devuelta { color: #fcd34d; background: rgba(180,83,9,0.22); }
   .grid-graficos { display: grid; grid-template-columns: 1.3fr 1fr; gap: 12px; }
+  .grid-2col-parejo { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+  .grid-2col-parejo > .tarjeta { margin: 0; }
   .grafico-cont { position: relative; height: 150px; }
 
   /* Panel principal: ajustes propios además de la compactación general */
@@ -3314,6 +3318,7 @@ against the dark UI.
     #sidebar.abierto { transform: translateX(0); }
     #contenido-principal { padding: 14px; }
     .grid-graficos { grid-template-columns: 1fr; }
+    .grid-2col-parejo { grid-template-columns: 1fr; }
   }
 </style>
 
