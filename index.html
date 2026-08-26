@@ -4481,12 +4481,19 @@ against the dark UI.
       if (!pagadoConCajaMenor) return null;
       var concepto = "Compra de stock: " + nombreItemFinal + " (" + cantidad + ")";
       var monto = cantidad * costoUnitario;
-      return restRequest("POST", "egresos", {
-        body: {
-          fecha: aFechaISO(new Date()), proveedor: nombreProveedor, concepto: concepto,
-          categoria: "compra", monto: monto, forma_pago: "efectivo", estado_pago: "pagado",
-          id_usuario_registro: usuarioActualId
-        }
+      // La cuenta "Efectivo" se busca aquí (en vez de depender de que otra
+      // página ya la haya cargado) para que el egreso SIEMPRE quede
+      // amarrado a una cuenta real — si no, el saldo de caja menor nunca
+      // bajaba aunque el mensaje dijera "se descontó de caja menor".
+      return restRequest("GET", "cuentas_taller", { query: "select=id_cuenta&tipo=eq.efectivo&activa=eq.true&limit=1" }).then(function (cuentasEfectivo) {
+        var idCuentaEfectivo = (cuentasEfectivo && cuentasEfectivo[0] && cuentasEfectivo[0].id_cuenta) || null;
+        return restRequest("POST", "egresos", {
+          body: {
+            fecha: aFechaISO(new Date()), proveedor: nombreProveedor, concepto: concepto,
+            categoria: "compra", monto: monto, forma_pago: "efectivo", estado_pago: "pagado",
+            id_cuenta: idCuentaEfectivo, id_usuario_registro: usuarioActualId
+          }
+        });
       }).then(function (filasEgreso) {
         return restRequest("POST", "caja_menor_movimientos", {
           body: {
@@ -7974,7 +7981,7 @@ against the dark UI.
     var totalGeneral = 0;
     liquidaciones.forEach(function (l) {
       var nombreEmp = nombreEmpleadoLiquidacion(l);
-      var deducciones = Number(l.deduccion_prestamo || 0) + Number(l.otras_deducciones || 0) + Number(l.carga_prestacional || 0);
+      var deducciones = Number(l.deduccion_prestamo || 0) + Number(l.otras_deducciones || 0);
       var variable = Number(l.comisiones || 0) + Number(l.variable_tecnico || 0);
       totalGeneral += Number(l.total || 0);
       var tr = document.createElement("tr");
@@ -8015,7 +8022,7 @@ against the dark UI.
         var totalGeneral = 0;
         var filas = liquidaciones.map(function (l, i) {
           var nombreEmp = nombreEmpleadoLiquidacion(l);
-          var deducciones = Number(l.deduccion_prestamo || 0) + Number(l.otras_deducciones || 0) + Number(l.carga_prestacional || 0);
+          var deducciones = Number(l.deduccion_prestamo || 0) + Number(l.otras_deducciones || 0);
           totalGeneral += Number(l.total || 0);
           return "<tr>" +
             "<td>" + (i + 1) + "</td>" +
