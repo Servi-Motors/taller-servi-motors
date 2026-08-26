@@ -2729,8 +2729,15 @@ against the dark UI.
 
       <div class="tarjeta">
         <h2>Rentabilidad por orden de trabajo</h2>
-        <div class="nota-ayuda">Las 20 órdenes cerradas más recientes.</div>
-        <div id="tabla-rentabilidad-ot"></div>
+        <div class="nota-ayuda">Las 10 órdenes cerradas más recientes.</div>
+        <div class="tabla-scroll">
+          <table class="tabla-datos" id="tabla-rentabilidad-ot">
+            <thead>
+              <tr><th>Orden</th><th>Asesor / Técnico</th><th>Horas fact. vs reales</th><th>Productividad</th><th>Ingreso</th><th>Margen</th></tr>
+            </thead>
+            <tbody id="cuerpo-tabla-rentabilidad-ot"></tbody>
+          </table>
+        </div>
 
         <h3 style="margin-top:16px;">Imprimir por rango de fechas</h3>
         <div class="nota-ayuda">Genera un documento para imprimir o guardar en PDF con la rentabilidad de todas las órdenes cerradas en el rango y estado de pago que elijas.</div>
@@ -8603,7 +8610,7 @@ against the dark UI.
       restRequest("GET", "vista_resultado_mensual", { query: "select=*&order=periodo.desc&limit=12" }),
       restRequest("GET", "vista_flujo_caja", { query: "select=*&order=periodo.asc&limit=12" }),
       restRequest("GET", "vista_precio_hora_comparado", { query: "select=*&order=periodo.desc&limit=12" }),
-      restRequest("GET", "vista_rentabilidad_ot", { query: "select=*&order=fecha_cierre.desc&limit=20" }),
+      restRequest("GET", "vista_rentabilidad_ot", { query: "select=*&order=fecha_cierre.desc&limit=10" }),
       restRequest("GET", "parametros_taller", { query: "select=horas_disponibles_mes&id=eq.1" }),
       restRequest("GET", "liquidaciones", { query: "select=periodo_inicio,periodo_fin,total&order=periodo_inicio.desc&limit=50" }),
       restRequest("GET", "movimientos_inventario", { query: "select=cantidad,items(nombre,stock_actual)&tipo=eq.salida&creado_en=gte." + inicioMes + "&creado_en=lt." + inicioMesSiguiente }),
@@ -8723,23 +8730,23 @@ against the dark UI.
       });
 
       // --- Rentabilidad por orden ---
-      var tRent = $("tabla-rentabilidad-ot");
-      tRent.innerHTML = rentabilidadOt.length ? "" : "<p class=\"nota-ayuda\">Todavía no hay órdenes cerradas.</p>";
+      var tRent = $("cuerpo-tabla-rentabilidad-ot");
+      tRent.innerHTML = rentabilidadOt.length ? "" : "<tr><td colspan=\"6\" class=\"nota-ayuda\">Todavía no hay órdenes cerradas.</td></tr>";
       rentabilidadOt.forEach(function (o) {
-        var fila = document.createElement("div");
-        fila.className = "fila-renglon";
         var horasReales = o.horas_reales_invertidas === null || o.horas_reales_invertidas === undefined ? null : Number(o.horas_reales_invertidas);
         var eficiencia = o.eficiencia_tiempo_real_pct === null || o.eficiencia_tiempo_real_pct === undefined ? null : Number(o.eficiencia_tiempo_real_pct);
-        var lineaTiempoReal = horasReales === null
-          ? ""
-          : "<br><span class=\"fila-detalle\">Horas facturadas " + Number(o.horas_facturadas).toFixed(2) + " vs. reales " + horasReales.toFixed(2) +
-            (eficiencia === null ? "" : " · <b style=\"color:" + (eficiencia >= 100 ? "var(--verde)" : "#b45309") + ";\">Productividad " + eficiencia.toFixed(0) + "%</b>") +
-            (o.veces_devuelta_calidad > 0 ? " · ↩ Devuelta " + o.veces_devuelta_calidad + " vez(es)" : "") + "</span>";
-        fila.innerHTML =
-          "<span>" + prefijoOT + o.numero_ot + " <span class=\"fila-detalle\">(" + (o.fecha_cierre ? o.fecha_cierre.slice(0, 10) : "—") + ")</span><br>" +
-          "<span class=\"fila-detalle\">Asesor: " + (o.asesor_nombre || "—") + " · Técnico: " + (o.tecnico_nombre || "—") + "</span>" + lineaTiempoReal + "</span>" +
-          "<span>Ingreso " + formatoMoneda(o.ingreso) + "<br>Margen " + formatoMoneda(o.margen) + (o.margen_pct === null || o.margen_pct === undefined ? "" : " (" + (o.margen_pct * 100).toFixed(0) + "%)") + "</span>";
-        tRent.appendChild(fila);
+        var horasTexto = horasReales === null ? "—" : Number(o.horas_facturadas).toFixed(2) + " vs. " + horasReales.toFixed(2);
+        var productividadTexto = eficiencia === null ? "—" : "<b style=\"color:" + (eficiencia >= 100 ? "var(--verde)" : "#b45309") + ";\">" + eficiencia.toFixed(0) + "%</b>";
+        var devueltaTexto = o.veces_devuelta_calidad > 0 ? "<br><span class=\"fila-detalle\">↩ Devuelta " + o.veces_devuelta_calidad + " vez(es)</span>" : "";
+        var tr = document.createElement("tr");
+        tr.innerHTML =
+          "<td>" + prefijoOT + o.numero_ot + " <span class=\"fila-detalle\">(" + (o.fecha_cierre ? o.fecha_cierre.slice(0, 10) : "—") + ")</span>" + devueltaTexto + "</td>" +
+          "<td>Asesor: " + (o.asesor_nombre || "—") + "<br>Técnico: " + (o.tecnico_nombre || "—") + "</td>" +
+          "<td>" + horasTexto + "</td>" +
+          "<td>" + productividadTexto + "</td>" +
+          "<td>" + formatoMoneda(o.ingreso) + "</td>" +
+          "<td>" + formatoMoneda(o.margen) + (o.margen_pct === null || o.margen_pct === undefined ? "" : " (" + (o.margen_pct * 100).toFixed(0) + "%)") + "</td>";
+        tRent.appendChild(tr);
       });
 
       // --- Productividad real por técnico (según avance registrado por servicio) ---
