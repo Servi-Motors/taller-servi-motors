@@ -2719,12 +2719,16 @@ against the dark UI.
       <div class="grid-2col-parejo">
         <div class="tarjeta">
           <h2>Estado de resultados por mes</h2>
+          <label for="resultado-mensual-mes" style="font-size:12px;">Ver mes</label>
+          <select id="resultado-mensual-mes" style="max-width:220px;"></select>
           <div id="tabla-resultado-mensual"></div>
         </div>
 
         <div class="tarjeta">
           <h2>Precio sugerido vs aplicado (mano de obra)</h2>
           <div class="nota-ayuda">Si el promedio aplicado queda muy por debajo del sugerido, se están dando muchos descuentos frente a lo que el sistema recomienda cobrar.</div>
+          <label for="precio-hora-mes" style="font-size:12px;">Ver mes</label>
+          <select id="precio-hora-mes" style="max-width:220px;"></select>
           <div id="tabla-precio-hora"></div>
         </div>
       </div>
@@ -3216,7 +3220,7 @@ against the dark UI.
   :root.tema-oscuro .etiqueta-garantia { color: #c4b5fd; background: rgba(124,58,237,0.22); }
   :root.tema-oscuro .etiqueta-devuelta { color: #fcd34d; background: rgba(180,83,9,0.22); }
   .grid-graficos { display: grid; grid-template-columns: 1.3fr 1fr; gap: 12px; }
-  .grid-2col-parejo { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+  .grid-2col-parejo { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .grid-2col-parejo > .tarjeta { margin: 0; }
   .grafico-cont { position: relative; height: 150px; }
 
@@ -8601,6 +8605,58 @@ against the dark UI.
   }
   $("btn-imprimir-rentabilidad").addEventListener("click", conManejoDeErrores(imprimirRentabilidadOrdenes, "rentabilidad-imprimir-error"));
 
+  var resultadoMensualCache = [];
+  var precioHoraCache = [];
+
+  function llenarSelectorMeses(select, filas) {
+    if (!select) return;
+    var valorAnterior = select.value;
+    select.innerHTML = "<option value=\"\">Todos los meses</option>";
+    filas.forEach(function (f) {
+      var opt = document.createElement("option");
+      opt.value = f.periodo;
+      opt.textContent = nombreMes(f.periodo);
+      select.appendChild(opt);
+    });
+    var sigueExistiendo = filas.some(function (f) { return f.periodo === valorAnterior; });
+    select.value = sigueExistiendo ? valorAnterior : "";
+  }
+
+  function renderizarResultadoMensual() {
+    var mesElegido = $("resultado-mensual-mes") ? $("resultado-mensual-mes").value : "";
+    var filas = mesElegido ? resultadoMensualCache.filter(function (f) { return f.periodo === mesElegido; }) : resultadoMensualCache;
+    var tResultado = $("tabla-resultado-mensual");
+    tResultado.innerHTML = filas.length ? "" : "<p class=\"nota-ayuda\">Todavía no hay órdenes cerradas ni egresos.</p>";
+    filas.forEach(function (f) {
+      var fila = document.createElement("div");
+      fila.className = "fila-renglon";
+      fila.innerHTML =
+        "<span><b>" + nombreMes(f.periodo) + "</b><br><span class=\"fila-detalle\">" + f.ordenes_cerradas + " órdenes cerradas</span></span>" +
+        "<span>Ingresos " + formatoMoneda(f.ingresos) + "<br>Costo ventas " + formatoMoneda(f.costo_ventas) + "<br>Egresos " + formatoMoneda(f.egresos_operativos) + "<br><b>Utilidad neta " + formatoMoneda(f.utilidad_neta) + "</b></span>";
+      tResultado.appendChild(fila);
+    });
+  }
+
+  function renderizarPrecioHora() {
+    var mesElegido = $("precio-hora-mes") ? $("precio-hora-mes").value : "";
+    var filas = mesElegido ? precioHoraCache.filter(function (f) { return f.periodo === mesElegido; }) : precioHoraCache;
+    var tPrecio = $("tabla-precio-hora");
+    tPrecio.innerHTML = filas.length ? "" : "<p class=\"nota-ayuda\">Todavía no hay mano de obra facturada.</p>";
+    filas.forEach(function (f) {
+      var diferenciaPct = f.precio_sugerido_promedio ? ((f.precio_aplicado_promedio - f.precio_sugerido_promedio) / f.precio_sugerido_promedio) * 100 : null;
+      var fila = document.createElement("div");
+      fila.className = "fila-renglon";
+      fila.innerHTML =
+        "<span><b>" + nombreMes(f.periodo) + "</b><br><span class=\"fila-detalle\">" + Number(f.horas_vendidas).toFixed(2) + " horas vendidas</span></span>" +
+        "<span>Sugerido " + formatoMoneda(f.precio_sugerido_promedio) + "/h<br>Aplicado " + formatoMoneda(f.precio_aplicado_promedio) + "/h" +
+        (diferenciaPct === null ? "" : "<br><b style=\"color:" + (diferenciaPct < 0 ? "var(--rojo)" : "var(--verde)") + "\">" + diferenciaPct.toFixed(1) + "%</b>") + "</span>";
+      tPrecio.appendChild(fila);
+    });
+  }
+
+  $("resultado-mensual-mes").addEventListener("change", renderizarResultadoMensual);
+  $("precio-hora-mes").addEventListener("change", renderizarPrecioHora);
+
   function cargarReportes() {
     ocultarError("reportes-error");
     if (!$("rentabilidad-desde").value) $("rentabilidad-desde").value = aFechaISO(primerDiaMes(new Date()));
@@ -8709,30 +8765,14 @@ against the dark UI.
       });
 
       // --- Estado de resultados ---
-      var tResultado = $("tabla-resultado-mensual");
-      tResultado.innerHTML = resultadoMensual.length ? "" : "<p class=\"nota-ayuda\">Todavía no hay órdenes cerradas ni egresos.</p>";
-      resultadoMensual.forEach(function (f) {
-        var fila = document.createElement("div");
-        fila.className = "fila-renglon";
-        fila.innerHTML =
-          "<span><b>" + nombreMes(f.periodo) + "</b><br><span class=\"fila-detalle\">" + f.ordenes_cerradas + " órdenes cerradas</span></span>" +
-          "<span>Ingresos " + formatoMoneda(f.ingresos) + "<br>Costo ventas " + formatoMoneda(f.costo_ventas) + "<br>Egresos " + formatoMoneda(f.egresos_operativos) + "<br><b>Utilidad neta " + formatoMoneda(f.utilidad_neta) + "</b></span>";
-        tResultado.appendChild(fila);
-      });
+      resultadoMensualCache = resultadoMensual;
+      llenarSelectorMeses($("resultado-mensual-mes"), resultadoMensual);
+      renderizarResultadoMensual();
 
       // --- Precio sugerido vs aplicado ---
-      var tPrecio = $("tabla-precio-hora");
-      tPrecio.innerHTML = precioHora.length ? "" : "<p class=\"nota-ayuda\">Todavía no hay mano de obra facturada.</p>";
-      precioHora.forEach(function (f) {
-        var diferenciaPct = f.precio_sugerido_promedio ? ((f.precio_aplicado_promedio - f.precio_sugerido_promedio) / f.precio_sugerido_promedio) * 100 : null;
-        var fila = document.createElement("div");
-        fila.className = "fila-renglon";
-        fila.innerHTML =
-          "<span><b>" + nombreMes(f.periodo) + "</b><br><span class=\"fila-detalle\">" + Number(f.horas_vendidas).toFixed(2) + " horas vendidas</span></span>" +
-          "<span>Sugerido " + formatoMoneda(f.precio_sugerido_promedio) + "/h<br>Aplicado " + formatoMoneda(f.precio_aplicado_promedio) + "/h" +
-          (diferenciaPct === null ? "" : "<br><b style=\"color:" + (diferenciaPct < 0 ? "var(--rojo)" : "var(--verde)") + "\">" + diferenciaPct.toFixed(1) + "%</b>") + "</span>";
-        tPrecio.appendChild(fila);
-      });
+      precioHoraCache = precioHora;
+      llenarSelectorMeses($("precio-hora-mes"), precioHora);
+      renderizarPrecioHora();
 
       // --- Rentabilidad por orden ---
       var tRent = $("cuerpo-tabla-rentabilidad-ot");
