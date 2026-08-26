@@ -1596,7 +1596,20 @@ against the dark UI.
       <div class="tarjeta">
         <h2>Cuentas bancarias — saldo calculado</h2>
         <div class="nota-ayuda">Este saldo lo calcula la app sumando los pagos que marcaste en cada cuenta. Compáralo con el saldo real de tu Nequi, Bancolombia, Daviplata o Bold para conciliar. Si no coincide, revisa que todos los pagos y transferencias tengan la cuenta correcta.</div>
-        <div id="lista-saldo-cuentas"></div>
+        <div class="tabla-scroll">
+          <table class="tabla-datos" id="tabla-saldo-cuentas">
+            <thead>
+              <tr>
+                <th>Cuenta</th>
+                <th>Saldo actual</th>
+                <th>Saldo inicial</th>
+                <th>Fecha saldo inicial</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="cuerpo-tabla-saldo-cuentas"></tbody>
+          </table>
+        </div>
       </div>
 
       <div class="tarjeta">
@@ -1620,7 +1633,20 @@ against the dark UI.
       <div class="tarjeta">
         <h2>Historial de egresos</h2>
         <div class="nota-ayuda">Para registrar un gasto nuevo usa "Registrar gasto" en el menú — cualquier usuario puede registrarlo ahí mismo, apenas ocurra.</div>
-        <div id="lista-egresos"></div>
+        <div class="tabla-scroll">
+          <table class="tabla-datos" id="tabla-egresos">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Concepto</th>
+                <th>Proveedor / Orden / Soporte</th>
+                <th>Estado de pago</th>
+                <th>Monto</th>
+              </tr>
+            </thead>
+            <tbody id="cuerpo-tabla-egresos"></tbody>
+          </table>
+        </div>
       </div>
 
       <div class="tarjeta">
@@ -1639,7 +1665,20 @@ against the dark UI.
         <div class="nota-ayuda">Usa esto cuando muevas plata entre tus propias cuentas (por ejemplo, de Nequi a Bancolombia). No cuenta como ingreso ni como gasto del taller.</div>
         <button type="button" id="btn-abrir-transferencia">+ Nueva transferencia</button>
         <h3 style="margin-top:16px;">Últimas transferencias</h3>
-        <div id="lista-transferencias"></div>
+        <div class="tabla-scroll">
+          <table class="tabla-datos" id="tabla-transferencias">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>De</th>
+                <th>A</th>
+                <th>Nota</th>
+                <th>Monto</th>
+              </tr>
+            </thead>
+            <tbody id="cuerpo-tabla-transferencias"></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
@@ -7203,11 +7242,18 @@ against the dark UI.
         cuerpoCF.appendChild(tr);
       });
 
-      var listaEg = $("lista-egresos");
-      listaEg.innerHTML = egresos.length ? "" : "<p class=\"nota-ayuda\">Todavía no has registrado egresos.</p>";
+      var cuerpoEg = $("cuerpo-tabla-egresos");
+      cuerpoEg.innerHTML = "";
+      if (!egresos.length) {
+        var trVacioEg = document.createElement("tr");
+        var tdVacioEg = document.createElement("td");
+        tdVacioEg.colSpan = 5;
+        tdVacioEg.className = "tabla-vacia";
+        tdVacioEg.textContent = "Todavía no has registrado egresos.";
+        trVacioEg.appendChild(tdVacioEg);
+        cuerpoEg.appendChild(trVacioEg);
+      }
       egresos.forEach(function (eg) {
-        var fila = document.createElement("div");
-        fila.className = "fila-renglon";
         var orden = eg.ordenes_trabajo ? " · " + prefijoOT + eg.ordenes_trabajo.numero_ot : "";
         var soporte = (eg.nit_proveedor || eg.numero_soporte)
           ? " · soporte: " + [eg.nit_proveedor, eg.numero_soporte].filter(Boolean).join(" / ")
@@ -7221,7 +7267,7 @@ against the dark UI.
         var abonos = eg.abonos_cuentas_pagar || [];
         var htmlPago;
         if (eg.forma_pago !== "credito") {
-          htmlPago = "<span class=\"fila-detalle\" style=\"color:var(--verde);\">✅ Pagado el " + formatoFechaCorta(new Date(eg.fecha + "T00:00:00")) + " (" + eg.forma_pago + ")</span>";
+          htmlPago = "<span class=\"fila-detalle\" style=\"color:var(--verde);\">✅ Pagado (" + eg.forma_pago + ")</span>";
         } else {
           var abonado = abonos.reduce(function (a, ab) { return a + Number(ab.monto || 0); }, 0);
           var saldo = Math.max(0, Number(eg.monto || 0) - abonado);
@@ -7239,10 +7285,25 @@ against the dark UI.
           }
         }
 
-        fila.innerHTML =
-          "<span>" + eg.concepto + " <span class=\"fila-detalle\">(" + eg.categoria + ")</span><br><span class=\"fila-detalle\">" + eg.fecha + (eg.proveedor ? " · " + eg.proveedor : "") + orden + soporte + "</span><br>" + htmlPago + "</span>" +
-          "<span>" + formatoMoneda(eg.monto) + "</span>";
-        listaEg.appendChild(fila);
+        var tr = document.createElement("tr");
+        var tdFecha = document.createElement("td");
+        tdFecha.textContent = eg.fecha;
+        var tdConcepto = document.createElement("td");
+        tdConcepto.innerHTML = eg.concepto + " <span class=\"fila-detalle\">(" + eg.categoria + ")</span>";
+        var tdProveedor = document.createElement("td");
+        tdProveedor.innerHTML = (eg.proveedor || "—") + "<span class=\"fila-detalle\">" + orden + soporte + "</span>";
+        var tdPago = document.createElement("td");
+        tdPago.innerHTML = htmlPago;
+        var tdMonto = document.createElement("td");
+        tdMonto.style.fontWeight = "700";
+        tdMonto.textContent = formatoMoneda(eg.monto);
+
+        tr.appendChild(tdFecha);
+        tr.appendChild(tdConcepto);
+        tr.appendChild(tdProveedor);
+        tr.appendChild(tdPago);
+        tr.appendChild(tdMonto);
+        cuerpoEg.appendChild(tr);
       });
 
       if (resultado) {
@@ -11585,41 +11646,97 @@ against the dark UI.
   }
 
   function renderizarSaldoCuentas(filas) {
-    var cont = $("lista-saldo-cuentas");
+    var cuerpo = $("cuerpo-tabla-saldo-cuentas");
     var esAdmin = rolActual === "administrador";
-    cont.innerHTML = filas.length ? "" : "<p class=\"nota-ayuda\">Agrega tus cuentas para empezar a conciliar.</p>";
+    cuerpo.innerHTML = "";
+    if (!filas.length) {
+      var trVacio = document.createElement("tr");
+      var tdVacio = document.createElement("td");
+      tdVacio.colSpan = 5;
+      tdVacio.className = "tabla-vacia";
+      tdVacio.textContent = "Agrega tus cuentas para empezar a conciliar.";
+      trVacio.appendChild(tdVacio);
+      cuerpo.appendChild(trVacio);
+      return;
+    }
     filas.forEach(function (f) {
-      var fila = document.createElement("div");
-      fila.className = "fila-renglon";
-      fila.style.flexWrap = "wrap";
-      var html = "<span><b>" + f.nombre + "</b>" +
-        (f.fecha_saldo_inicial ? "<br><span class=\"fila-detalle\">Saldo inicial: " + formatoMoneda(f.saldo_inicial) + " (" + formatoFechaCorta(new Date(f.fecha_saldo_inicial + "T00:00:00")) + ")</span>" : "") +
-        "</span><span style=\"font-weight:700;\">" + formatoMoneda(f.saldo_calculado) + "</span>";
+      var tr = document.createElement("tr");
+      var tdNombre = document.createElement("td");
+      tdNombre.innerHTML = "<b>" + f.nombre + "</b>";
+      var tdActual = document.createElement("td");
+      tdActual.style.fontWeight = "700";
+      tdActual.textContent = formatoMoneda(f.saldo_calculado);
+      var tdInicial = document.createElement("td");
+      var tdFecha = document.createElement("td");
+      var tdAccion = document.createElement("td");
+
       if (esAdmin) {
-        html += "<div style=\"flex-basis:100%;display:flex;gap:8px;align-items:flex-end;margin-top:6px;flex-wrap:wrap;\">" +
-          "<div><label style=\"font-size:12px;\" for=\"saldoini-monto-" + f.id_cuenta + "\">Saldo inicial</label>" +
-          "<input type=\"number\" step=\"0.01\" id=\"saldoini-monto-" + f.id_cuenta + "\" value=\"" + Number(f.saldo_inicial || 0) + "\" style=\"width:130px;\"></div>" +
-          "<div><label style=\"font-size:12px;\" for=\"saldoini-fecha-" + f.id_cuenta + "\">Fecha</label>" +
-          "<input type=\"date\" id=\"saldoini-fecha-" + f.id_cuenta + "\" value=\"" + (f.fecha_saldo_inicial || "") + "\"></div>" +
-          "<button type=\"button\" class=\"secundario btn-guardar-saldo-inicial\" data-id-cuenta=\"" + f.id_cuenta + "\">Guardar saldo inicial</button>" +
-          "</div>";
+        var inputMonto = document.createElement("input");
+        inputMonto.type = "number";
+        inputMonto.step = "0.01";
+        inputMonto.id = "saldoini-monto-" + f.id_cuenta;
+        inputMonto.value = Number(f.saldo_inicial || 0);
+        inputMonto.style.width = "120px";
+        tdInicial.appendChild(inputMonto);
+
+        var inputFecha = document.createElement("input");
+        inputFecha.type = "date";
+        inputFecha.id = "saldoini-fecha-" + f.id_cuenta;
+        inputFecha.value = f.fecha_saldo_inicial || "";
+        tdFecha.appendChild(inputFecha);
+
+        var btnGuardar = document.createElement("button");
+        btnGuardar.type = "button";
+        btnGuardar.className = "secundario btn-guardar-saldo-inicial";
+        btnGuardar.dataset.idCuenta = f.id_cuenta;
+        btnGuardar.textContent = "Guardar";
+        tdAccion.appendChild(btnGuardar);
+      } else {
+        tdInicial.textContent = formatoMoneda(f.saldo_inicial || 0);
+        tdFecha.textContent = f.fecha_saldo_inicial ? formatoFechaCorta(new Date(f.fecha_saldo_inicial + "T00:00:00")) : "—";
       }
-      fila.innerHTML = html;
-      cont.appendChild(fila);
+
+      tr.appendChild(tdNombre);
+      tr.appendChild(tdActual);
+      tr.appendChild(tdInicial);
+      tr.appendChild(tdFecha);
+      tr.appendChild(tdAccion);
+      cuerpo.appendChild(tr);
     });
   }
 
   function renderizarListaTransferencias(filas) {
-    var cont = $("lista-transferencias");
-    cont.innerHTML = filas.length ? "" : "<p class=\"nota-ayuda\">Todavía no has registrado transferencias.</p>";
+    var cuerpo = $("cuerpo-tabla-transferencias");
+    cuerpo.innerHTML = "";
+    if (!filas.length) {
+      var trVacio = document.createElement("tr");
+      var tdVacio = document.createElement("td");
+      tdVacio.colSpan = 5;
+      tdVacio.className = "tabla-vacia";
+      tdVacio.textContent = "Todavía no has registrado transferencias.";
+      trVacio.appendChild(tdVacio);
+      cuerpo.appendChild(trVacio);
+      return;
+    }
     filas.forEach(function (t) {
-      var fila = document.createElement("div");
-      fila.className = "fila-renglon";
-      fila.innerHTML = "<span>" + formatoFechaCorta(new Date(t.fecha + "T00:00:00")) + " · " +
-        (t.origen ? t.origen.nombre : "—") + " → " + (t.destino ? t.destino.nombre : "—") +
-        (t.nota ? "<br><span class=\"fila-detalle\">" + t.nota + "</span>" : "") + "</span>" +
-        "<span style=\"font-weight:700;\">" + formatoMoneda(t.monto) + "</span>";
-      cont.appendChild(fila);
+      var tr = document.createElement("tr");
+      var tdFecha = document.createElement("td");
+      tdFecha.textContent = formatoFechaCorta(new Date(t.fecha + "T00:00:00"));
+      var tdOrigen = document.createElement("td");
+      tdOrigen.textContent = t.origen ? t.origen.nombre : "—";
+      var tdDestino = document.createElement("td");
+      tdDestino.textContent = t.destino ? t.destino.nombre : "—";
+      var tdNota = document.createElement("td");
+      tdNota.innerHTML = t.nota ? "<span class=\"fila-detalle\">" + t.nota + "</span>" : "";
+      var tdMonto = document.createElement("td");
+      tdMonto.style.fontWeight = "700";
+      tdMonto.textContent = formatoMoneda(t.monto);
+      tr.appendChild(tdFecha);
+      tr.appendChild(tdOrigen);
+      tr.appendChild(tdDestino);
+      tr.appendChild(tdNota);
+      tr.appendChild(tdMonto);
+      cuerpo.appendChild(tr);
     });
   }
 
@@ -11868,7 +11985,7 @@ against the dark UI.
     });
   }, "transferencia-error"));
 
-  $("lista-saldo-cuentas").addEventListener("click", conManejoDeErrores(function (ev) {
+  $("tabla-saldo-cuentas").addEventListener("click", conManejoDeErrores(function (ev) {
     var btn = ev.target.closest(".btn-guardar-saldo-inicial");
     if (!btn) return;
     ocultarError("contab-horas-error");
