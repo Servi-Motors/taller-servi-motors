@@ -4077,9 +4077,11 @@ against the dark UI.
   // =====================================================================
   function cargarInicio() {
     ocultarError("inicio-error");
-    var inicioMesDate = new Date();
-    inicioMesDate.setDate(1);
-    var inicioMesStr = inicioMesDate.toISOString().slice(0, 10);
+    // OJO: no usar new Date() + setDate(1) + toISOString() aquí — eso conserva
+    // la HORA actual y, al convertir a UTC, en Colombia (UTC-5) cualquier hora
+    // de la tarde/noche del día 1 se corre al día 2 en UTC. primerDiaMes()
+    // arma la fecha directo en el día 1 a medianoche, sin ese problema.
+    var inicioMesStr = aFechaISO(primerDiaMes(new Date()));
     var mesActualEtiqueta = inicioMesStr.slice(0, 7);
 
     var hoyStr = aFechaISO(new Date());
@@ -4100,7 +4102,7 @@ against the dark UI.
         restRequest("GET", "pagos_factura", { query: "select=forma_pago,monto&fecha_pago=gte." + hoyStr + "&fecha_pago=lt." + mananaStr }),
         restRequest("GET", "vista_cuentas_por_cobrar", { query: "select=saldo" }),
         restRequest("GET", "vista_cuentas_por_pagar", { query: "select=saldo" }),
-        restRequest("GET", "vista_ingresos_por_tipo_mes", { query: "select=periodo,tipo,monto&periodo=eq." + inicioMesStr })
+        restRequest("GET", "vista_ingresos_por_tipo_mes", { query: "select=periodo,tipo,monto&order=periodo.desc&limit=12" })
       );
     }
 
@@ -4159,7 +4161,7 @@ against the dark UI.
         // saturar el panel principal con una cuarta tarjeta.
         var montoPorTipo = { mano_obra: 0, repuesto: 0, insumo: 0, trabajo_externo: 0 };
         ingresosPorTipoFilas.forEach(function (f) {
-          if (montoPorTipo.hasOwnProperty(f.tipo)) montoPorTipo[f.tipo] += Number(f.monto || 0);
+          if (f.periodo.slice(0, 7) === mesActualEtiqueta && montoPorTipo.hasOwnProperty(f.tipo)) montoPorTipo[f.tipo] += Number(f.monto || 0);
         });
         $("kpi-ingreso-mano-obra").textContent = formatoMoneda(montoPorTipo.mano_obra);
         $("kpi-ingreso-repuestos").textContent = formatoMoneda(montoPorTipo.repuesto + montoPorTipo.insumo);
