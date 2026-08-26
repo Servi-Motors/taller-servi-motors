@@ -292,6 +292,24 @@ against the dark UI.
         </div>
       </div>
 
+      <div class="tarjeta oculto" id="tarjeta-ingresos-por-tipo">
+        <h2>Ingresos del mes por tipo</h2>
+        <div class="grid-kpis">
+          <div class="tarjeta-kpi">
+            <div class="kpi-numero" id="kpi-ingreso-mano-obra">—</div>
+            <div class="kpi-etiqueta">Ingreso por mano de obra</div>
+          </div>
+          <div class="tarjeta-kpi">
+            <div class="kpi-numero" id="kpi-ingreso-repuestos">—</div>
+            <div class="kpi-etiqueta">Ingreso por repuestos</div>
+          </div>
+          <div class="tarjeta-kpi">
+            <div class="kpi-numero" id="kpi-ingreso-externos">—</div>
+            <div class="kpi-etiqueta">Ingreso por externos</div>
+          </div>
+        </div>
+      </div>
+
       <div class="tarjeta oculto" id="tarjeta-resumen-financiero-hoy">
         <h2>Resumen financiero de hoy</h2>
         <div class="grid-kpis">
@@ -4081,7 +4099,8 @@ against the dark UI.
         restRequest("GET", "vista_facturacion", { query: "select=total,forma_pago&estado_pago=eq.pagada&forma_pago=neq.credito&fecha_pago=gte." + hoyStr + "&fecha_pago=lt." + mananaStr }),
         restRequest("GET", "pagos_factura", { query: "select=forma_pago,monto&fecha_pago=gte." + hoyStr + "&fecha_pago=lt." + mananaStr }),
         restRequest("GET", "vista_cuentas_por_cobrar", { query: "select=saldo" }),
-        restRequest("GET", "vista_cuentas_por_pagar", { query: "select=saldo" })
+        restRequest("GET", "vista_cuentas_por_pagar", { query: "select=saldo" }),
+        restRequest("GET", "vista_ingresos_por_tipo_mes", { query: "select=periodo,tipo,monto&periodo=eq." + inicioMesStr })
       );
     }
 
@@ -4113,11 +4132,13 @@ against the dark UI.
       }
 
       $("tarjeta-resumen-financiero-hoy").classList.toggle("oculto", !puedeVerFinanzasHoy);
+      $("tarjeta-ingresos-por-tipo").classList.toggle("oculto", !puedeVerFinanzasHoy);
       if (puedeVerFinanzasHoy) {
         var ventasHoyFilas = r[4] || [];
         var pagosDivididosHoyFilas = r[5] || [];
         var cxcFilas = r[6] || [];
         var cxpFilas = r[7] || [];
+        var ingresosPorTipoFilas = r[8] || [];
 
         var ventasHoy = ventasHoyFilas.reduce(function (a, f) { return a + Number(f.total || 0); }, 0);
         var efectivoHoy = ventasHoyFilas.reduce(function (a, f) {
@@ -4133,6 +4154,16 @@ against the dark UI.
         $("kpi-efectivo-hoy").textContent = formatoMoneda(efectivoHoy);
         $("kpi-cxc-pendiente").textContent = formatoMoneda(cxcPendiente);
         $("kpi-cxp-pendiente").textContent = formatoMoneda(cxpPendiente);
+
+        // Repuestos e insumos se muestran juntos como "repuestos" para no
+        // saturar el panel principal con una cuarta tarjeta.
+        var montoPorTipo = { mano_obra: 0, repuesto: 0, insumo: 0, trabajo_externo: 0 };
+        ingresosPorTipoFilas.forEach(function (f) {
+          if (montoPorTipo.hasOwnProperty(f.tipo)) montoPorTipo[f.tipo] += Number(f.monto || 0);
+        });
+        $("kpi-ingreso-mano-obra").textContent = formatoMoneda(montoPorTipo.mano_obra);
+        $("kpi-ingreso-repuestos").textContent = formatoMoneda(montoPorTipo.repuesto + montoPorTipo.insumo);
+        $("kpi-ingreso-externos").textContent = formatoMoneda(montoPorTipo.trabajo_externo);
       }
 
       dibujarGraficoMensual(resultadoMensual, puedeVerFinanzas);
