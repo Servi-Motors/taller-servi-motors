@@ -3476,11 +3476,6 @@ against the dark UI.
     }, 6000);
   }
 
-  function mostrarErrorCarga(mensaje) {
-    $("error-carga-detalle").textContent = mensaje;
-    $("seccion-error-carga").classList.remove("oculto");
-  }
-
   function conManejoDeErrores(fn, elIdError) {
     return function () {
       var args = arguments;
@@ -5484,7 +5479,28 @@ against the dark UI.
     });
 
     return {
-      establecerDatos: function (nuevos) { datos = nuevos || []; estado.pagina = 1; renderizar(); }
+      establecerDatos: function (nuevos) { datos = nuevos || []; estado.pagina = 1; renderizar(); },
+      // Actualiza (o agrega, si no existe) una sola fila en memoria y vuelve
+      // a dibujar la tabla, SIN pedir de nuevo las hasta 500 filas completas
+      // al servidor ni perder la página en la que estaba el usuario. "clave"
+      // es el nombre del campo id (p. ej. "id_cliente"); "cambios" son los
+      // campos que cambiaron.
+      actualizarFila: function (clave, valor, cambios) {
+        for (var i = 0; i < datos.length; i++) {
+          if (datos[i][clave] === valor) {
+            datos[i] = Object.assign({}, datos[i], cambios);
+            renderizar();
+            return datos[i];
+          }
+        }
+        return null;
+      },
+      // Agrega una fila nueva (normalmente la que devuelve el servidor tras
+      // un POST) al principio de la lista en memoria, sin volver a pedir todo.
+      agregarFila: function (filaNueva) {
+        datos.unshift(filaNueva);
+        renderizar();
+      }
     };
   }
 
@@ -6071,12 +6087,20 @@ against the dark UI.
       return;
     }
     var body = { nombre: nombre, documento: documento || null, tipo: tipo, telefono: telefono || null, correo: correo || null, direccion: direccion || null, observaciones: observaciones || null };
-    var pedido = clienteEditando
-      ? restRequest("PATCH", "clientes", { query: "id_cliente=eq." + clienteEditando, body: body })
+    var idEditado = clienteEditando;
+    var pedido = idEditado
+      ? restRequest("PATCH", "clientes", { query: "id_cliente=eq." + idEditado, body: body })
       : restRequest("POST", "clientes", { body: body });
-    return pedido.then(function () {
+    return pedido.then(function (filas) {
       reiniciarFormularioCliente();
-      return cargarClientes();
+      // Solo se actualiza/agrega el cliente afectado en la tabla en memoria —
+      // no hace falta volver a bajar los hasta 500 clientes del taller.
+      if (idEditado) {
+        tablaClientes.actualizarFila("id_cliente", idEditado, body);
+      } else {
+        var nuevo = filas && filas[0];
+        if (nuevo) tablaClientes.agregarFila(nuevo);
+      }
     });
   }), "clientes-error"));
 
@@ -6501,13 +6525,23 @@ against the dark UI.
       numero_motor: numeroMotor || null, tipo_servicio: tipoServicio || null, estado_runt: estadoRunt || null,
       fecha_matricula: fechaMatricula || null, organismo_transito: organismoTransito || null
     };
-    var pedido = vehiculoEditando
-      ? restRequest("PATCH", "vehiculos", { query: "id_vehiculo=eq." + vehiculoEditando, body: body })
+    var idEditado = vehiculoEditando;
+    var pedido = idEditado
+      ? restRequest("PATCH", "vehiculos", { query: "id_vehiculo=eq." + idEditado, body: body })
       : restRequest("POST", "vehiculos", { body: body });
-    return pedido.then(function () {
+    return pedido.then(function (filas) {
       invalidarListasVehiculo();
       reiniciarFormularioVehiculo();
-      return cargarVehiculos();
+      // El nombre del cliente no viene en la respuesta del servidor (es una
+      // relación), así que se completa con lo que ya tenemos en memoria.
+      var infoCliente = clientesInfoPorIdVehiculo[idCliente];
+      var cambios = Object.assign({}, body, { clientes: infoCliente ? { nombre: infoCliente.nombre } : null });
+      if (idEditado) {
+        tablaVehiculos.actualizarFila("id_vehiculo", idEditado, cambios);
+      } else {
+        var nuevo = filas && filas[0];
+        if (nuevo) tablaVehiculos.agregarFila(Object.assign({}, nuevo, { clientes: cambios.clientes }));
+      }
     });
   }), "vehiculos-error"));
 
@@ -6933,7 +6967,7 @@ against the dark UI.
     var query = "select=id_ot,numero_ot,estado,vehiculos(placa),clientes(nombre)&estado=neq.cancelada&order=fecha_apertura.desc&limit=40";
     return Promise.all([
       restRequest("GET", "ordenes_trabajo", { query: query }),
-      restRequest("GET", "cuentas_taller", { query: "select=id_cuenta,nombre&activa=eq.true&order=orden.asc" })
+      obtenerCuentasTaller()
     ]).then(function (r) {
       var ordenes = r[0];
       var sel = $("egreso-orden");
@@ -7023,8 +7057,15 @@ against the dark UI.
         id_cuenta: formaPago === "credito" ? null : idCuenta,
         id_usuario_registro: usuarioActualId
       }
-    }).then(function () {
+    }).then(function (filas) {
       invalidarListasGasto();
+      // Se agrega al caché de la tabla de Contabilidad para que aparezca ahí
+      // sin tener que salir y volver a entrar a esa pantalla.
+      var nuevo = filas && filas[0];
+      if (nuevo) {
+        egresosCache.unshift(nuevo);
+        renderizarTablaEgresos();
+      }
       $("egreso-proveedor").value = "";
       $("egreso-nit-proveedor").value = "";
       $("egreso-numero-soporte").value = "";
@@ -7053,6 +7094,285 @@ against the dark UI.
   // id del costo fijo que se está editando en línea (null = ninguno). Se usa
   // para volver a dibujar esa fila como formulario en vez de texto plano.
   var costoFijoEditandoId = null;
+  // Copia en memoria de los costos fijos y egresos ya cargados, para poder
+  // volver a dibujar sus tablas (editar, cancelar, activar/desactivar, o
+  // agregar uno nuevo) SIN tener que volver a pedir las otras 8 consultas de
+  // cargarContabilidad() cada vez — eso es lo que hacía sentir lenta la
+  // pantalla antes de este ajuste.
+  var costosFijosCache = [];
+  var egresosCache = [];
+
+  function renderizarTablaCostosFijos() {
+    var esAdministrador = rolActual === "administrador";
+    var cuerpoCF = $("cuerpo-tabla-costos-fijos");
+    cuerpoCF.innerHTML = "";
+    if (!costosFijosCache.length) {
+      var trVacioCF = document.createElement("tr");
+      var tdVacioCF = document.createElement("td");
+      tdVacioCF.colSpan = 4;
+      tdVacioCF.className = "tabla-vacia";
+      tdVacioCF.textContent = "Todavía no has agregado costos fijos.";
+      trVacioCF.appendChild(tdVacioCF);
+      cuerpoCF.appendChild(trVacioCF);
+    }
+    costosFijosCache.forEach(function (cf) {
+      var tr = document.createElement("tr");
+      var tdConcepto = document.createElement("td");
+      var tdMonto = document.createElement("td");
+      var tdEstado = document.createElement("td");
+      var tdAcciones = document.createElement("td");
+
+      if (esAdministrador && costoFijoEditandoId === cf.id_costo_fijo) {
+        // Modo edición: esta fila se convierte en un mini-formulario en línea.
+        var inputConcepto = document.createElement("input");
+        inputConcepto.type = "text";
+        inputConcepto.value = cf.concepto;
+        inputConcepto.style.width = "100%";
+        tdConcepto.appendChild(inputConcepto);
+
+        var inputMonto = document.createElement("input");
+        inputMonto.type = "number";
+        inputMonto.min = "0";
+        inputMonto.step = "0.01";
+        inputMonto.value = cf.monto_mensual;
+        inputMonto.style.width = "100%";
+        tdMonto.appendChild(inputMonto);
+
+        tdEstado.innerHTML = cf.activo ? "Activo" : "<span class=\"fila-detalle\">Inactivo</span>";
+
+        var accionesEdicionCF = document.createElement("span");
+        accionesEdicionCF.className = "fila-renglon-acciones";
+
+        var btnGuardarCF = document.createElement("button");
+        btnGuardarCF.textContent = "Guardar";
+        btnGuardarCF.addEventListener("click", conManejoDeErrores(function () {
+          ocultarError("costo-fijo-error");
+          var nuevoConcepto = inputConcepto.value.trim();
+          var nuevoMonto = parseFloat(inputMonto.value);
+          if (!nuevoConcepto || !(nuevoMonto >= 0)) {
+            mostrarError("costo-fijo-error", "Escribe un concepto y un monto válido.");
+            return;
+          }
+          return restRequest("PATCH", "costos_fijos_mensuales", {
+            query: "id_costo_fijo=eq." + cf.id_costo_fijo,
+            body: { concepto: nuevoConcepto, monto_mensual: nuevoMonto }
+          }).then(function () {
+            cf.concepto = nuevoConcepto;
+            cf.monto_mensual = nuevoMonto;
+            costoFijoEditandoId = null;
+            renderizarTablaCostosFijos();
+          });
+        }, "costo-fijo-error"));
+
+        var btnCancelarCF = document.createElement("button");
+        btnCancelarCF.type = "button";
+        btnCancelarCF.className = "secundario";
+        btnCancelarCF.textContent = "Cancelar";
+        btnCancelarCF.addEventListener("click", function () {
+          // Cancelar no cambia nada en el servidor — solo se sale del modo
+          // edición, así que basta con volver a dibujar la tabla en memoria.
+          costoFijoEditandoId = null;
+          renderizarTablaCostosFijos();
+        });
+
+        accionesEdicionCF.appendChild(btnGuardarCF);
+        accionesEdicionCF.appendChild(btnCancelarCF);
+        tdAcciones.appendChild(accionesEdicionCF);
+      } else {
+        tdConcepto.textContent = cf.concepto;
+        tdMonto.textContent = formatoMoneda(cf.monto_mensual);
+        tdEstado.innerHTML = cf.activo ? "Activo" : "<span class=\"fila-detalle\">Inactivo</span>";
+
+        if (esAdministrador) {
+          var accionesCF = document.createElement("span");
+          accionesCF.className = "fila-renglon-acciones";
+
+          var btnEditarCF = document.createElement("button");
+          btnEditarCF.type = "button";
+          btnEditarCF.className = "secundario";
+          btnEditarCF.textContent = "Editar";
+          btnEditarCF.addEventListener("click", function () {
+            // Solo enseña el formulario en línea — no hay nada que pedirle al servidor.
+            costoFijoEditandoId = cf.id_costo_fijo;
+            renderizarTablaCostosFijos();
+          });
+          accionesCF.appendChild(btnEditarCF);
+
+          var btn = document.createElement("button");
+          btn.className = "secundario";
+          btn.textContent = cf.activo ? "Desactivar" : "Activar";
+          btn.addEventListener("click", conManejoDeErrores(function () {
+            var nuevoEstado = !cf.activo;
+            return restRequest("PATCH", "costos_fijos_mensuales", {
+              query: "id_costo_fijo=eq." + cf.id_costo_fijo,
+              body: { activo: nuevoEstado }
+            }).then(function () {
+              cf.activo = nuevoEstado;
+              renderizarTablaCostosFijos();
+            });
+          }, "costo-fijo-error"));
+          accionesCF.appendChild(btn);
+
+          tdAcciones.appendChild(accionesCF);
+        }
+      }
+
+      tr.appendChild(tdConcepto);
+      tr.appendChild(tdMonto);
+      tr.appendChild(tdEstado);
+      tr.appendChild(tdAcciones);
+      cuerpoCF.appendChild(tr);
+    });
+  }
+
+  function renderizarTablaEgresos() {
+    var cuerpoEg = $("cuerpo-tabla-egresos");
+    cuerpoEg.innerHTML = "";
+    if (!egresosCache.length) {
+      var trVacioEg = document.createElement("tr");
+      var tdVacioEg = document.createElement("td");
+      tdVacioEg.colSpan = 5;
+      tdVacioEg.className = "tabla-vacia";
+      tdVacioEg.textContent = "Todavía no has registrado egresos.";
+      trVacioEg.appendChild(tdVacioEg);
+      cuerpoEg.appendChild(trVacioEg);
+    }
+    egresosCache.forEach(function (eg) {
+      var orden = eg.ordenes_trabajo ? " · " + prefijoOT + eg.ordenes_trabajo.numero_ot : "";
+      var soporte = (eg.nit_proveedor || eg.numero_soporte)
+        ? " · soporte: " + [eg.nit_proveedor, eg.numero_soporte].filter(Boolean).join(" / ")
+        : "";
+
+      // Evidencia de pago: si se registró de contado, el pago fue la
+      // misma fecha del gasto. Si fue a crédito, se listan los abonos
+      // (fecha, monto, forma de pago y cuenta) hasta quedar saldado —
+      // así el historial de gastos deja rastro completo de cuándo y
+      // cómo se pagó, no solo de cuándo se generó la compra.
+      var abonos = eg.abonos_cuentas_pagar || [];
+      var htmlPago;
+      if (eg.forma_pago !== "credito") {
+        htmlPago = "<span class=\"fila-detalle\" style=\"color:var(--verde);\">✅ Pagado (" + eg.forma_pago + ")</span>";
+      } else {
+        var abonado = abonos.reduce(function (a, ab) { return a + Number(ab.monto || 0); }, 0);
+        var saldo = Math.max(0, Number(eg.monto || 0) - abonado);
+        var detalleAbonos = abonos.length
+          ? abonos.map(function (ab) {
+              return formatoFechaCorta(new Date(ab.fecha + "T00:00:00")) + ": " + formatoMoneda(ab.monto) + " (" + ab.forma_pago + (ab.cuentas_taller ? " · " + ab.cuentas_taller.nombre : "") + ")";
+            }).join(" · ")
+          : "";
+        if (eg.estado_pago === "pagado") {
+          htmlPago = "<span class=\"fila-detalle\" style=\"color:var(--verde);\">✅ Pagado — " + detalleAbonos + "</span>";
+        } else if (abonos.length) {
+          htmlPago = "<span class=\"fila-detalle\" style=\"color:#b45309;\">🟡 Abonado parcial, saldo " + formatoMoneda(saldo) + " — " + detalleAbonos + "</span>";
+        } else {
+          htmlPago = "<span class=\"fila-detalle\" style=\"color:var(--rojo);\">⏳ Pendiente de pago (crédito)</span>";
+        }
+      }
+
+      var tr = document.createElement("tr");
+      var tdFecha = document.createElement("td");
+      tdFecha.textContent = eg.fecha;
+      var tdConcepto = document.createElement("td");
+      tdConcepto.innerHTML = eg.concepto + " <span class=\"fila-detalle\">(" + eg.categoria + ")</span>";
+      var tdProveedor = document.createElement("td");
+      tdProveedor.innerHTML = (eg.proveedor || "—") + "<span class=\"fila-detalle\">" + orden + soporte + "</span>";
+      var tdPago = document.createElement("td");
+      tdPago.innerHTML = htmlPago;
+      var tdMonto = document.createElement("td");
+      tdMonto.style.fontWeight = "700";
+      tdMonto.textContent = formatoMoneda(eg.monto);
+
+      tr.appendChild(tdFecha);
+      tr.appendChild(tdConcepto);
+      tr.appendChild(tdProveedor);
+      tr.appendChild(tdPago);
+      tr.appendChild(tdMonto);
+      cuerpoEg.appendChild(tr);
+    });
+  }
+
+  // Dibuja el costo/precio hora de equilibrio y los campos de parámetros a
+  // partir de datos ya obtenidos. Se usa tanto en la carga completa de
+  // Contabilidad como en refrescarEquilibrioYParametros() (una recarga mucho
+  // más liviana que se usa después de guardar solo horas/porcentajes).
+  function aplicarEquilibrioYParametros(costoHora, precioHora, parametros) {
+    precioEquilibrioActualContab = (precioHora === null || precioHora === undefined) ? null : Number(precioHora);
+
+    $("costo-hora-actual").innerHTML = (costoHora === null || costoHora === undefined)
+      ? "<b>Costo hora: aún no calculable</b>Configura tus costos fijos y las horas disponibles abajo."
+      : "<b>Costo hora de equilibrio: " + formatoMoneda(costoHora) + "</b>Esto es lo que te cuesta internamente cada hora de mano de obra, solo por costos fijos. Se usa como sugerencia al agregar un ítem de mano de obra.";
+
+    $("precio-hora-actual").innerHTML = (precioHora === null || precioHora === undefined)
+      ? "<b>Precio hora de equilibrio: aún no calculable</b>Configura los % variables abajo."
+      : "<b>Precio hora de equilibrio: " + formatoMoneda(precioHora) + "</b>Es el mínimo que debes cobrar por hora para cubrir costos fijos MÁS el % variable a técnicos, comisiones y datáfono. Todavía no incluye ganancia para ti.";
+
+    $("contab-horas-mes").value = parametros ? parametros.horas_disponibles_mes : "";
+    $("contab-pct-tecnico").value = parametros ? Number(parametros.pct_variable_tecnico * 100).toFixed(3) : "";
+    $("contab-pct-comisiones").value = parametros ? Number(parametros.pct_comisiones * 100).toFixed(3) : "";
+    $("contab-pct-datafono").value = parametros ? Number(parametros.pct_datafono * 100).toFixed(3) : "";
+    $("contab-precio-mano-obra").value = (parametros && parametros.precio_mano_obra !== null && parametros.precio_mano_obra !== undefined)
+      ? parametros.precio_mano_obra
+      : "";
+    $("contab-tramo-horas-tecnico").value = parametros ? parametros.tramo_horas_tecnico : "";
+    $("contab-tarifa-hora-base").value = parametros ? parametros.tarifa_hora_tecnico_base : "";
+    $("contab-tarifa-hora-extra").value = parametros ? parametros.tarifa_hora_tecnico_extra : "";
+    $("contab-tramo-horas-ticket-asesor").value = parametros ? parametros.tramo_horas_ticket_asesor : "";
+    $("contab-pct-comision-mo-baja").value = parametros ? Number(parametros.pct_comision_mo_baja * 100).toFixed(3) : "";
+    $("contab-pct-comision-mo-alta").value = parametros ? Number(parametros.pct_comision_mo_alta * 100).toFixed(3) : "";
+    $("contab-pct-comision-margen-otros").value = parametros ? Number(parametros.pct_comision_margen_otros * 100).toFixed(3) : "";
+
+    var esAdministrador = rolActual === "administrador";
+    ["contab-horas-mes", "contab-pct-tecnico", "contab-pct-comisiones", "contab-pct-datafono", "contab-precio-mano-obra", "contab-tramo-horas-tecnico", "contab-tarifa-hora-base", "contab-tarifa-hora-extra", "contab-tramo-horas-ticket-asesor", "contab-pct-comision-mo-baja", "contab-pct-comision-mo-alta", "contab-pct-comision-margen-otros"].forEach(function (id) {
+      $(id).disabled = !esAdministrador;
+    });
+    $("btn-guardar-horas").classList.toggle("oculto", !esAdministrador);
+    $("contab-solo-admin-nota").classList.toggle("oculto", esAdministrador);
+    $("btn-guardar-precio-mano-obra").classList.toggle("oculto", !esAdministrador);
+    ["costo-fijo-concepto", "costo-fijo-monto"].forEach(function (id) { $(id).disabled = !esAdministrador; });
+    $("btn-agregar-costo-fijo").classList.toggle("oculto", !esAdministrador);
+    $("costos-fijos-solo-admin-nota").classList.toggle("oculto", esAdministrador);
+  }
+
+  // Recarga liviana (solo 3 consultas) para usar después de guardar las
+  // horas disponibles o los % variables — únicos campos que cambian el
+  // costo/precio hora de equilibrio. Evita repetir las otras 8 consultas de
+  // cargarContabilidad() (costos fijos, egresos, saldos, transferencias...)
+  // que no se ven afectadas por este guardado.
+  function refrescarEquilibrioYParametros() {
+    return Promise.all([
+      restRequest("POST", "rpc/calcular_costo_hora_equilibrio", { body: {} }),
+      restRequest("POST", "rpc/calcular_precio_hora_equilibrio", { body: {} }),
+      restRequest("GET", "parametros_taller", { query: "select=horas_disponibles_mes,pct_variable_tecnico,pct_comisiones,pct_datafono,precio_mano_obra,tramo_horas_tecnico,tarifa_hora_tecnico_base,tarifa_hora_tecnico_extra,tramo_horas_ticket_asesor,pct_comision_mo_baja,pct_comision_mo_alta,pct_comision_margen_otros,valor_uvt_actual&id=eq.1" })
+    ]).then(function (r) {
+      aplicarEquilibrioYParametros(r[0], r[1], r[2] && r[2][0]);
+    });
+  }
+
+  // Recarga liviana (1 consulta) para usar después de guardar el saldo
+  // inicial de una cuenta — solo eso puede cambiar, así que no hace falta
+  // repetir las otras 9 consultas de cargarContabilidad().
+  function refrescarSaldoCuentas() {
+    return restRequest("GET", "vista_saldo_cuentas", { query: "select=*" }).then(function (filas) {
+      renderizarSaldoCuentas(filas || []);
+      saldosPorCuenta = {};
+      (filas || []).forEach(function (f) { saldosPorCuenta[f.id_cuenta] = Number(f.saldo_calculado); });
+    });
+  }
+
+  // Recarga liviana (2 consultas) para usar después de registrar una
+  // transferencia entre cuentas: cambian los saldos y la lista de
+  // transferencias, nada más.
+  function refrescarSaldosYTransferencias() {
+    return Promise.all([
+      restRequest("GET", "vista_saldo_cuentas", { query: "select=*" }),
+      restRequest("GET", "transferencias_entre_cuentas", { query: "select=fecha,monto,nota,origen:cuentas_taller!transferencias_entre_cuentas_id_cuenta_origen_fkey(nombre),destino:cuentas_taller!transferencias_entre_cuentas_id_cuenta_destino_fkey(nombre)&order=fecha.desc,creado_en.desc&limit=20" })
+    ]).then(function (r) {
+      renderizarSaldoCuentas(r[0] || []);
+      saldosPorCuenta = {};
+      (r[0] || []).forEach(function (f) { saldosPorCuenta[f.id_cuenta] = Number(f.saldo_calculado); });
+      renderizarListaTransferencias(r[1] || []);
+    });
+  }
 
   function cargarContabilidad() {
     var inicioAnio = new Date().getFullYear() + "-01-01";
@@ -7063,7 +7383,7 @@ against the dark UI.
       restRequest("GET", "costos_fijos_mensuales", { query: "select=*&order=creado_en.desc" }),
       restRequest("GET", "egresos", { query: "select=*,ordenes_trabajo(numero_ot),abonos_cuentas_pagar(monto,fecha,forma_pago,cuentas_taller(nombre))&order=fecha.desc,creado_en.desc&limit=20" }),
       restRequest("GET", "vista_resultado_mensual", { query: "select=*&limit=1" }),
-      restRequest("GET", "cuentas_taller", { query: "select=id_cuenta,nombre&activa=eq.true&order=orden.asc" }),
+      obtenerCuentasTaller(),
       restRequest("GET", "vista_saldo_cuentas", { query: "select=*" }),
       restRequest("GET", "transferencias_entre_cuentas", { query: "select=fecha,monto,nota,origen:cuentas_taller!transferencias_entre_cuentas_id_cuenta_origen_fkey(nombre),destino:cuentas_taller!transferencias_entre_cuentas_id_cuenta_destino_fkey(nombre)&order=fecha.desc,creado_en.desc&limit=20" }),
       restRequest("GET", "vista_ingresos_ot", { query: "select=monto_ingreso&fecha_cierre=gte." + inicioAnio })
@@ -7095,216 +7415,12 @@ against the dark UI.
       $("alerta-tope-iva").innerHTML =
         "<b>Ingresos acumulados " + new Date().getFullYear() + ": " + formatoMoneda(ingresosAnio) + "</b> de " + formatoMoneda(topeIva) + " (" + pctTope.toFixed(1) + "%)<br>" + mensajeAlerta;
 
-      precioEquilibrioActualContab = (precioHora === null || precioHora === undefined) ? null : Number(precioHora);
+      aplicarEquilibrioYParametros(costoHora, precioHora, parametros);
 
-      $("costo-hora-actual").innerHTML = (costoHora === null || costoHora === undefined)
-        ? "<b>Costo hora: aún no calculable</b>Configura tus costos fijos y las horas disponibles abajo."
-        : "<b>Costo hora de equilibrio: " + formatoMoneda(costoHora) + "</b>Esto es lo que te cuesta internamente cada hora de mano de obra, solo por costos fijos. Se usa como sugerencia al agregar un ítem de mano de obra.";
-
-      $("precio-hora-actual").innerHTML = (precioHora === null || precioHora === undefined)
-        ? "<b>Precio hora de equilibrio: aún no calculable</b>Configura los % variables abajo."
-        : "<b>Precio hora de equilibrio: " + formatoMoneda(precioHora) + "</b>Es el mínimo que debes cobrar por hora para cubrir costos fijos MÁS el % variable a técnicos, comisiones y datáfono. Todavía no incluye ganancia para ti.";
-
-      $("contab-horas-mes").value = parametros ? parametros.horas_disponibles_mes : "";
-      $("contab-pct-tecnico").value = parametros ? Number(parametros.pct_variable_tecnico * 100).toFixed(3) : "";
-      $("contab-pct-comisiones").value = parametros ? Number(parametros.pct_comisiones * 100).toFixed(3) : "";
-      $("contab-pct-datafono").value = parametros ? Number(parametros.pct_datafono * 100).toFixed(3) : "";
-      $("contab-precio-mano-obra").value = (parametros && parametros.precio_mano_obra !== null && parametros.precio_mano_obra !== undefined)
-        ? parametros.precio_mano_obra
-        : "";
-      $("contab-tramo-horas-tecnico").value = parametros ? parametros.tramo_horas_tecnico : "";
-      $("contab-tarifa-hora-base").value = parametros ? parametros.tarifa_hora_tecnico_base : "";
-      $("contab-tarifa-hora-extra").value = parametros ? parametros.tarifa_hora_tecnico_extra : "";
-      $("contab-tramo-horas-ticket-asesor").value = parametros ? parametros.tramo_horas_ticket_asesor : "";
-      $("contab-pct-comision-mo-baja").value = parametros ? Number(parametros.pct_comision_mo_baja * 100).toFixed(3) : "";
-      $("contab-pct-comision-mo-alta").value = parametros ? Number(parametros.pct_comision_mo_alta * 100).toFixed(3) : "";
-      $("contab-pct-comision-margen-otros").value = parametros ? Number(parametros.pct_comision_margen_otros * 100).toFixed(3) : "";
-
-      var esAdministrador = rolActual === "administrador";
-      ["contab-horas-mes", "contab-pct-tecnico", "contab-pct-comisiones", "contab-pct-datafono", "contab-precio-mano-obra", "contab-tramo-horas-tecnico", "contab-tarifa-hora-base", "contab-tarifa-hora-extra", "contab-tramo-horas-ticket-asesor", "contab-pct-comision-mo-baja", "contab-pct-comision-mo-alta", "contab-pct-comision-margen-otros"].forEach(function (id) {
-        $(id).disabled = !esAdministrador;
-      });
-      $("btn-guardar-horas").classList.toggle("oculto", !esAdministrador);
-      $("contab-solo-admin-nota").classList.toggle("oculto", esAdministrador);
-      $("btn-guardar-precio-mano-obra").classList.toggle("oculto", !esAdministrador);
-      ["costo-fijo-concepto", "costo-fijo-monto"].forEach(function (id) { $(id).disabled = !esAdministrador; });
-      $("btn-agregar-costo-fijo").classList.toggle("oculto", !esAdministrador);
-      $("costos-fijos-solo-admin-nota").classList.toggle("oculto", esAdministrador);
-
-      var cuerpoCF = $("cuerpo-tabla-costos-fijos");
-      cuerpoCF.innerHTML = "";
-      if (!costosFijos.length) {
-        var trVacioCF = document.createElement("tr");
-        var tdVacioCF = document.createElement("td");
-        tdVacioCF.colSpan = 4;
-        tdVacioCF.className = "tabla-vacia";
-        tdVacioCF.textContent = "Todavía no has agregado costos fijos.";
-        trVacioCF.appendChild(tdVacioCF);
-        cuerpoCF.appendChild(trVacioCF);
-      }
-      costosFijos.forEach(function (cf) {
-        var tr = document.createElement("tr");
-        var tdConcepto = document.createElement("td");
-        var tdMonto = document.createElement("td");
-        var tdEstado = document.createElement("td");
-        var tdAcciones = document.createElement("td");
-
-        if (esAdministrador && costoFijoEditandoId === cf.id_costo_fijo) {
-          // Modo edición: esta fila se convierte en un mini-formulario en línea.
-          var inputConcepto = document.createElement("input");
-          inputConcepto.type = "text";
-          inputConcepto.value = cf.concepto;
-          inputConcepto.style.width = "100%";
-          tdConcepto.appendChild(inputConcepto);
-
-          var inputMonto = document.createElement("input");
-          inputMonto.type = "number";
-          inputMonto.min = "0";
-          inputMonto.step = "0.01";
-          inputMonto.value = cf.monto_mensual;
-          inputMonto.style.width = "100%";
-          tdMonto.appendChild(inputMonto);
-
-          tdEstado.innerHTML = cf.activo ? "Activo" : "<span class=\"fila-detalle\">Inactivo</span>";
-
-          var accionesEdicionCF = document.createElement("span");
-          accionesEdicionCF.className = "fila-renglon-acciones";
-
-          var btnGuardarCF = document.createElement("button");
-          btnGuardarCF.textContent = "Guardar";
-          btnGuardarCF.addEventListener("click", conManejoDeErrores(function () {
-            ocultarError("costo-fijo-error");
-            var nuevoConcepto = inputConcepto.value.trim();
-            var nuevoMonto = parseFloat(inputMonto.value);
-            if (!nuevoConcepto || !(nuevoMonto >= 0)) {
-              mostrarError("costo-fijo-error", "Escribe un concepto y un monto válido.");
-              return;
-            }
-            return restRequest("PATCH", "costos_fijos_mensuales", {
-              query: "id_costo_fijo=eq." + cf.id_costo_fijo,
-              body: { concepto: nuevoConcepto, monto_mensual: nuevoMonto }
-            }).then(function () {
-              costoFijoEditandoId = null;
-              return cargarContabilidad();
-            });
-          }, "costo-fijo-error"));
-
-          var btnCancelarCF = document.createElement("button");
-          btnCancelarCF.type = "button";
-          btnCancelarCF.className = "secundario";
-          btnCancelarCF.textContent = "Cancelar";
-          btnCancelarCF.addEventListener("click", function () {
-            costoFijoEditandoId = null;
-            cargarContabilidad().catch(function (err) { console.error(err); });
-          });
-
-          accionesEdicionCF.appendChild(btnGuardarCF);
-          accionesEdicionCF.appendChild(btnCancelarCF);
-          tdAcciones.appendChild(accionesEdicionCF);
-        } else {
-          tdConcepto.textContent = cf.concepto;
-          tdMonto.textContent = formatoMoneda(cf.monto_mensual);
-          tdEstado.innerHTML = cf.activo ? "Activo" : "<span class=\"fila-detalle\">Inactivo</span>";
-
-          if (esAdministrador) {
-            var accionesCF = document.createElement("span");
-            accionesCF.className = "fila-renglon-acciones";
-
-            var btnEditarCF = document.createElement("button");
-            btnEditarCF.type = "button";
-            btnEditarCF.className = "secundario";
-            btnEditarCF.textContent = "Editar";
-            btnEditarCF.addEventListener("click", function () {
-              costoFijoEditandoId = cf.id_costo_fijo;
-              cargarContabilidad().catch(function (err) { console.error(err); });
-            });
-            accionesCF.appendChild(btnEditarCF);
-
-            var btn = document.createElement("button");
-            btn.className = "secundario";
-            btn.textContent = cf.activo ? "Desactivar" : "Activar";
-            btn.addEventListener("click", conManejoDeErrores(function () {
-              return restRequest("PATCH", "costos_fijos_mensuales", {
-                query: "id_costo_fijo=eq." + cf.id_costo_fijo,
-                body: { activo: !cf.activo }
-              }).then(cargarContabilidad);
-            }, "costo-fijo-error"));
-            accionesCF.appendChild(btn);
-
-            tdAcciones.appendChild(accionesCF);
-          }
-        }
-
-        tr.appendChild(tdConcepto);
-        tr.appendChild(tdMonto);
-        tr.appendChild(tdEstado);
-        tr.appendChild(tdAcciones);
-        cuerpoCF.appendChild(tr);
-      });
-
-      var cuerpoEg = $("cuerpo-tabla-egresos");
-      cuerpoEg.innerHTML = "";
-      if (!egresos.length) {
-        var trVacioEg = document.createElement("tr");
-        var tdVacioEg = document.createElement("td");
-        tdVacioEg.colSpan = 5;
-        tdVacioEg.className = "tabla-vacia";
-        tdVacioEg.textContent = "Todavía no has registrado egresos.";
-        trVacioEg.appendChild(tdVacioEg);
-        cuerpoEg.appendChild(trVacioEg);
-      }
-      egresos.forEach(function (eg) {
-        var orden = eg.ordenes_trabajo ? " · " + prefijoOT + eg.ordenes_trabajo.numero_ot : "";
-        var soporte = (eg.nit_proveedor || eg.numero_soporte)
-          ? " · soporte: " + [eg.nit_proveedor, eg.numero_soporte].filter(Boolean).join(" / ")
-          : "";
-
-        // Evidencia de pago: si se registró de contado, el pago fue la
-        // misma fecha del gasto. Si fue a crédito, se listan los abonos
-        // (fecha, monto, forma de pago y cuenta) hasta quedar saldado —
-        // así el historial de gastos deja rastro completo de cuándo y
-        // cómo se pagó, no solo de cuándo se generó la compra.
-        var abonos = eg.abonos_cuentas_pagar || [];
-        var htmlPago;
-        if (eg.forma_pago !== "credito") {
-          htmlPago = "<span class=\"fila-detalle\" style=\"color:var(--verde);\">✅ Pagado (" + eg.forma_pago + ")</span>";
-        } else {
-          var abonado = abonos.reduce(function (a, ab) { return a + Number(ab.monto || 0); }, 0);
-          var saldo = Math.max(0, Number(eg.monto || 0) - abonado);
-          var detalleAbonos = abonos.length
-            ? abonos.map(function (ab) {
-                return formatoFechaCorta(new Date(ab.fecha + "T00:00:00")) + ": " + formatoMoneda(ab.monto) + " (" + ab.forma_pago + (ab.cuentas_taller ? " · " + ab.cuentas_taller.nombre : "") + ")";
-              }).join(" · ")
-            : "";
-          if (eg.estado_pago === "pagado") {
-            htmlPago = "<span class=\"fila-detalle\" style=\"color:var(--verde);\">✅ Pagado — " + detalleAbonos + "</span>";
-          } else if (abonos.length) {
-            htmlPago = "<span class=\"fila-detalle\" style=\"color:#b45309;\">🟡 Abonado parcial, saldo " + formatoMoneda(saldo) + " — " + detalleAbonos + "</span>";
-          } else {
-            htmlPago = "<span class=\"fila-detalle\" style=\"color:var(--rojo);\">⏳ Pendiente de pago (crédito)</span>";
-          }
-        }
-
-        var tr = document.createElement("tr");
-        var tdFecha = document.createElement("td");
-        tdFecha.textContent = eg.fecha;
-        var tdConcepto = document.createElement("td");
-        tdConcepto.innerHTML = eg.concepto + " <span class=\"fila-detalle\">(" + eg.categoria + ")</span>";
-        var tdProveedor = document.createElement("td");
-        tdProveedor.innerHTML = (eg.proveedor || "—") + "<span class=\"fila-detalle\">" + orden + soporte + "</span>";
-        var tdPago = document.createElement("td");
-        tdPago.innerHTML = htmlPago;
-        var tdMonto = document.createElement("td");
-        tdMonto.style.fontWeight = "700";
-        tdMonto.textContent = formatoMoneda(eg.monto);
-
-        tr.appendChild(tdFecha);
-        tr.appendChild(tdConcepto);
-        tr.appendChild(tdProveedor);
-        tr.appendChild(tdPago);
-        tr.appendChild(tdMonto);
-        cuerpoEg.appendChild(tr);
-      });
+      costosFijosCache = costosFijos;
+      egresosCache = egresos;
+      renderizarTablaCostosFijos();
+      renderizarTablaEgresos();
 
       if (resultado) {
         $("resultado-mensual").innerHTML =
@@ -7364,7 +7480,7 @@ against the dark UI.
         pct_comision_mo_alta: pctComisionMoAlta / 100,
         pct_comision_margen_otros: pctComisionMargenOtros / 100
       }
-    }).then(cargarContabilidad);
+    }).then(refrescarEquilibrioYParametros);
   }, "contab-horas-error"));
 
   $("btn-guardar-precio-mano-obra").addEventListener("click", conManejoDeErrores(function () {
@@ -7382,7 +7498,12 @@ against the dark UI.
     return restRequest("PATCH", "parametros_taller", {
       query: "id=eq.1",
       body: { precio_mano_obra: precio }
-    }).then(cargarContabilidad).catch(function (err) {
+    }).then(function () {
+      // El precio de mano de obra no afecta el costo/precio de equilibrio ni
+      // ninguna otra tarjeta de esta pantalla, así que no hace falta recargar
+      // nada — el campo ya muestra el valor que se acaba de guardar.
+      mostrarAlertaFlotante("Precio de mano de obra guardado.");
+    }).catch(function (err) {
       mostrarError("precio-mano-obra-error", err.message);
     });
   }, "precio-mano-obra-error"));
@@ -7396,11 +7517,16 @@ against the dark UI.
       return;
     }
     return restRequest("POST", "costos_fijos_mensuales", { body: { concepto: concepto, monto_mensual: monto } })
-      .then(function () {
+      .then(function (filas) {
         $("costo-fijo-concepto").value = "";
         $("costo-fijo-monto").value = "";
         cerrarFormularioCostofijo();
-        return cargarContabilidad();
+        // El servidor devuelve la fila recién creada (Prefer: return=representation),
+        // así que basta con agregarla al caché local y redibujar — sin pedir
+        // de nuevo las otras 9 consultas de cargarContabilidad().
+        var nuevo = filas && filas[0];
+        if (nuevo) costosFijosCache.unshift(nuevo);
+        renderizarTablaCostosFijos();
       });
   }, "costo-fijo-error"));
 
@@ -7470,6 +7596,98 @@ against the dark UI.
     });
   }
 
+  // Copia en memoria de empleados/usuarios/préstamos ya cargados, para poder
+  // redibujar esas listas después de un pequeño cambio (editar salario,
+  // activar/desactivar, agregar uno nuevo) sin repetir las otras 5 consultas
+  // de cargarConfiguracion().
+  var empleadosCache = [];
+  var usuariosCache = [];
+  var prestamosCache = [];
+
+  function renderizarListaEmpleados() {
+    var listaEmp = $("lista-empleados");
+    listaEmp.innerHTML = empleadosCache.length ? "" : "<p class=\"nota-ayuda\">Todavía no has agregado empleados.</p>";
+    empleadosCache.forEach(function (emp) {
+      var u = emp.usuarios || {};
+      var fila = document.createElement("div");
+      fila.className = "fila-renglon";
+      fila.innerHTML =
+        "<span>" + (u.nombre || emp.nombre || "—") + " <span class=\"fila-detalle\">(" + (u.rol || "sin acceso") + (emp.activo ? "" : " · inactivo") + ")</span><br>" +
+        "<span class=\"fila-detalle\">" + formatoMoneda(emp.salario_base) + " · " + emp.tipo_contrato + (emp.aplica_carga_prestacional ? " · <b>contrato formal (con carga prestacional)</b>" : " · informal (sin carga prestacional)") + "</span></span>";
+      var btnEditar = document.createElement("button");
+      btnEditar.className = "secundario";
+      btnEditar.textContent = "Editar salario";
+      btnEditar.addEventListener("click", conManejoDeErrores(function () {
+        var nuevo = prompt("Nuevo salario base para " + (u.nombre || emp.nombre || "") + ":", emp.salario_base);
+        if (nuevo === null) return;
+        var monto = parseFloat(nuevo);
+        if (!(monto >= 0)) { mostrarError("empleado-error", "Escribe un monto válido."); return; }
+        return restRequest("PATCH", "empleados", { query: "id_empleado=eq." + emp.id_empleado, body: { salario_base: monto } }).then(function () {
+          emp.salario_base = monto;
+          renderizarListaEmpleados();
+        });
+      }, "empleado-error"));
+      var btnActivo = document.createElement("button");
+      btnActivo.className = "secundario";
+      btnActivo.textContent = emp.activo ? "Desactivar" : "Activar";
+      btnActivo.addEventListener("click", conManejoDeErrores(function () {
+        var nuevoEstado = !emp.activo;
+        return restRequest("PATCH", "empleados", { query: "id_empleado=eq." + emp.id_empleado, body: { activo: nuevoEstado } }).then(function () {
+          emp.activo = nuevoEstado;
+          renderizarListaEmpleados();
+        });
+      }, "empleado-error"));
+      var btnCargaPrestacional = document.createElement("button");
+      btnCargaPrestacional.className = "secundario";
+      btnCargaPrestacional.textContent = emp.aplica_carga_prestacional ? "Marcar como informal" : "Marcar contrato formal";
+      btnCargaPrestacional.addEventListener("click", conManejoDeErrores(function () {
+        var activar = !emp.aplica_carga_prestacional;
+        if (activar && !confirm("¿Confirmas que " + (u.nombre || emp.nombre || "este empleado") + " ya tiene contrato formal? Desde la próxima liquidación se sumará el % de carga prestacional configurado en Configuración → Datos del taller como costo aparte (no se descuenta de su pago).")) return;
+        return restRequest("PATCH", "empleados", { query: "id_empleado=eq." + emp.id_empleado, body: { aplica_carga_prestacional: activar } }).then(function () {
+          emp.aplica_carga_prestacional = activar;
+          renderizarListaEmpleados();
+        });
+      }, "empleado-error"));
+      fila.appendChild(btnEditar);
+      fila.appendChild(btnActivo);
+      fila.appendChild(btnCargaPrestacional);
+      listaEmp.appendChild(fila);
+    });
+
+    var idsConEmpleado = {};
+    empleadosCache.forEach(function (emp) { idsConEmpleado[emp.id_usuario] = true; });
+    var selUsuario = $("empleado-usuario");
+    selUsuario.innerHTML = "";
+    usuariosCache.filter(function (u) { return !idsConEmpleado[u.id_usuario]; }).forEach(function (u) {
+      var opt = document.createElement("option");
+      opt.value = u.id_usuario; opt.textContent = u.nombre + " (" + u.rol + ")";
+      selUsuario.appendChild(opt);
+    });
+
+    var selPrestamoEmp = $("prestamo-empleado");
+    selPrestamoEmp.innerHTML = "";
+    empleadosCache.forEach(function (emp) {
+      var u = emp.usuarios || {};
+      var opt = document.createElement("option");
+      opt.value = emp.id_empleado; opt.textContent = u.nombre || emp.nombre || "—";
+      selPrestamoEmp.appendChild(opt);
+    });
+  }
+
+  function renderizarListaPrestamos() {
+    var listaPre = $("lista-prestamos");
+    listaPre.innerHTML = prestamosCache.length ? "" : "<p class=\"nota-ayuda\">No hay préstamos registrados.</p>";
+    prestamosCache.forEach(function (p) {
+      var nombreEmp = (p.empleados && (p.empleados.nombre || (p.empleados.usuarios && p.empleados.usuarios.nombre))) || "—";
+      var fila = document.createElement("div");
+      fila.className = "fila-renglon";
+      fila.innerHTML =
+        "<span>" + nombreEmp + " — " + p.concepto + "<br><span class=\"fila-detalle\">" + p.fecha + " · total " + formatoMoneda(p.monto_total) + "</span></span>" +
+        "<span>" + formatoMoneda(p.saldo_pendiente) + (Number(p.saldo_pendiente) <= 0 ? " (pagado)" : " pendiente") + "</span>";
+      listaPre.appendChild(fila);
+    });
+  }
+
   function cargarConfiguracion() {
     ocultarError("config-error");
     return Promise.all([
@@ -7478,7 +7696,7 @@ against the dark UI.
       restRequest("GET", "prestamos", { query: "select=*,empleados(nombre,usuarios(nombre))&order=fecha.desc" }),
       restRequest("GET", "parametros_taller", { query: "select=nombre_taller,nit,direccion,telefono,regimen_tributario,responsable_iva,horarios_semana,prefijo_ot,prefijo_factura,monto_fondo_caja_menor,enlace_resenas,dias_sin_visita_mantenimiento,cupos_agenda_por_turno,valor_uvt_actual,pct_carga_prestacional,id_cuenta_excedente_caja_menor&id=eq.1" }),
       restRequest("GET", "plantillas_mensajes", { query: "select=*&order=etiqueta.asc" }),
-      restRequest("GET", "cuentas_taller", { query: "select=id_cuenta,nombre,tipo&activa=eq.true&order=orden.asc" })
+      obtenerCuentasTaller()
     ]).then(function (r) {
       var empleados = r[0] || [];
       var usuarios = r[1] || [];
@@ -7508,75 +7726,11 @@ against the dark UI.
       $("config-enlace-agendar").value = "https://servi-motors.github.io/taller-servi-motors/?agendar=1";
       renderizarTablaJornada(datosTaller.horarios_semana || {});
 
-      var listaEmp = $("lista-empleados");
-      listaEmp.innerHTML = empleados.length ? "" : "<p class=\"nota-ayuda\">Todavía no has agregado empleados.</p>";
-      empleados.forEach(function (emp) {
-        var u = emp.usuarios || {};
-        var fila = document.createElement("div");
-        fila.className = "fila-renglon";
-        fila.innerHTML =
-          "<span>" + (u.nombre || emp.nombre || "—") + " <span class=\"fila-detalle\">(" + (u.rol || "sin acceso") + (emp.activo ? "" : " · inactivo") + ")</span><br>" +
-          "<span class=\"fila-detalle\">" + formatoMoneda(emp.salario_base) + " · " + emp.tipo_contrato + (emp.aplica_carga_prestacional ? " · <b>contrato formal (con carga prestacional)</b>" : " · informal (sin carga prestacional)") + "</span></span>";
-        var btnEditar = document.createElement("button");
-        btnEditar.className = "secundario";
-        btnEditar.textContent = "Editar salario";
-        btnEditar.addEventListener("click", conManejoDeErrores(function () {
-          var nuevo = prompt("Nuevo salario base para " + (u.nombre || emp.nombre || "") + ":", emp.salario_base);
-          if (nuevo === null) return;
-          var monto = parseFloat(nuevo);
-          if (!(monto >= 0)) { mostrarError("empleado-error", "Escribe un monto válido."); return; }
-          return restRequest("PATCH", "empleados", { query: "id_empleado=eq." + emp.id_empleado, body: { salario_base: monto } }).then(cargarConfiguracion);
-        }, "empleado-error"));
-        var btnActivo = document.createElement("button");
-        btnActivo.className = "secundario";
-        btnActivo.textContent = emp.activo ? "Desactivar" : "Activar";
-        btnActivo.addEventListener("click", conManejoDeErrores(function () {
-          return restRequest("PATCH", "empleados", { query: "id_empleado=eq." + emp.id_empleado, body: { activo: !emp.activo } }).then(cargarConfiguracion);
-        }, "empleado-error"));
-        var btnCargaPrestacional = document.createElement("button");
-        btnCargaPrestacional.className = "secundario";
-        btnCargaPrestacional.textContent = emp.aplica_carga_prestacional ? "Marcar como informal" : "Marcar contrato formal";
-        btnCargaPrestacional.addEventListener("click", conManejoDeErrores(function () {
-          var activar = !emp.aplica_carga_prestacional;
-          if (activar && !confirm("¿Confirmas que " + (u.nombre || emp.nombre || "este empleado") + " ya tiene contrato formal? Desde la próxima liquidación se sumará el % de carga prestacional configurado en Configuración → Datos del taller como costo aparte (no se descuenta de su pago).")) return;
-          return restRequest("PATCH", "empleados", { query: "id_empleado=eq." + emp.id_empleado, body: { aplica_carga_prestacional: activar } }).then(cargarConfiguracion);
-        }, "empleado-error"));
-        fila.appendChild(btnEditar);
-        fila.appendChild(btnActivo);
-        fila.appendChild(btnCargaPrestacional);
-        listaEmp.appendChild(fila);
-      });
-
-      var idsConEmpleado = {};
-      empleados.forEach(function (emp) { idsConEmpleado[emp.id_usuario] = true; });
-      var selUsuario = $("empleado-usuario");
-      selUsuario.innerHTML = "";
-      usuarios.filter(function (u) { return !idsConEmpleado[u.id_usuario]; }).forEach(function (u) {
-        var opt = document.createElement("option");
-        opt.value = u.id_usuario; opt.textContent = u.nombre + " (" + u.rol + ")";
-        selUsuario.appendChild(opt);
-      });
-
-      var listaPre = $("lista-prestamos");
-      listaPre.innerHTML = prestamos.length ? "" : "<p class=\"nota-ayuda\">No hay préstamos registrados.</p>";
-      prestamos.forEach(function (p) {
-        var nombreEmp = (p.empleados && (p.empleados.nombre || (p.empleados.usuarios && p.empleados.usuarios.nombre))) || "—";
-        var fila = document.createElement("div");
-        fila.className = "fila-renglon";
-        fila.innerHTML =
-          "<span>" + nombreEmp + " — " + p.concepto + "<br><span class=\"fila-detalle\">" + p.fecha + " · total " + formatoMoneda(p.monto_total) + "</span></span>" +
-          "<span>" + formatoMoneda(p.saldo_pendiente) + (Number(p.saldo_pendiente) <= 0 ? " (pagado)" : " pendiente") + "</span>";
-        listaPre.appendChild(fila);
-      });
-
-      var selPrestamoEmp = $("prestamo-empleado");
-      selPrestamoEmp.innerHTML = "";
-      empleados.forEach(function (emp) {
-        var u = emp.usuarios || {};
-        var opt = document.createElement("option");
-        opt.value = emp.id_empleado; opt.textContent = u.nombre || emp.nombre || "—";
-        selPrestamoEmp.appendChild(opt);
-      });
+      empleadosCache = empleados;
+      usuariosCache = usuarios;
+      prestamosCache = prestamos;
+      renderizarListaEmpleados();
+      renderizarListaPrestamos();
     });
   }
 
@@ -7641,7 +7795,9 @@ against the dark UI.
     }).then(function () {
       prefijoOT = prefOT;
       prefijoFactura = prefFactura;
-      return cargarConfiguracion();
+      // Todos los campos ya muestran lo que se acaba de guardar, así que no
+      // hace falta repetir las otras 5 consultas de cargarConfiguracion().
+      mostrarAlertaFlotante("Datos del taller guardados.");
     });
   }, "datos-taller-error"));
 
@@ -7787,10 +7943,18 @@ against the dark UI.
     if (!idUsuario) { mostrarError("empleado-error", "No hay usuarios disponibles para agregar (o ya todos son empleados)."); return; }
     if (!(salario >= 0)) { mostrarError("empleado-error", "Escribe un salario base válido."); return; }
     return restRequest("POST", "empleados", { body: { id_usuario: idUsuario, salario_base: salario, tipo_contrato: contrato, aplica_carga_prestacional: cargaPrestacional } })
-      .then(function () {
+      .then(function (filas) {
         $("empleado-salario").value = "";
         $("empleado-carga-prestacional").checked = false;
-        return cargarConfiguracion();
+        var nuevo = filas && filas[0];
+        if (nuevo) {
+          // El servidor no devuelve el usuario relacionado, así que lo
+          // completamos desde el caché ya cargado para que se vea el nombre
+          // y el rol de una vez, sin volver a pedir las otras 5 consultas.
+          nuevo.usuarios = usuariosCache.filter(function (u) { return u.id_usuario === nuevo.id_usuario; })[0] || null;
+          empleadosCache.unshift(nuevo);
+          renderizarListaEmpleados();
+        }
       });
   }, "empleado-error"));
 
@@ -7802,10 +7966,15 @@ against the dark UI.
     if (!idEmpleado) { mostrarError("prestamo-error", "Agrega primero un empleado en Configuración."); return; }
     if (!concepto || !(monto > 0)) { mostrarError("prestamo-error", "Escribe el concepto y un monto válido."); return; }
     return restRequest("POST", "prestamos", { body: { id_empleado: idEmpleado, concepto: concepto, monto_total: monto } })
-      .then(function () {
+      .then(function (filas) {
         $("prestamo-concepto").value = "";
         $("prestamo-monto").value = "";
-        return cargarConfiguracion();
+        var nuevo = filas && filas[0];
+        if (nuevo) {
+          nuevo.empleados = empleadosCache.filter(function (e) { return e.id_empleado === nuevo.id_empleado; })[0] || null;
+          prestamosCache.unshift(nuevo);
+          renderizarListaPrestamos();
+        }
       });
   }, "prestamo-error"));
 
@@ -7917,29 +8086,10 @@ against the dark UI.
     return contador;
   }
 
-  // Texto del "salario base" de una liquidación ya guardada, según haya
-  // sido pago por día (Juan Andrade), quincena estándar (mitad exacta del
-  // mensual) o un período prorrateado por días (caso especial, no quincena).
-  function textoBaseLiquidacion(l) {
-    if (l.es_pago_por_dia) {
-      var dias = l.dias_pagados || 0;
-      return "Pago por día " + formatoMoneda(l.salario_base) + " (" + dias + " día" + (dias === 1 ? "" : "s") + " hábil" + (dias === 1 ? "" : "es") + " × " + formatoMoneda(l.valor_dia_habil) + ")";
-    }
-    if (l.es_quincena_estandar) {
-      return "Base " + formatoMoneda(l.salario_base) + " (quincena completa, mitad de mensual " + formatoMoneda(l.salario_mensual_base) + ")";
-    }
-    return "Base " + formatoMoneda(l.salario_base) + (Number(l.dias_periodo) > 0 ? " (" + l.dias_periodo + "/30 días de mensual " + formatoMoneda(l.salario_mensual_base) + ")" : "");
-  }
-
-  // Muestra la venta que originó la comisión (no solo el resultado en
-  // pesos), para que quede claro de dónde sale cada monto.
-  function textoComisionLiquidacion(l) {
-    if (!(Number(l.num_ordenes_asesor) > 0)) return "";
-    return " (mano de obra vendida " + formatoMoneda(l.valor_mano_obra_asesor) + " × " + (Number(l.pct_comision_mano_obra) * 100).toFixed(2) + "% = " + formatoMoneda(l.comision_mano_obra) +
-      " + margen otros " + formatoMoneda(l.margen_otros_asesor) + " × " + (Number(l.pct_comision_margen_otros) * 100).toFixed(2) + "% = " + formatoMoneda(l.comision_margen_otros) + ")";
-  }
-
-  function cargarNomina() {
+  // Limpia/reinicia el formulario de Nómina (fechas por defecto, resultado
+  // oculto) sin volver a pedir empleados/cuentas/parámetros — se usa después
+  // de registrar una liquidación, donde ninguno de esos tres cambió.
+  function reiniciarFormularioNomina() {
     ocultarError("nomina-error");
     $("nomina-resultado").classList.add("oculto");
     $("nomina-exito").classList.add("oculto");
@@ -7949,10 +8099,14 @@ against the dark UI.
     if (!$("nomina-inicio").value) $("nomina-inicio").value = aFechaISO(primerDiaMes(hoy));
     if (!$("nomina-fin").value) $("nomina-fin").value = aFechaISO(ultimoDiaMes(hoy));
     if (!$("historial-fecha-firma").value) $("historial-fecha-firma").value = aFechaISO(hoy);
+  }
+
+  function cargarNomina() {
+    reiniciarFormularioNomina();
 
     return Promise.all([
       restRequest("GET", "empleados", { query: "select=*,usuarios(nombre,rol)&activo=eq.true&order=creado_en.desc" }),
-      restRequest("GET", "cuentas_taller", { query: "select=id_cuenta,nombre,tipo&activa=eq.true&order=orden.asc" }),
+      obtenerCuentasTaller(),
       restRequest("GET", "parametros_taller", { query: "select=pct_carga_prestacional&id=eq.1" })
     ]).then(function (r) {
       var empleados = r[0] || [];
@@ -8524,10 +8678,12 @@ against the dark UI.
         nominaCalculo = null;
         $("nomina-inicio").value = "";
         $("nomina-fin").value = "";
-        // Recargamos primero (refresca historial y limpia el formulario) y solo
-        // AL FINAL mostramos el mensaje de éxito, para que cargarNomina() no lo
-        // oculte de inmediato y el usuario vea la confirmación con claridad.
-        return cargarNomina().then(function () {
+        // Solo el historial cambió con esta liquidación — los empleados, las
+        // cuentas y los parámetros de nómina siguen igual, así que basta con
+        // reiniciar el formulario y refrescar el historial (2 consultas en
+        // vez de las 4 de cargarNomina()).
+        reiniciarFormularioNomina();
+        return cargarHistorialLiquidaciones().then(function () {
           $("nomina-exito").textContent = "Liquidación registrada. También quedó como egreso real, descontando la cuenta elegida.";
           $("nomina-exito").classList.remove("oculto");
         });
@@ -10989,11 +11145,16 @@ against the dark UI.
     ocultarError("facturacion-error");
     if (!$("resumen-facturas-desde").value) $("resumen-facturas-desde").value = aFechaISO(primerDiaMes(new Date()));
     if (!$("resumen-facturas-hasta").value) $("resumen-facturas-hasta").value = aFechaISO(new Date());
+    // Con "limit" en las tres consultas: sin él, esta pantalla iría pidiendo
+    // TODAS las facturas/pagos/anticipos desde que existe el taller cada vez
+    // que se abre o se marca un pago — cada vez más lento con los años. 300
+    // facturas recientes (con sus pagos y anticipos) alcanza de sobra para
+    // el uso normal de esta pantalla.
     return Promise.all([
-      restRequest("GET", "vista_facturacion", { query: "select=*&order=numero_factura.desc" }),
-      restRequest("GET", "pagos_factura", { query: "select=id_ot,forma_pago,monto&order=fecha_pago.asc" }),
-      restRequest("GET", "cuentas_taller", { query: "select=id_cuenta,nombre&activa=eq.true&order=orden.asc" }),
-      restRequest("GET", "anticipos_ot", { query: "select=id_ot,monto" })
+      restRequest("GET", "vista_facturacion", { query: "select=*&order=numero_factura.desc&limit=300" }),
+      restRequest("GET", "pagos_factura", { query: "select=id_ot,forma_pago,monto&order=fecha_pago.desc&limit=1000" }),
+      obtenerCuentasTaller(),
+      restRequest("GET", "anticipos_ot", { query: "select=id_ot,monto&limit=1000" })
     ]).then(function (r) {
       datosFacturacion = r[0] || [];
       pagosDivididosPorOt = {};
@@ -11308,7 +11469,7 @@ against the dark UI.
       restRequest("GET", "abonos_cuentas_cobrar", { query: "select=monto,forma_pago&fecha=eq." + hoy }),
       restRequest("GET", "abonos_cuentas_pagar", { query: "select=monto&forma_pago=eq.efectivo&fecha=eq." + hoy }),
       restRequest("GET", "pagos_factura", { query: "select=forma_pago,monto&fecha_pago=gte." + hoy + "&fecha_pago=lt." + manana }),
-      restRequest("GET", "cuentas_taller", { query: "select=id_cuenta,nombre,tipo&activa=eq.true&order=orden.asc" }),
+      obtenerCuentasTaller(),
       restRequest("POST", "rpc/rpc_saldo_caja_menor", { body: {} })
     ]).then(function (resultados) {
       var fondoObjetivo = (resultados[0][0] && resultados[0][0].monto_fondo_caja_menor) || 0;
@@ -11638,7 +11799,27 @@ against the dark UI.
   var cxcSeleccionada = null; // { id_ot, saldo }
   var cxpSeleccionada = null; // { id_egreso, saldo }
   var todasCuentasTaller = [];
+  var promesaCuentasTaller = null; // cache: la lista de cuentas casi no cambia, así que se pide una sola vez por sesión y se reutiliza en todas las pantallas
   var saldosPorCuenta = {}; // id_cuenta -> saldo_calculado (para avisar de una vez si no alcanza para una transferencia)
+
+  // Cuentas bancarias/efectivo activas del taller (id, nombre, tipo). Se piden
+  // una sola vez y se comparten entre Contabilidad, Configuración, Nómina,
+  // Cuentas, Facturación y Anticipos, en vez de volver a pedirlas en cada una.
+  // Pasa forzar=true después de crear/editar/desactivar una cuenta para
+  // refrescar el caché.
+  function obtenerCuentasTaller(forzar) {
+    if (!forzar && promesaCuentasTaller) return promesaCuentasTaller;
+    promesaCuentasTaller = restRequest("GET", "cuentas_taller", { query: "select=id_cuenta,nombre,tipo,orden&activa=eq.true&order=orden.asc" })
+      .then(function (filas) {
+        todasCuentasTaller = filas || [];
+        return todasCuentasTaller;
+      })
+      .catch(function (err) {
+        promesaCuentasTaller = null;
+        throw err;
+      });
+    return promesaCuentasTaller;
+  }
 
   function llenarSelectCuentas(select, incluirVacio) {
     select.innerHTML = (incluirVacio ? "<option value=\"\">— Sin especificar —</option>" : "") +
@@ -11751,7 +11932,7 @@ against the dark UI.
 
     var pedidos = [
       restRequest("GET", "vista_cuentas_por_cobrar", { query: "select=*&order=fecha_cierre.asc" }),
-      restRequest("GET", "cuentas_taller", { query: "select=id_cuenta,nombre&activa=eq.true&order=orden.asc" })
+      obtenerCuentasTaller()
     ];
     if (puedeVerCxP) {
       pedidos.push(restRequest("GET", "vista_cuentas_por_pagar", { query: "select=*&order=fecha.asc" }));
@@ -11981,7 +12162,7 @@ against the dark UI.
       $("transf-monto").value = "";
       $("transf-nota").value = "";
       cerrarFormularioTransferencia();
-      return cargarContabilidad();
+      return refrescarSaldosYTransferencias();
     });
   }, "transferencia-error"));
 
@@ -12002,7 +12183,7 @@ against the dark UI.
       query: "id_cuenta=eq." + idCuenta,
       body: { saldo_inicial: monto, fecha_saldo_inicial: fecha }
     }).then(function () {
-      return cargarContabilidad();
+      return refrescarSaldoCuentas();
     }).catch(function (err) {
       btn.disabled = false;
       btn.textContent = "Guardar saldo inicial";
@@ -12517,7 +12698,7 @@ against the dark UI.
     if (!puedeVer) return Promise.resolve();
     return Promise.all([
       restRequest("GET", "anticipos_ot", { query: "select=*&id_ot=eq." + ordenActual.id_ot + "&order=fecha.asc,creado_en.asc" }),
-      restRequest("GET", "cuentas_taller", { query: "select=id_cuenta,nombre&activa=eq.true&order=orden.asc" })
+      obtenerCuentasTaller()
     ]).then(function (r) {
       anticiposOrdenActual = r[0] || [];
       var sel = $("anticipo-cuenta");
