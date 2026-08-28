@@ -251,6 +251,7 @@ against the dark UI.
     <section id="pantalla-inicio" class="pagina pagina-ancha">
       <h1>Panel principal</h1>
       <div id="inicio-error" class="mensaje-error"></div>
+      <div id="alerta-volumen-bajo" class="alerta-atencion"></div>
 
       <div class="tarjeta" id="tarjeta-accesos-rapidos">
         <h2>Accesos rápidos</h2>
@@ -3018,6 +3019,16 @@ against the dark UI.
   /* Variante de éxito de la misma cajita: se usa junto con .mensaje-error
      (que ya trae el padding/tamaño/display) solo para cambiarle el color. */
   .mensaje-exito { background: #f0fdf4; color: var(--verde); border-color: #bbf7d0; }
+  /* Aviso de "vas más lento que de costumbre" en Inicio: mismo formato de
+     cajita que .mensaje-error, pero en tono ámbar (advertencia, no error). */
+  .alerta-atencion {
+    background: #fffbeb; color: #b45309; border: 1px solid #fde68a;
+    padding: 10px 12px; border-radius: 8px; font-size: 15px; margin-bottom: 14px; display: none;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not(.tema-claro) .alerta-atencion { background: rgba(217,119,6,0.14); border-color: rgba(217,119,6,0.35); color: #fbbf24; }
+  }
+  :root.tema-oscuro .alerta-atencion { background: rgba(217,119,6,0.14); border-color: rgba(217,119,6,0.35); color: #fbbf24; }
   .alerta-flotante {
     position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
     z-index: 9999; background: #fef2f2; color: var(--rojo); border: 1px solid #fecaca;
@@ -4149,7 +4160,7 @@ against the dark UI.
       restRequest("GET", "ordenes_trabajo", { query: "select=id_ot,estado,fecha_cierre,tipo_orden" }),
       restRequest("GET", "items", { query: "select=id_item,stock_actual,stock_minimo&stock_gestionado=eq.true" }),
       restRequest("GET", "vista_estado_ordenes", { query: "select=*" }),
-      restRequest("GET", "vista_resultado_mensual", { query: "select=periodo,ordenes_cerradas,ingresos&order=periodo.asc&limit=6" })
+      restRequest("GET", "vista_resultado_mensual", { query: "select=periodo,ordenes_cerradas,ingresos&order=periodo.desc&limit=6" })
     ];
     if (puedeVerFinanzasHoy) {
       pedidosInicio.push(
@@ -4165,7 +4176,10 @@ against the dark UI.
       var ordenes = r[0] || [];
       var itemsStock = r[1] || [];
       var estados = r[2] || [];
-      var resultadoMensual = r[3] || [];
+      // Se pidió en orden descendente (los 6 más recientes) y se voltea aquí
+      // a orden cronológico ascendente, que es lo que espera la gráfica y la
+      // alerta de volumen bajo.
+      var resultadoMensual = (r[3] || []).slice().reverse();
 
       var abiertas = ordenes.filter(function (o) { return o.estado === "recepcion" || o.estado === "diagnostico" || o.estado === "sin_autorizacion"; }).length;
       var enProceso = ordenes.filter(function (o) { return o.estado === "en_proceso" || o.estado === "control_calidad" || o.estado === "listo_entrega"; }).length;
@@ -4187,6 +4201,9 @@ against the dark UI.
         var filaMesActual = resultadoMensual.filter(function (f) { return f.periodo.slice(0, 7) === mesActualEtiqueta; })[0];
         $("kpi-ingresos-mes").textContent = formatoMoneda(filaMesActual ? filaMesActual.ingresos : 0);
       }
+
+      if (puedeVerFinanzas) evaluarAlertaVolumenBajo(resultadoMensual, mesActualEtiqueta, cerradasMes);
+      else $("alerta-volumen-bajo").style.display = "none";
 
       $("tarjeta-resumen-financiero-hoy").classList.toggle("oculto", !puedeVerFinanzasHoy);
       $("tarjeta-ingresos-por-tipo").classList.toggle("oculto", !puedeVerFinanzasHoy);
@@ -4231,6 +4248,40 @@ against the dark UI.
         return cargarProductividadInicio();
       }
     });
+  }
+
+  // Compara el ritmo de vehículos atendidos este mes contra el promedio de
+  // los últimos meses, para avisar temprano si el mes viene flojo (en vez de
+  // descubrirlo semanas después revisando reportes). Se proyecta el mes
+  // completo a partir de lo que va corrido, para no dar una falsa alarma en
+  // los primeros días (cuando es normal ir "atrasado" solo porque falta mes).
+  function evaluarAlertaVolumenBajo(resultadoMensual, mesActualEtiqueta, cerradasMesActual) {
+    var el = $("alerta-volumen-bajo");
+    var hoy = new Date();
+    var diaActual = hoy.getDate();
+    var diasDelMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate();
+
+    // Muy al principio del mes cualquier proyección es puro ruido — se
+    // espera a tener al menos una semana de datos antes de avisar.
+    if (diaActual < 7) { el.style.display = "none"; return; }
+
+    var historial = resultadoMensual
+      .filter(function (f) { return f.periodo.slice(0, 7) !== mesActualEtiqueta; })
+      .slice(-3);
+    if (historial.length < 2) { el.style.display = "none"; return; }
+
+    var promedioAnterior = historial.reduce(function (a, f) { return a + Number(f.ordenes_cerradas || 0); }, 0) / historial.length;
+    if (!(promedioAnterior > 0)) { el.style.display = "none"; return; }
+
+    var proyectado = (cerradasMesActual / diaActual) * diasDelMes;
+    var UMBRAL = 0.75; // avisa si el ritmo proyectado queda 25% o más por debajo del promedio
+
+    if (proyectado < promedioAnterior * UMBRAL) {
+      el.textContent = "⚠ Este mes vas a un ritmo de aproximadamente " + Math.round(proyectado) + " vehículos atendidos, bien por debajo del promedio de los últimos " + historial.length + " meses (" + Math.round(promedioAnterior) + "). Puede ser buen momento para revisar Comunicaciones y contactar clientes que no han vuelto.";
+      el.style.display = "block";
+    } else {
+      el.style.display = "none";
+    }
   }
 
   function dibujarGraficoMensual(filas, puedeVerFinanzas) {
