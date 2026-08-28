@@ -8210,6 +8210,17 @@ against the dark UI.
     };
   }
 
+  // Para el asesor, "Variable/Comisiones" junta la comisión de mano de obra
+  // con la de margen (repuestos/insumos/externos). Esta función arma una
+  // segunda línea, en letra pequeña, que las discrimina — se usa tanto en la
+  // tabla en pantalla como en la planilla impresa (con colores distintos
+  // porque la ventana de impresión no comparte el CSS de la app).
+  function desgloseComisionAsesor(l, colorTexto) {
+    if (!(Number(l.comisiones) > 0)) return "";
+    return "<br><small style=\"color:" + colorTexto + ";\">MO " + (Number(l.pct_comision_mano_obra || 0) * 100).toFixed(2) + "%: " + formatoMoneda(l.comision_mano_obra || 0) +
+      " + Margen " + (Number(l.pct_comision_margen_otros || 0) * 100).toFixed(2) + "%: " + formatoMoneda(l.comision_margen_otros || 0) + "</small>";
+  }
+
   function ordenarLiquidacionesPorEmpleado(liquidaciones) {
     return liquidaciones.slice().sort(function (x, y) {
       var nx = nombreEmpleadoLiquidacion(x), ny = nombreEmpleadoLiquidacion(y);
@@ -8253,7 +8264,7 @@ against the dark UI.
         "<td>" + nombreEmp + "</td>" +
         "<td>" + formatoFechaCorta(new Date(l.periodo_inicio + "T00:00:00")) + " – " + formatoFechaCorta(new Date(l.periodo_fin + "T00:00:00")) + "</td>" +
         "<td>" + formatoMoneda(l.salario_base) + "</td>" +
-        "<td>" + formatoMoneda(variable) + "</td>" +
+        "<td>" + formatoMoneda(variable) + desgloseComisionAsesor(l, "var(--gris)") + "</td>" +
         "<td>" + formatoMoneda(l.bonificaciones) + "</td>" +
         "<td>−" + formatoMoneda(deducciones) + "</td>" +
         "<td><b>" + formatoMoneda(l.total) + "</b></td>";
@@ -8293,7 +8304,7 @@ against the dark UI.
             "<td>" + nombreEmp + "</td>" +
             "<td>" + formatoFechaCorta(new Date(l.periodo_inicio + "T00:00:00")) + " – " + formatoFechaCorta(new Date(l.periodo_fin + "T00:00:00")) + "</td>" +
             "<td>" + formatoMoneda(l.salario_base) + "</td>" +
-            "<td>" + formatoMoneda(Number(l.comisiones || 0) + Number(l.variable_tecnico || 0)) + "</td>" +
+            "<td>" + formatoMoneda(Number(l.comisiones || 0) + Number(l.variable_tecnico || 0)) + desgloseComisionAsesor(l, "#6b7280") + "</td>" +
             "<td>" + formatoMoneda(l.bonificaciones) + "</td>" +
             "<td>−" + formatoMoneda(deducciones) + "</td>" +
             "<td><b>" + formatoMoneda(l.total) + "</b></td>" +
