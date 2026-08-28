@@ -5179,7 +5179,7 @@ against the dark UI.
 
     return Promise.all([
       restRequest("GET", "citas", { query: "select=*,clientes(nombre,telefono),vehiculos(placa)&estado=in.(agendada,confirmada)&fecha_hora=gte." + ahora.toISOString() + "&fecha_hora=lte." + en7dias.toISOString() + "&order=fecha_hora.asc&limit=100" }),
-      restRequest("GET", "ordenes_trabajo", { query: "select=id_ot,numero_ot,fecha_cierre,clientes(nombre,telefono),vehiculos(placa,marca,modelo)&estado=eq.cerrada&fecha_cierre=gte." + hace14dias.toISOString() + "&order=fecha_cierre.desc&limit=100" }),
+      restRequest("GET", "ordenes_trabajo", { query: "select=id_ot,numero_ot,fecha_cierre,resena_solicitada_en,clientes(nombre,telefono),vehiculos(placa,marca,modelo)&estado=eq.cerrada&fecha_cierre=gte." + hace14dias.toISOString() + "&order=fecha_cierre.desc&limit=100" }),
       restRequest("GET", "clientes", { query: "select=id_cliente,nombre,telefono&order=nombre.asc&limit=500" }),
       restRequest("GET", "vista_proximos_mantenimientos", { query: "select=*&limit=50" }),
       restRequest("GET", "parametros_taller", { query: "select=enlace_resenas&id=eq.1" }),
@@ -5197,7 +5197,7 @@ against the dark UI.
       renderizarGarantiasVigentes(r[7] || []);
       var enlaceResenas = (r[4] && r[4][0] && r[4][0].enlace_resenas) || "";
       var ordenesParaResena = ordenesCerradasRecientes.filter(function (o) {
-        return o.fecha_cierre && new Date(o.fecha_cierre) >= hace7dias;
+        return o.fecha_cierre && new Date(o.fecha_cierre) >= hace7dias && !o.resena_solicitada_en;
       });
       renderizarRecordatoriosResena(ordenesParaResena, enlaceResenas);
     });
@@ -5267,7 +5267,14 @@ against the dark UI.
       fila.innerHTML =
         "<span><b>" + (cliente ? cliente.nombre : "Sin cliente") + "</b> <span class=\"fila-detalle\">OT #" + o.numero_ot + (veh ? " · " + veh.placa : "") + "</span><br>" +
         "<span class=\"fila-detalle\">Cerrada el " + fecha + "</span></span>";
-      fila.appendChild(crearBotonWhatsApp(cliente && cliente.telefono, mensaje));
+      fila.appendChild(crearBotonWhatsApp(cliente && cliente.telefono, mensaje, function () {
+        // Se marca como "reseña ya pedida" para no volver a preguntar por la
+        // misma orden, y para poder medir en Reportes qué porcentaje de
+        // entregas incluyó la pedida de reseña.
+        restRequest("PATCH", "ordenes_trabajo", { query: "id_ot=eq." + o.id_ot, body: { resena_solicitada_en: new Date().toISOString() } })
+          .then(function () { fila.remove(); })
+          .catch(function (err) { console.error(err); });
+      }));
       cont.appendChild(fila);
     });
   }
@@ -8966,7 +8973,8 @@ against the dark UI.
       }),
       restRequest("GET", "pausas_avance_ot", {
         query: "select=motivo,hora_inicio,hora_fin,ot_detalle(items(nombre),ordenes_trabajo(numero_ot,tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre)))&hora_inicio=gte." + inicioMes + "&hora_inicio=lt." + inicioMesSiguiente + "&order=hora_inicio.desc&limit=300"
-      })
+      }),
+      restRequest("GET", "ordenes_trabajo", { query: "select=fecha_cierre,resena_solicitada_en&estado=eq.cerrada&fecha_cierre=gte." + inicioMesAnterior + "&fecha_cierre=lt." + inicioMesSiguiente })
     ]).then(function (r) {
       var resultadoMensual = r[0] || [];
       var flujoCaja = r[1] || [];
@@ -8979,6 +8987,7 @@ against the dark UI.
       var pagosDivididosMes = r[8] || [];
       var avanceServiciosMes = r[9] || [];
       var pausasMes = r[10] || [];
+      var ordenesParaResenaKpi = r[11] || [];
 
       // --- KPIs del mes actual ---
       var filaMesActual = resultadoMensual.filter(function (f) { return f.periodo === inicioMes; })[0];
@@ -9001,6 +9010,16 @@ against the dark UI.
       var ticketPromedioAnterior = (horasVendidasMesAnterior && filaMesAnterior && filaMesAnterior.ordenes_cerradas) ? horasVendidasMesAnterior.valor_aplicado / filaMesAnterior.ordenes_cerradas : null;
       var tarifaEfectivaMOAnterior = horasVendidasMesAnterior ? horasVendidasMesAnterior.precio_aplicado_promedio : null;
 
+      // --- % de entregas donde se pidió reseña de Google (meta sugerida: 80%) ---
+      function pctResenaPedida(desde, hastaExclusivo) {
+        var ordenes = ordenesParaResenaKpi.filter(function (o) { return o.fecha_cierre && o.fecha_cierre.slice(0, 10) >= desde && o.fecha_cierre.slice(0, 10) < hastaExclusivo; });
+        if (!ordenes.length) return null;
+        var conResena = ordenes.filter(function (o) { return !!o.resena_solicitada_en; }).length;
+        return (conResena / ordenes.length) * 100;
+      }
+      var pctResenaMes = pctResenaPedida(inicioMes, inicioMesSiguiente);
+      var pctResenaMesAnterior = pctResenaPedida(inicioMesAnterior, inicioMes);
+
       var kpis = [
         { etiqueta: "Utilidad bruta del mes", valor: formatoMoneda(filaMesActual ? filaMesActual.utilidad_bruta : 0),
           flecha: flechaComparativa(filaMesActual ? filaMesActual.utilidad_bruta : null, filaMesAnterior ? filaMesAnterior.utilidad_bruta : null) },
@@ -9014,6 +9033,8 @@ against the dark UI.
           flecha: flechaComparativa(ticketPromedio, ticketPromedioAnterior) },
         { etiqueta: "Autos atendidos este mes", valor: filaMesActual ? String(filaMesActual.ordenes_cerradas) : "0",
           flecha: flechaComparativa(filaMesActual ? filaMesActual.ordenes_cerradas : null, filaMesAnterior ? filaMesAnterior.ordenes_cerradas : null) },
+        { etiqueta: "Reseña pedida en entregas (meta: 80%)", valor: pctResenaMes === null ? "—" : pctResenaMes.toFixed(0) + "%",
+          flecha: flechaComparativa(pctResenaMes, pctResenaMesAnterior) },
         { etiqueta: "Tarifa efectiva de mano de obra", valor: tarifaEfectivaMO === null ? "—" : formatoMoneda(tarifaEfectivaMO) + "/h",
           flecha: flechaComparativa(tarifaEfectivaMO, tarifaEfectivaMOAnterior) }
       ];
