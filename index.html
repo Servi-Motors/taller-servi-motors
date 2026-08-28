@@ -58,11 +58,6 @@ against the dark UI.
   <button type="button" id="alerta-flotante-cerrar" aria-label="Cerrar">×</button>
 </div>
 
-<section id="seccion-error-carga" class="tarjeta oculto" style="background:#fef2f2;border:1px solid #fecaca;max-width:480px;margin:12px auto;">
-  <b style="color:#dc2626;">No se pudo cargar la aplicación</b>
-  <p id="error-carga-detalle" style="font-size:14px;margin-top:8px;"></p>
-</section>
-
 <div id="contenedor-login">
   <section id="pantalla-login" class="tarjeta">
     <h1 class="marca-flex marca-login"><img class="logo-taller logo-taller-grande" alt="Logo"> Taller Servi Motors</h1>
@@ -3649,7 +3644,7 @@ against the dark UI.
         sesionExpiraEn = Date.now() + (data.expires_in || 3600) * 1000;
         usuarioActualId = data.user.id;
         guardarSesionLocal();
-        entrarAlApp(data.user.email);
+        return entrarAlApp(data.user.email);
       })
       .catch(function (err) {
         mostrarError("login-error", "No se pudo iniciar sesión: " + err.message);
@@ -3681,7 +3676,7 @@ against the dark UI.
     sesionExpiraEn = guardada.expira_en;
     refrescarSesion().then(function (data) {
       usuarioActualId = data.user.id;
-      entrarAlApp(data.user.email);
+      return entrarAlApp(data.user.email);
     }).catch(function () {
       borrarSesionLocal();
     });
@@ -3761,6 +3756,16 @@ against the dark UI.
       })
       .then(function () {
         return mostrarPagina("inicio");
+      })
+      .catch(function (err) {
+        // Si algo falla justo al entrar (sesión vencida, sin internet un
+        // instante, etc.) antes esto quedaba a medias sin avisar, o
+        // provocaba una recarga tan rápida que parecía un parpadeo. Ahora
+        // se vuelve a la pantalla de inicio de sesión con un mensaje fijo
+        // que sí se alcanza a leer.
+        $("shell").classList.add("oculto");
+        $("contenedor-login").classList.remove("oculto");
+        mostrarError("login-error", "No se pudo cargar la aplicación: " + err.message + " Vuelve a ingresar tu correo y contraseña.");
       });
   }
 
