@@ -278,11 +278,11 @@ against the dark UI.
           <div class="kpi-numero" id="kpi-ingresos-mes">—</div>
           <div class="kpi-etiqueta">Ingresos estimados (mes)</div>
         </div>
-        <div class="tarjeta-kpi">
+        <div class="tarjeta-kpi" id="tarjeta-kpi-stock-bajo">
           <div class="kpi-numero" id="kpi-stock-bajo">—</div>
           <div class="kpi-etiqueta">Productos con bajo stock</div>
         </div>
-        <div class="tarjeta-kpi">
+        <div class="tarjeta-kpi" id="tarjeta-kpi-garantias">
           <div class="kpi-numero" id="kpi-garantias">—</div>
           <div class="kpi-etiqueta">Garantías activas</div>
         </div>
@@ -3249,12 +3249,21 @@ against the dark UI.
   }
 
   .grid-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 10px; }
-  .tarjeta-kpi { background: var(--tarjeta-bg); border-radius: 12px; padding: 11px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .tarjeta-kpi { background: var(--tarjeta-bg); border-radius: 12px; padding: 11px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 4px solid transparent; transition: border-color 0.15s; }
+  /* Semáforo: para que un vistazo rápido diga si un indicador está bien o mal,
+     sin tener que leer la flechita de comparación. "Positiva" = mejoró o está
+     en un valor sano; "negativa" = empeoró o está en un valor de alerta;
+     "atencion" = amarillo, para avisos que no son graves pero conviene mirar. */
+  .tarjeta-kpi-positiva { border-left-color: var(--verde); }
+  .tarjeta-kpi-negativa { border-left-color: var(--rojo); }
+  .tarjeta-kpi-atencion { border-left-color: #d97706; }
+  :root.tema-oscuro .tarjeta-kpi-atencion { border-left-color: #fbbf24; }
+  @media (prefers-color-scheme: dark) { :root:not(.tema-claro) .tarjeta-kpi-atencion { border-left-color: #fbbf24; } }
   .kpi-numero { font-size: 22px; font-weight: 700; }
   .kpi-etiqueta { font-size: 13px; color: var(--gris); margin-top: 2px; }
   .kpi-flecha { font-size: 14px; font-weight: 600; margin-left: 8px; vertical-align: middle; }
-  .kpi-flecha-arriba { color: #16a34a; }
-  .kpi-flecha-abajo { color: #dc2626; }
+  .kpi-flecha-arriba { color: var(--verde); }
+  .kpi-flecha-abajo { color: var(--rojo); }
   .kpi-flecha-igual { color: var(--gris); }
   .etiqueta-garantia { display: inline-block; font-size: 13px; font-weight: 700; color: #7c3aed; background: #ede9fe; border-radius: 6px; padding: 2px 8px; vertical-align: middle; }
   .etiqueta-devuelta { display: inline-block; font-size: 13px; font-weight: 700; color: #b45309; background: #fef3c7; border-radius: 6px; padding: 2px 8px; vertical-align: middle; }
@@ -4191,9 +4200,11 @@ against the dark UI.
 
       var stockBajo = itemsStock.filter(function (it) { return Number(it.stock_actual) <= Number(it.stock_minimo); }).length;
       $("kpi-stock-bajo").textContent = stockBajo;
+      $("tarjeta-kpi-stock-bajo").className = "tarjeta-kpi" + (stockBajo > 0 ? " tarjeta-kpi-atencion" : "");
 
       var garantiasActivas = ordenes.filter(function (o) { return o.tipo_orden === "garantia" && o.estado !== "cerrada" && o.estado !== "cancelada"; }).length;
       $("kpi-garantias").textContent = garantiasActivas;
+      $("tarjeta-kpi-garantias").className = "tarjeta-kpi" + (garantiasActivas > 0 ? " tarjeta-kpi-atencion" : "");
 
       var puedeVerFinanzas = rolActual === "administrador" || rolActual === "contador";
       $("tarjeta-kpi-ingresos").classList.toggle("oculto", !puedeVerFinanzas);
@@ -8785,6 +8796,29 @@ against the dark UI.
   // Flecha que compara un valor contra el del mes anterior. Verde/arriba si
   // subió, rojo/abajo si bajó, con el % de cambio. Si no hay dato de algún
   // mes, no muestra nada (en vez de un cambio engañoso).
+  // Clase de color para el borde de la tarjeta KPI, según si el indicador
+  // mejoró o empeoró contra el mes anterior (mismo criterio que la flecha).
+  // Se usa para que el color se vea de un vistazo, sin tener que leer el %.
+  function claseSemaforoTendencia(actual, anterior) {
+    if (actual === null || actual === undefined || anterior === null || anterior === undefined) return "";
+    if (anterior === 0) {
+      if (actual === 0) return "";
+      return actual > 0 ? "tarjeta-kpi-positiva" : "tarjeta-kpi-negativa";
+    }
+    var cambioPct = ((actual - anterior) / Math.abs(anterior)) * 100;
+    if (Math.abs(cambioPct) < 0.5) return "";
+    return cambioPct > 0 ? "tarjeta-kpi-positiva" : "tarjeta-kpi-negativa";
+  }
+
+  // Para utilidad bruta/neta el color no depende de si mejoró o empeoró
+  // contra el mes anterior, sino de si el número en sí es positivo o negativo
+  // — una pérdida más chica que el mes pasado sigue siendo una pérdida, y
+  // debe verse roja igual.
+  function claseSemaforoSigno(valor) {
+    if (valor === null || valor === undefined) return "";
+    return valor >= 0 ? "tarjeta-kpi-positiva" : "tarjeta-kpi-negativa";
+  }
+
   function flechaComparativa(actual, anterior) {
     if (actual === null || actual === undefined || anterior === null || anterior === undefined) return "";
     if (anterior === 0) {
@@ -9020,29 +9054,39 @@ against the dark UI.
       var pctResenaMes = pctResenaPedida(inicioMes, inicioMesSiguiente);
       var pctResenaMesAnterior = pctResenaPedida(inicioMesAnterior, inicioMes);
 
+      var utilidadBrutaMes = filaMesActual ? Number(filaMesActual.utilidad_bruta) : null;
+      var utilidadNetaMes = filaMesActual ? Number(filaMesActual.utilidad_neta) : null;
       var kpis = [
         { etiqueta: "Utilidad bruta del mes", valor: formatoMoneda(filaMesActual ? filaMesActual.utilidad_bruta : 0),
-          flecha: flechaComparativa(filaMesActual ? filaMesActual.utilidad_bruta : null, filaMesAnterior ? filaMesAnterior.utilidad_bruta : null) },
+          flecha: flechaComparativa(filaMesActual ? filaMesActual.utilidad_bruta : null, filaMesAnterior ? filaMesAnterior.utilidad_bruta : null),
+          clase: claseSemaforoSigno(utilidadBrutaMes) },
         { etiqueta: "Utilidad neta del mes", valor: formatoMoneda(filaMesActual ? filaMesActual.utilidad_neta : 0),
-          flecha: flechaComparativa(filaMesActual ? filaMesActual.utilidad_neta : null, filaMesAnterior ? filaMesAnterior.utilidad_neta : null) },
+          flecha: flechaComparativa(filaMesActual ? filaMesActual.utilidad_neta : null, filaMesAnterior ? filaMesAnterior.utilidad_neta : null),
+          clase: claseSemaforoSigno(utilidadNetaMes) },
         { etiqueta: "Margen promedio por orden", valor: margenPromedio === null ? "—" : formatoMoneda(margenPromedio),
-          flecha: flechaComparativa(margenPromedio, margenPromedioAnterior) },
+          flecha: flechaComparativa(margenPromedio, margenPromedioAnterior),
+          clase: claseSemaforoTendencia(margenPromedio, margenPromedioAnterior) },
         { etiqueta: "Horas vendidas vs disponibles", valor: productividadHora === null ? "—" : productividadHora.toFixed(0) + "%",
-          flecha: flechaComparativa(productividadHora, productividadHoraAnterior) },
+          flecha: flechaComparativa(productividadHora, productividadHoraAnterior),
+          clase: claseSemaforoTendencia(productividadHora, productividadHoraAnterior) },
         { etiqueta: "Ticket promedio de mano de obra (por orden)", valor: ticketPromedio === null ? "—" : formatoMoneda(ticketPromedio),
-          flecha: flechaComparativa(ticketPromedio, ticketPromedioAnterior) },
+          flecha: flechaComparativa(ticketPromedio, ticketPromedioAnterior),
+          clase: claseSemaforoTendencia(ticketPromedio, ticketPromedioAnterior) },
         { etiqueta: "Autos atendidos este mes", valor: filaMesActual ? String(filaMesActual.ordenes_cerradas) : "0",
-          flecha: flechaComparativa(filaMesActual ? filaMesActual.ordenes_cerradas : null, filaMesAnterior ? filaMesAnterior.ordenes_cerradas : null) },
+          flecha: flechaComparativa(filaMesActual ? filaMesActual.ordenes_cerradas : null, filaMesAnterior ? filaMesAnterior.ordenes_cerradas : null),
+          clase: claseSemaforoTendencia(filaMesActual ? filaMesActual.ordenes_cerradas : null, filaMesAnterior ? filaMesAnterior.ordenes_cerradas : null) },
         { etiqueta: "Reseña pedida en entregas (meta: 80%)", valor: pctResenaMes === null ? "—" : pctResenaMes.toFixed(0) + "%",
-          flecha: flechaComparativa(pctResenaMes, pctResenaMesAnterior) },
+          flecha: flechaComparativa(pctResenaMes, pctResenaMesAnterior),
+          clase: pctResenaMes === null ? "" : (pctResenaMes >= 80 ? "tarjeta-kpi-positiva" : (pctResenaMes >= 50 ? "tarjeta-kpi-atencion" : "tarjeta-kpi-negativa")) },
         { etiqueta: "Tarifa efectiva de mano de obra", valor: tarifaEfectivaMO === null ? "—" : formatoMoneda(tarifaEfectivaMO) + "/h",
-          flecha: flechaComparativa(tarifaEfectivaMO, tarifaEfectivaMOAnterior) }
+          flecha: flechaComparativa(tarifaEfectivaMO, tarifaEfectivaMOAnterior),
+          clase: claseSemaforoTendencia(tarifaEfectivaMO, tarifaEfectivaMOAnterior) }
       ];
       var contKpis = $("reportes-kpis");
       contKpis.innerHTML = "";
       kpis.forEach(function (k) {
         var div = document.createElement("div");
-        div.className = "tarjeta-kpi";
+        div.className = "tarjeta-kpi" + (k.clase ? " " + k.clase : "");
         div.innerHTML = "<div class=\"kpi-numero\">" + k.valor + (k.flecha || "") + "</div><div class=\"kpi-etiqueta\">" + k.etiqueta + "</div>";
         contKpis.appendChild(div);
       });
