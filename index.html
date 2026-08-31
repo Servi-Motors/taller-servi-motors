@@ -8520,7 +8520,7 @@ against the dark UI.
 
     var pedidoOrdenes = filtroRol
       ? restRequest("GET", "ordenes_trabajo", {
-          query: "select=id_ot,ot_detalle(cantidad,precio_aplicado_cliente,costo_interno,items(tipo))&estado=eq.cerrada&" + filtroRol + "=eq." + idUsuario + "&" + filtroFechaOrdenes
+          query: "select=id_ot,ot_detalle(cantidad,precio_aplicado_cliente,costo_interno,estado_autorizacion,items(tipo))&estado=eq.cerrada&" + filtroRol + "=eq." + idUsuario + "&" + filtroFechaOrdenes
         })
       : Promise.resolve([]);
 
@@ -8538,6 +8538,7 @@ against the dark UI.
       var margenOtros = 0, horas = 0, valorManoObra = 0;
       ordenes.forEach(function (ot) {
         (ot.ot_detalle || []).forEach(function (d) {
+          if (d.estado_autorizacion === "rechazado") return; // el cliente lo rechazó: no cuenta para nómina, igual que en facturación
           var cant = Number(d.cantidad);
           var tipo = d.items && d.items.tipo;
           if (tipo === "mano_obra") {
