@@ -103,6 +103,13 @@ against the dark UI.
       <label for="firma-remota-canvas">Firma (dibuja con el dedo o el mouse)</label>
       <canvas id="firma-remota-canvas" style="width:100%;height:150px;border:1px solid var(--borde);border-radius:8px;touch-action:none;background:#fff;display:block;"></canvas>
       <button id="btn-fr-limpiar" type="button" class="secundario">Limpiar firma</button>
+
+      <label class="fr-item-check-label" style="margin-top:10px;">
+        <input type="checkbox" id="fr-acepto-terminos">
+        Declaro que soy la persona autorizada para tomar esta decisión sobre el vehículo, que revisé lo indicado arriba, y que esta firma electrónica tiene la misma validez legal que una firma manuscrita (Ley 527 de 1999).
+      </label>
+      <p class="nota-ayuda">Para dar respaldo a esta autorización quedan registrados, junto con tu firma: la fecha y hora exactas, el número de teléfono al que se envió este enlace, y datos técnicos de tu conexión (dirección IP y dispositivo).</p>
+
       <button id="btn-fr-confirmar" type="button">Confirmar autorización</button>
       <div id="firma-remota-error" class="mensaje-error"></div>
     </div>
@@ -10762,8 +10769,18 @@ against the dark UI.
   function bloqueFirma(datos, etiqueta, conFechaEnBlanco) {
     if (datos && datos.dataUrl) {
       var fechaTexto = datos.fecha ? formatoFechaHoraCorta(new Date(datos.fecha)) : "";
+      // Si la firma se hizo por el enlace remoto (WhatsApp), se deja constancia
+      // impresa de los datos que la respaldan legalmente como firma electrónica
+      // (Ley 527 de 1999): a qué teléfono se envió el enlace y desde qué
+      // conexión se firmó — así queda un comprobante físico, no solo en la BD.
+      var respaldoTexto = datos.remoto
+        ? "<div style=\"font-size:9px;color:#9ca3af;\">Firmado remotamente" +
+          (datos.telefono ? " · Enlace enviado a: " + datos.telefono : "") +
+          (datos.ip ? " · IP: " + datos.ip : "") + "</div>"
+        : "";
       return "<div class=\"firma-linea\"><img src=\"" + datos.dataUrl + "\" style=\"height:46px;display:block;margin-bottom:2px;\" alt=\"Firma\">" +
-        "<div style=\"font-size:10.5px;color:#4b5563;\">" + etiqueta + (datos.nombre ? ": " + datos.nombre : "") + (fechaTexto ? " — " + fechaTexto : "") + "</div></div>";
+        "<div style=\"font-size:10.5px;color:#4b5563;\">" + etiqueta + (datos.nombre ? ": " + datos.nombre : "") + (fechaTexto ? " — " + fechaTexto : "") + "</div>" +
+        respaldoTexto + "</div>";
     }
     if (datos && datos.verbal) {
       var fechaVerbal = datos.fecha ? formatoFechaHoraCorta(new Date(datos.fecha)) : "";
@@ -10924,7 +10941,7 @@ against the dark UI.
     ocultarError(idError);
     var queryOrden = "select=numero_ot,estado,tipo_orden,fecha_apertura,fecha_cierre,diagnostico,numero_factura,estado_pago,token_consulta,clientes(nombre,telefono,direccion,documento),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,vin,kilometraje),asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre)&id_ot=eq." + ordenActual.id_ot;
     var queryItems = "select=cantidad,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,items(nombre,tipo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
-    var queryAutorizacionInicial = "select=fecha_hora,nombre_firmante,firma_imagen,autorizacion_verbal,notas_verbal,usuario_registro:usuarios!autorizaciones_ot_id_usuario_registro_fkey(nombre)&id_ot=eq." + ordenActual.id_ot + "&tipo=eq.inicial&order=fecha_hora.desc&limit=1";
+    var queryAutorizacionInicial = "select=fecha_hora,nombre_firmante,firma_imagen,autorizacion_verbal,notas_verbal,firmado_remoto,ip_firmante,user_agent_firmante,telefono_firmante,usuario_registro:usuarios!autorizaciones_ot_id_usuario_registro_fkey(nombre)&id_ot=eq." + ordenActual.id_ot + "&tipo=eq.inicial&order=fecha_hora.desc&limit=1";
     var queryEntrega = "select=nombre_recibe,firma_tecnico_imagen,firma_cliente_imagen,creado_en&id_ot=eq." + ordenActual.id_ot + "&limit=1";
     var queryChecklistRecepcion = "select=*&id_ot=eq." + ordenActual.id_ot + "&limit=1";
     var queryInspeccionMultipunto = "select=*&id_ot=eq." + ordenActual.id_ot + "&limit=1";
@@ -10981,7 +10998,11 @@ against the dark UI.
             dataUrl: urlsFirma[0],
             verbal: !!autorizacionInicial.autorizacion_verbal,
             nota: autorizacionInicial.notas_verbal || "",
-            registradoPor: autorizacionInicial.usuario_registro ? autorizacionInicial.usuario_registro.nombre : ""
+            registradoPor: autorizacionInicial.usuario_registro ? autorizacionInicial.usuario_registro.nombre : "",
+            remoto: !!autorizacionInicial.firmado_remoto,
+            ip: autorizacionInicial.ip_firmante || "",
+            telefono: autorizacionInicial.telefono_firmante || "",
+            userAgent: autorizacionInicial.user_agent_firmante || ""
           } : null,
           entregaTecnico: entrega ? { nombre: orden.tecnico ? orden.tecnico.nombre : null, dataUrl: urlsFirma[1] } : null,
           entregaCliente: entrega ? { nombre: entrega.nombre_recibe, fecha: entrega.creado_en, dataUrl: urlsFirma[2] } : null
@@ -15111,6 +15132,10 @@ against the dark UI.
       mostrarError("firma-remota-error", "No se capturó ninguna firma. Dibújala en el recuadro.");
       return;
     }
+    if (!$("fr-acepto-terminos").checked) {
+      mostrarError("firma-remota-error", "Debes marcar la casilla de aceptación antes de confirmar.");
+      return;
+    }
     var idsRechazados = [];
     var cantidades = {};
     Array.prototype.slice.call(document.querySelectorAll(".fr-item-fila")).forEach(function (fila) {
@@ -15136,7 +15161,8 @@ against the dark UI.
         p_documento_firmante: documento || null,
         p_firma_imagen: firmaDataUrl,
         p_ids_rechazados: idsRechazados,
-        p_cantidades: cantidades
+        p_cantidades: cantidades,
+        p_acepto_terminos: true
       }
     }).then(function () {
       $("firma-remota-contenido").classList.add("oculto");
