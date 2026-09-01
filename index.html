@@ -1882,6 +1882,21 @@ against the dark UI.
 
       <div class="tarjeta">
         <h2>Historial de egresos</h2>
+        <div class="nota-ayuda">Consulta e imprime (o guarda en PDF) todos los gastos registrados en el rango de fechas que elijas — no se limita a los últimos 20 que ves abajo en pantalla.</div>
+        <div class="fila-2col">
+          <div>
+            <label for="egresos-consulta-desde">Desde</label>
+            <input id="egresos-consulta-desde" type="date">
+          </div>
+          <div>
+            <label for="egresos-consulta-hasta">Hasta</label>
+            <input id="egresos-consulta-hasta" type="date">
+          </div>
+        </div>
+        <button type="button" id="btn-imprimir-historial-egresos">🖨️ Consultar / Imprimir por rango de fechas</button>
+        <div id="egresos-consulta-error" class="mensaje-error"></div>
+
+        <h3 style="margin-top:16px;">Últimos 20 registrados</h3>
         <div class="tabla-scroll">
           <table class="tabla-datos" id="tabla-egresos">
             <thead>
@@ -7624,12 +7639,94 @@ against the dark UI.
   // estaba en Contabilidad) — se carga aparte de cargarContabilidad() para
   // no traer esta consulta cuando no hace falta, y viceversa.
   function cargarHistorialEgresos() {
+    if (!$("egresos-consulta-desde").value) $("egresos-consulta-desde").value = aFechaISO(primerDiaMes(new Date()));
+    if (!$("egresos-consulta-hasta").value) $("egresos-consulta-hasta").value = aFechaISO(new Date());
     return restRequest("GET", "egresos", { query: "select=*,ordenes_trabajo(numero_ot),abonos_cuentas_pagar(monto,fecha,forma_pago,cuentas_taller(nombre))&order=fecha.desc,creado_en.desc&limit=20" })
       .then(function (egresos) {
         egresosCache = egresos || [];
         renderizarTablaEgresos();
       });
   }
+
+  // Consulta por rango de fechas (imprimible/PDF) del historial de egresos
+  // completo — a diferencia de la tabla de arriba, que solo muestra los
+  // últimos 20 para no recargar la pantalla. Sigue el mismo formato que el
+  // "Resumen de facturas de reparaciones" de Facturación: totales al final
+  // y, además, el desglose entre compras (ya descontadas al cerrar la
+  // orden) y gastos operativos, porque no se deben sumar dos veces al
+  // revisar el resultado del mes.
+  function imprimirHistorialEgresos() {
+    ocultarError("egresos-consulta-error");
+    var desde = $("egresos-consulta-desde").value;
+    var hasta = $("egresos-consulta-hasta").value;
+    if (!desde || !hasta) {
+      mostrarError("egresos-consulta-error", "Elige la fecha desde y la fecha hasta.");
+      return;
+    }
+    if (desde > hasta) {
+      mostrarError("egresos-consulta-error", "La fecha \"desde\" no puede ser posterior a la fecha \"hasta\".");
+      return;
+    }
+    // Abrir la ventana YA (dentro del clic) para que el navegador no la
+    // bloquee — se rellena más abajo cuando ya tengamos los datos.
+    var ventanaPendiente = abrirVentanaImpresionPendiente();
+    var hastaExclusivo = aFechaISO(new Date(new Date(hasta + "T00:00:00").getTime() + 24 * 60 * 60 * 1000));
+    var queryEgresos = "select=*,ordenes_trabajo(numero_ot)&fecha=gte." + desde + "&fecha=lt." + hastaExclusivo + "&order=fecha.asc,creado_en.asc&limit=5000";
+
+    return Promise.all([
+      restRequest("GET", "egresos", { query: queryEgresos }),
+      obtenerDatosTaller()
+    ]).then(function (r) {
+      var egresos = r[0] || [];
+      var taller = r[1] || {};
+
+      var ETIQUETA_ESTADO_PAGO = { pagado: "Pagado", credito: "A crédito" };
+      var filasHtml = egresos.length ? egresos.map(function (eg, i) {
+        var orden = eg.ordenes_trabajo ? prefijoOT + eg.ordenes_trabajo.numero_ot : "—";
+        var soporte = [eg.nit_proveedor, eg.numero_soporte].filter(Boolean).join(" / ") || "—";
+        return "<tr><td>" + (i + 1) + "</td>" +
+          "<td>" + formatoFechaCorta(new Date(eg.fecha + "T00:00:00")) + "</td>" +
+          "<td>" + (eg.concepto || "—") + "</td>" +
+          "<td>" + (eg.proveedor || "—") + "</td>" +
+          "<td>" + soporte + "</td>" +
+          "<td>" + orden + "</td>" +
+          "<td>" + (eg.categoria === "compra" ? "Compra" : "Gasto operativo") + "</td>" +
+          "<td>" + (eg.forma_pago || "—") + "</td>" +
+          "<td>" + (ETIQUETA_ESTADO_PAGO[eg.estado_pago] || eg.estado_pago || "—") + "</td>" +
+          "<td style=\"text-align:right;\"><b>" + formatoMoneda(eg.monto) + "</b></td></tr>";
+      }).join("") : "<tr><td colspan=\"10\" class=\"tabla-vacia\">No hay egresos registrados en este rango de fechas.</td></tr>";
+
+      var totalCompras = egresos.filter(function (eg) { return eg.categoria === "compra"; }).reduce(function (a, eg) { return a + Number(eg.monto || 0); }, 0);
+      var totalGastos = egresos.filter(function (eg) { return eg.categoria !== "compra"; }).reduce(function (a, eg) { return a + Number(eg.monto || 0); }, 0);
+      var totalGeneral = totalCompras + totalGastos;
+
+      var filaTotales = "<tr style=\"font-weight:700;background:#f3f4f6;\"><td colspan=\"9\">TOTAL (" + egresos.length + " egreso" + (egresos.length === 1 ? "" : "s") + ")</td>" +
+        "<td style=\"text-align:right;\">" + formatoMoneda(totalGeneral) + "</td></tr>";
+
+      var resumenHtml = egresos.length
+        ? "<div class=\"bloque-totales\" style=\"text-align:left;\">" +
+          "Total compras (repuestos/insumos ya descontados al cerrar cada orden): <b>" + formatoMoneda(totalCompras) + "</b><br>" +
+          "Total gastos operativos (arriendo, servicios, etc. — sí restan del resultado del mes): <b>" + formatoMoneda(totalGastos) + "</b><br>" +
+          "<span style=\"font-size:14px;\">Total general: <b>" + formatoMoneda(totalGeneral) + "</b></span>" +
+          "</div>"
+        : "";
+
+      var contenido =
+        "<div class=\"nota-periodo\">Egresos registrados desde el " + formatoFechaCorta(new Date(desde + "T00:00:00")) +
+        " hasta el " + formatoFechaCorta(new Date(hasta + "T00:00:00")) + "</div>" +
+        "<table><thead><tr>" +
+        "<th>#</th><th>Fecha</th><th>Concepto</th><th>Proveedor</th><th>NIT/Soporte</th><th>Orden</th><th>Categoría</th><th>Forma de pago</th><th>Estado</th><th>Monto</th>" +
+        "</tr></thead><tbody>" + filasHtml + filaTotales + "</tbody></table>" +
+        resumenHtml;
+
+      var titulo = "Historial de egresos desde el " + formatoFechaCorta(new Date(desde + "T00:00:00")) +
+        " hasta el " + formatoFechaCorta(new Date(hasta + "T00:00:00"));
+      abrirVentanaImpresion(titulo, contenido, taller, null, ventanaPendiente, { horizontal: true, mostrarFechaImpresion: true });
+    }).catch(function (err) {
+      mostrarError("egresos-consulta-error", "No se pudo generar la consulta: " + err.message);
+    });
+  }
+  $("btn-imprimir-historial-egresos").addEventListener("click", conManejoDeErrores(imprimirHistorialEgresos, "egresos-consulta-error"));
 
   $("btn-guardar-horas").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("contab-horas-error");
