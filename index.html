@@ -446,8 +446,22 @@ against the dark UI.
             <input id="nuevo-vehiculo-vin" type="text" maxlength="17">
           </div>
         </div>
+        <div class="fila-2col">
+          <div>
+            <label for="nuevo-runt-cedula-propietario">Cédula/NIT del propietario (tarjeta de propiedad)</label>
+            <input id="nuevo-runt-cedula-propietario" type="text" placeholder="Solo si es distinto al cliente de arriba">
+          </div>
+          <div>
+            <label for="nuevo-runt-tipo-propietario">Tipo de documento del propietario</label>
+            <select id="nuevo-runt-tipo-propietario">
+              <option value="CC">Cédula (CC)</option>
+              <option value="NIT">NIT</option>
+            </select>
+          </div>
+        </div>
         <div>
           <button type="button" class="secundario" id="btn-consultar-runt" style="width:auto;padding:6px 14px;font-size:13px;">🔎 Autocompletar con placa (RUNT)</button>
+          <div class="nota-ayuda">El RUNT exige la cédula/NIT del dueño registrado del vehículo, que puede ser distinta de la persona que lo trae al taller. Si no la escribes arriba, se usa la cédula del cliente.</div>
           <div id="runt-nota" class="nota-ayuda oculto"></div>
         </div>
         <div class="fila-2col">
@@ -1235,8 +1249,22 @@ against the dark UI.
             <input id="vehiculo-vin" type="text" style="text-transform:uppercase">
           </div>
         </div>
+        <div class="fila-2col">
+          <div>
+            <label for="vehiculo-runt-cedula-propietario">Cédula/NIT del propietario (tarjeta de propiedad)</label>
+            <input id="vehiculo-runt-cedula-propietario" type="text" placeholder="Solo si es distinto al cliente dueño de arriba">
+          </div>
+          <div>
+            <label for="vehiculo-runt-tipo-propietario">Tipo de documento del propietario</label>
+            <select id="vehiculo-runt-tipo-propietario">
+              <option value="CC">Cédula (CC)</option>
+              <option value="NIT">NIT</option>
+            </select>
+          </div>
+        </div>
         <div>
           <button type="button" class="secundario" id="btn-consultar-runt-vehiculo" style="width:auto;padding:6px 14px;font-size:13px;">🔎 Autocompletar con placa (RUNT)</button>
+          <div class="nota-ayuda">El RUNT exige la cédula/NIT del dueño registrado del vehículo, que puede ser distinta del cliente que lo trae al taller. Si no la escribes arriba, se usa la cédula del cliente dueño seleccionado.</div>
           <div id="runt-nota-vehiculo" class="nota-ayuda oculto"></div>
         </div>
 
@@ -6469,6 +6497,8 @@ against the dark UI.
     $("vehiculo-organismo-transito").value = v.organismo_transito || "";
     $("vehiculo-soat").value = v.soat_vencimiento || "";
     $("vehiculo-tecnomecanica").value = v.tecnomecanica_vencimiento || "";
+    $("vehiculo-runt-cedula-propietario").value = "";
+    $("vehiculo-runt-tipo-propietario").value = "CC";
     $("vehiculos-form-titulo").textContent = "Editar vehículo";
     $("btn-guardar-vehiculo").textContent = "Guardar cambios";
     mostrarFormularioVehiculo();
@@ -6480,9 +6510,11 @@ against the dark UI.
       "vehiculo-placa", "vehiculo-vin", "vehiculo-marca", "vehiculo-modelo", "vehiculo-anio", "vehiculo-color",
       "vehiculo-tipo-carroceria", "vehiculo-transmision", "vehiculo-version", "vehiculo-soat", "vehiculo-tecnomecanica",
       "vehiculo-cilindraje", "vehiculo-combustible", "vehiculo-puertas", "vehiculo-numero-motor",
-      "vehiculo-tipo-servicio", "vehiculo-estado-runt", "vehiculo-fecha-matricula", "vehiculo-organismo-transito"
+      "vehiculo-tipo-servicio", "vehiculo-estado-runt", "vehiculo-fecha-matricula", "vehiculo-organismo-transito",
+      "vehiculo-runt-cedula-propietario"
     ].forEach(function (id) { $(id).value = ""; });
     $("vehiculo-km").value = "0";
+    $("vehiculo-runt-tipo-propietario").value = "CC";
     $("runt-nota-vehiculo").classList.add("oculto");
     $("vehiculos-form-titulo").textContent = "Agregar vehículo";
     $("btn-guardar-vehiculo").textContent = "Agregar vehículo";
@@ -6492,9 +6524,11 @@ against the dark UI.
   $("btn-cancelar-edicion-vehiculo").addEventListener("click", reiniciarFormularioVehiculo);
   $("fondo-form-vehiculo").addEventListener("click", reiniciarFormularioVehiculo);
 
-  // Mismo autocompletado por RUNT que en "Nueva orden", pero aquí el
-  // documento del dueño se toma del cliente ya seleccionado en el <select>
-  // (no hay que volver a escribirlo).
+  // El documento del propietario para el RUNT puede ser distinto al del
+  // cliente dueño seleccionado arriba (ej. compra-venta sin traspaso todavía).
+  // Si se llena el campo "Cédula/NIT del propietario" se usa ese; si no,
+  // se usa el del cliente como antes, para no obligar a escribirlo dos veces
+  // cuando es la misma persona.
   $("btn-consultar-runt-vehiculo").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("vehiculos-error");
     $("runt-nota-vehiculo").classList.add("oculto");
@@ -6502,21 +6536,25 @@ against the dark UI.
     var idCliente = $("vehiculo-cliente").value;
     var placa = $("vehiculo-placa").value.trim().toUpperCase();
     var infoCliente = clientesInfoPorIdVehiculo[idCliente];
+    var documentoPropietario = $("vehiculo-runt-cedula-propietario").value.trim();
 
     if (!placa) {
       mostrarError("vehiculos-error", "Escribe la placa antes de consultar el RUNT.");
       return;
     }
-    if (!idCliente || !infoCliente) {
-      mostrarError("vehiculos-error", "Primero elige el cliente dueño del vehículo (arriba), para poder usar su cédula/NIT en la consulta.");
+    if (!documentoPropietario && (!idCliente || !infoCliente)) {
+      mostrarError("vehiculos-error", "Primero elige el cliente dueño del vehículo (arriba), o escribe la cédula/NIT del propietario registrado en el RUNT si es distinto.");
       return;
     }
-    if (!infoCliente.documento) {
-      mostrarError("vehiculos-error", "El cliente \"" + infoCliente.nombre + "\" no tiene cédula/NIT registrada. Agrégala en la pantalla Clientes antes de consultar el RUNT.");
+    var documento = documentoPropietario || (infoCliente && infoCliente.documento);
+    if (!documento) {
+      mostrarError("vehiculos-error", "El RUNT exige la cédula o NIT del propietario registrado del vehículo (puede ser distinta a la del cliente dueño). Escríbela en \"Cédula/NIT del propietario\", o agrégala al cliente \"" + (infoCliente ? infoCliente.nombre : "") + "\" en la pantalla Clientes.");
       return;
     }
 
-    var docType = infoCliente.tipo === "empresa" ? "NIT" : "CC";
+    var docType = documentoPropietario
+      ? $("vehiculo-runt-tipo-propietario").value
+      : (infoCliente.tipo === "empresa" ? "NIT" : "CC");
     var btn = $("btn-consultar-runt-vehiculo");
     var textoOriginal = btn.textContent;
     btn.disabled = true;
@@ -6529,7 +6567,7 @@ against the dark UI.
         "Authorization": "Bearer " + accessToken,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ placa: placa, docType: docType, docNumber: infoCliente.documento })
+      body: JSON.stringify({ placa: placa, docType: docType, docNumber: documento })
     }, 25000).then(function (res) {
       return res.text().then(function (text) {
         var data = text ? JSON.parse(text) : null;
@@ -10122,8 +10160,9 @@ against the dark UI.
     clienteExistenteIdOrden = null;
     $("nuevo-cliente-buscar").value = "";
     $("nuevo-cliente-encontrado-nota").classList.add("oculto");
-    ["nuevo-cliente-nombre", "nuevo-cliente-documento", "nuevo-cliente-telefono", "nuevo-cliente-correo", "nuevo-cliente-direccion"].forEach(function (id) { $(id).value = ""; });
+    ["nuevo-cliente-nombre", "nuevo-cliente-documento", "nuevo-cliente-telefono", "nuevo-cliente-correo", "nuevo-cliente-direccion", "nuevo-runt-cedula-propietario"].forEach(function (id) { $(id).value = ""; });
     $("nuevo-cliente-tipo").value = "particular";
+    $("nuevo-runt-tipo-propietario").value = "CC";
     return restRequest("GET", "clientes", { query: "select=id_cliente,nombre,documento,tipo,telefono,correo,direccion&order=nombre.asc&limit=1000" })
       .then(function (filas) {
         clientesCacheOrden = filas || [];
@@ -10168,19 +10207,25 @@ against the dark UI.
     $("runt-nota").classList.add("oculto");
 
     var placa = $("nuevo-vehiculo-placa").value.trim().toUpperCase();
-    var documento = $("nuevo-cliente-documento").value.trim();
-    var tipoCliente = $("nuevo-cliente-tipo").value;
+    // El documento del propietario (para el RUNT) puede ser distinto al del
+    // cliente que trae el carro (ej. compra-venta sin traspaso todavía) —
+    // por eso hay un campo aparte; si no se llena, se usa el del cliente
+    // como antes, para no obligar a escribirlo dos veces cuando es la misma persona.
+    var documento = $("nuevo-runt-cedula-propietario").value.trim() || $("nuevo-cliente-documento").value.trim();
+    var tipoDocPropietario = $("nuevo-runt-cedula-propietario").value.trim()
+      ? $("nuevo-runt-tipo-propietario").value
+      : ($("nuevo-cliente-tipo").value === "empresa" ? "NIT" : "CC");
 
     if (!placa) {
       mostrarError("nuevo-error", "Escribe la placa antes de consultar el RUNT.");
       return;
     }
     if (!documento) {
-      mostrarError("nuevo-error", "El RUNT exige la cédula o NIT del propietario del vehículo. Escríbela en \"Cédula / NIT\" antes de consultar.");
+      mostrarError("nuevo-error", "El RUNT exige la cédula o NIT del propietario registrado del vehículo (puede ser distinta a la del cliente). Escríbela en \"Cédula/NIT del propietario\" o en \"Cédula / NIT\" del cliente si es la misma persona.");
       return;
     }
 
-    var docType = tipoCliente === "empresa" ? "NIT" : "CC";
+    var docType = tipoDocPropietario;
     var btn = $("btn-consultar-runt");
     var textoOriginal = btn.textContent;
     btn.disabled = true;
