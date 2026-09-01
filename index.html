@@ -1731,7 +1731,7 @@ against the dark UI.
 
       <div class="fila-2col">
         <div>
-          <label for="contab-tramo-horas-ticket-asesor">Comisión a asesor — tope de horas promedio por ticket</label>
+          <label for="contab-tramo-horas-ticket-asesor">Comisión a asesor — tope del ticket promedio, en horas de mano de obra equivalentes</label>
           <input id="contab-tramo-horas-ticket-asesor" type="number" min="0" step="0.01" placeholder="Ej. 3">
         </div>
         <div>
@@ -1739,6 +1739,7 @@ against the dark UI.
           <input id="contab-pct-comision-mo-baja" type="number" min="0" max="100" step="0.01" placeholder="Ej. 3">
         </div>
       </div>
+      <div class="nota-ayuda">El ticket promedio del asesor ahora se compara en PESOS, no en horas: se toma la venta de mano de obra del período ÷ número de órdenes pagadas, y se compara contra este tope convertido a pesos (horas × precio de mano de obra actual, de arriba). Así, si el precio de la hora sube, el tope en pesos sube solo también, sin tener que venir a cambiarlo aquí.</div>
       <div class="fila-2col">
         <div>
           <label for="contab-pct-comision-mo-alta">Comisión a asesor — % de mano de obra si el ticket promedio ALCANZA o SUPERA el tope</label>
@@ -3922,17 +3923,29 @@ against the dark UI.
   // app un rato), se refresca de inmediato en vez de esperar al próximo tic.
   // También hay un botón "Actualizar ahora" en el Tablero por si alguien
   // no quiere ni esperar esos 2 segundos.
+  // OJO: si el wifi está débil o lenta (muy común en un taller, entre
+  // metal y máquinas), una sola de estas actualizaciones puede tardar más
+  // de 2 segundos. Sin esta bandera, el intervalo de abajo lanzaría una
+  // petición nueva encima de la anterior cada 2s sin esperar respuesta —
+  // y como el navegador solo permite unas pocas conexiones a la vez hacia
+  // el mismo servidor, esas peticiones amontonadas terminan tapando el
+  // turno de cualquier otra acción (como guardar algo), y la app entera se
+  // siente "trabada" aunque el wifi del aparato siga conectado.
+  var refrescoOrdenesEnCurso = false;
   function refrescarPantallaOrdenesSiAplica() {
     if (document.hidden) return;
     if (!accessToken) return;
+    if (refrescoOrdenesEnCurso) return;
     if ($("shell").classList.contains("oculto")) return;
     if ($("pantalla-app").classList.contains("oculto")) return;
 
-    if (ordenActual && !$("tarjeta-items").classList.contains("oculto")) {
-      cargarItemsDeOrden().catch(function (err) { console.error(err); });
-    } else {
-      cargarTableroOrdenes().catch(function (err) { console.error(err); });
-    }
+    refrescoOrdenesEnCurso = true;
+    var promesa = (ordenActual && !$("tarjeta-items").classList.contains("oculto"))
+      ? cargarItemsDeOrden()
+      : cargarTableroOrdenes();
+    promesa.catch(function (err) { console.error(err); }).then(function () {
+      refrescoOrdenesEnCurso = false;
+    });
   }
   setInterval(refrescarPantallaOrdenesSiAplica, 2000);
   // En el celular, "visibilitychange" no siempre avisa a tiempo cuando se
@@ -6509,7 +6522,7 @@ against the dark UI.
     btn.disabled = true;
     btn.textContent = "Consultando…";
 
-    return fetch(SUPABASE_URL + "/functions/v1/consulta-runt", {
+    return fetchConTiempoLimite(SUPABASE_URL + "/functions/v1/consulta-runt", {
       method: "POST",
       headers: {
         "apikey": SUPABASE_KEY,
@@ -6517,7 +6530,7 @@ against the dark UI.
         "Content-Type": "application/json"
       },
       body: JSON.stringify({ placa: placa, docType: docType, docNumber: infoCliente.documento })
-    }).then(function (res) {
+    }, 25000).then(function (res) {
       return res.text().then(function (text) {
         var data = text ? JSON.parse(text) : null;
         if (!res.ok) throw new Error((data && data.error) || "No se pudo consultar el RUNT.");
@@ -8431,7 +8444,7 @@ against the dark UI.
           (horasExtra > 0 ? "<tr><td>&nbsp;&nbsp;· " + horasExtra.toFixed(2) + " horas excedentes (" + formatoMoneda(l.tarifa_hora_extra) + "/h)</td><td>" + formatoMoneda(horasExtra * Number(l.tarifa_hora_extra)) + "</td></tr>" : "")
         : "";
       var filasComision = Number(l.num_ordenes_asesor) > 0
-        ? "<tr><td>&nbsp;&nbsp;· Mano de obra: " + formatoMoneda(l.valor_mano_obra_asesor) + " × " + (Number(l.pct_comision_mano_obra) * 100).toFixed(2) + "% (ticket prom. " + Number(l.ticket_promedio_horas).toFixed(2) + " h en " + l.num_ordenes_asesor + " órdenes)</td><td>" + formatoMoneda(l.comision_mano_obra) + "</td></tr>" +
+        ? "<tr><td>&nbsp;&nbsp;· Mano de obra: " + formatoMoneda(l.valor_mano_obra_asesor) + " × " + (Number(l.pct_comision_mano_obra) * 100).toFixed(2) + "% (ticket prom. " + formatoMoneda(l.ticket_promedio_horas) + " en " + l.num_ordenes_asesor + " órdenes)</td><td>" + formatoMoneda(l.comision_mano_obra) + "</td></tr>" +
           "<tr><td>&nbsp;&nbsp;· Margen repuestos/insumos/externos: " + formatoMoneda(l.margen_otros_asesor) + " × " + (Number(l.pct_comision_margen_otros) * 100).toFixed(2) + "%</td><td>" + formatoMoneda(l.comision_margen_otros) + "</td></tr>"
         : "";
       var contenido =
@@ -8524,7 +8537,7 @@ against the dark UI.
         })
       : Promise.resolve([]);
 
-    var pedidoParametros = restRequest("GET", "parametros_taller", { query: "select=tramo_horas_tecnico,tarifa_hora_tecnico_base,tarifa_hora_tecnico_extra,tramo_horas_ticket_asesor,pct_comision_mo_baja,pct_comision_mo_alta,pct_comision_margen_otros&id=eq.1" });
+    var pedidoParametros = restRequest("GET", "parametros_taller", { query: "select=tramo_horas_tecnico,tarifa_hora_tecnico_base,tarifa_hora_tecnico_extra,tramo_horas_ticket_asesor,pct_comision_mo_baja,pct_comision_mo_alta,pct_comision_margen_otros,precio_mano_obra&id=eq.1" });
     var pedidoPrestamos = restRequest("GET", "prestamos", { query: "select=*&id_empleado=eq." + idEmpleado + "&saldo_pendiente=gt.0&order=fecha.asc" });
 
     btnCalcular.disabled = true;
@@ -8532,7 +8545,7 @@ against the dark UI.
 
     return Promise.all([pedidoOrdenes, pedidoParametros, pedidoPrestamos]).then(function (r) {
       var ordenes = r[0] || [];
-      var parametros = (r[1] && r[1][0]) || { tramo_horas_tecnico: 0, tarifa_hora_tecnico_base: 0, tarifa_hora_tecnico_extra: 0, tramo_horas_ticket_asesor: 0, pct_comision_mo_baja: 0, pct_comision_mo_alta: 0, pct_comision_margen_otros: 0 };
+      var parametros = (r[1] && r[1][0]) || { tramo_horas_tecnico: 0, tarifa_hora_tecnico_base: 0, tarifa_hora_tecnico_extra: 0, tramo_horas_ticket_asesor: 0, pct_comision_mo_baja: 0, pct_comision_mo_alta: 0, pct_comision_margen_otros: 0, precio_mano_obra: 0 };
       var prestamos = r[2] || [];
 
       var margenOtros = 0, horas = 0, valorManoObra = 0;
@@ -8556,13 +8569,21 @@ against the dark UI.
       var horasTramoBase = rol === "tecnico" ? Math.min(horas, tramoHoras) : 0;
       var horasTramoExtra = rol === "tecnico" ? Math.max(0, horas - tramoHoras) : 0;
 
-      // Comisión de asesor: % de mano de obra según el ticket promedio (horas de mano de
-      // obra ÷ n.º de órdenes cerradas del período), más % del margen de repuestos/insumos/externos.
+      // Comisión de asesor: % de mano de obra según el ticket promedio EN PESOS (venta de
+      // mano de obra ÷ n.º de órdenes pagadas del período), comparado contra un tope que
+      // también está en pesos: horas de mano de obra "equivalentes" (tramo_horas_ticket_asesor,
+      // ej. 3h) × el precio de mano de obra vigente hoy. Así, si el precio de la hora cambia,
+      // el tope en pesos se ajusta solo, sin tener que venir a esta pantalla a recalcularlo.
+      // (Antes se comparaba el ticket promedio en horas contra ese mismo "3" directamente —
+      // se cambió a pesos porque son dos cosas muy distintas: horas mide cuánto tiempo tomó
+      // la orden en promedio, pesos mide cuánta plata dejó.)
       var numOrdenes = ordenes.length;
-      var ticketPromedioHoras = numOrdenes > 0 ? (horas / numOrdenes) : 0;
+      var ticketPromedioPesos = numOrdenes > 0 ? (valorManoObra / numOrdenes) : 0;
       var tramoHorasTicketAsesor = Number(parametros.tramo_horas_ticket_asesor);
+      var precioManoObraActual = Number(parametros.precio_mano_obra) || 0;
+      var tramoPesosTicketAsesor = tramoHorasTicketAsesor * precioManoObraActual;
       var pctComisionMoAplicado = rol === "asesor"
-        ? (ticketPromedioHoras >= tramoHorasTicketAsesor ? Number(parametros.pct_comision_mo_alta) : Number(parametros.pct_comision_mo_baja))
+        ? (ticketPromedioPesos >= tramoPesosTicketAsesor ? Number(parametros.pct_comision_mo_alta) : Number(parametros.pct_comision_mo_baja))
         : 0;
       var pctComisionMargenAplicado = rol === "asesor" ? Number(parametros.pct_comision_margen_otros) : 0;
       var comisionManoObra = rol === "asesor" ? valorManoObra * pctComisionMoAplicado : 0;
@@ -8580,7 +8601,7 @@ against the dark UI.
         periodo_fin: fin,
         horas_mano_obra_asesor: horas,
         num_ordenes_asesor: numOrdenes,
-        ticket_promedio_horas: ticketPromedioHoras,
+        ticket_promedio_horas: ticketPromedioPesos,
         valor_mano_obra_asesor: valorManoObra,
         pct_comision_mano_obra: pctComisionMoAplicado,
         comision_mano_obra: comisionManoObra,
@@ -8604,7 +8625,7 @@ against the dark UI.
       };
 
       var detalleCalculo = rol === "asesor"
-        ? ("Comisión: " + formatoMoneda(comisiones) + " — " + numOrdenes + " órdenes pagadas por completo en este período (por fecha de pago, no de cierre), ticket promedio " + ticketPromedioHoras.toFixed(2) + " h de mano de obra (tope " + tramoHorasTicketAsesor + " h)"
+        ? ("Comisión: " + formatoMoneda(comisiones) + " — " + numOrdenes + " órdenes pagadas por completo en este período (por fecha de pago, no de cierre), ticket promedio " + formatoMoneda(ticketPromedioPesos) + " de mano de obra por orden (tope " + formatoMoneda(tramoPesosTicketAsesor) + " = " + tramoHorasTicketAsesor + " h × " + formatoMoneda(precioManoObraActual) + "/h)"
             + "<br>&nbsp;&nbsp;Mano de obra: " + formatoMoneda(valorManoObra) + " × " + (pctComisionMoAplicado * 100).toFixed(2) + "% = " + formatoMoneda(comisionManoObra)
             + "<br>&nbsp;&nbsp;Margen repuestos/insumos/externos: " + formatoMoneda(margenOtros) + " × " + (pctComisionMargenAplicado * 100).toFixed(2) + "% = " + formatoMoneda(comisionMargenOtros)
             + "<br><span style=\"color:var(--gris);\">Las órdenes que quedaron a crédito se liquidan cuando el cliente termine de pagarlas por completo.</span>")
@@ -8737,7 +8758,7 @@ against the dark UI.
           horas_trabajadas: nominaCalculo.horas_trabajadas,
           horas_mano_obra_asesor: nominaCalculo.horas_mano_obra_asesor,
           num_ordenes_asesor: nominaCalculo.num_ordenes_asesor,
-          ticket_promedio_horas: nominaCalculo.ticket_promedio_horas,
+          ticket_promedio_horas: nominaCalculo.ticket_promedio_horas, // OJO: a pesar del nombre de la columna, aquí se guarda el ticket promedio EN PESOS (venta MO ÷ órdenes), no en horas — ver nota en cargarNomina().
           valor_mano_obra_asesor: nominaCalculo.valor_mano_obra_asesor,
           pct_comision_mano_obra: nominaCalculo.pct_comision_mano_obra,
           comision_mano_obra: nominaCalculo.comision_mano_obra,
@@ -10155,7 +10176,7 @@ against the dark UI.
     btn.disabled = true;
     btn.textContent = "Consultando…";
 
-    return fetch(SUPABASE_URL + "/functions/v1/consulta-runt", {
+    return fetchConTiempoLimite(SUPABASE_URL + "/functions/v1/consulta-runt", {
       method: "POST",
       headers: {
         "apikey": SUPABASE_KEY,
@@ -10163,7 +10184,7 @@ against the dark UI.
         "Content-Type": "application/json"
       },
       body: JSON.stringify({ placa: placa, docType: docType, docNumber: documento })
-    }).then(function (res) {
+    }, 25000).then(function (res) {
       return res.text().then(function (text) {
         var data = text ? JSON.parse(text) : null;
         if (!res.ok) throw new Error((data && data.error) || "No se pudo consultar el RUNT.");
@@ -10272,7 +10293,7 @@ against the dark UI.
     });
   }), "nuevo-error"));
 
-  $("btn-abrir-orden").addEventListener("click", conManejoDeErrores(function () {
+  $("btn-abrir-orden").addEventListener("click", conManejoDeErrores(conBotonOcupado($("btn-abrir-orden"), "Abriendo…", function () {
     ocultarError("orden-error");
 
     if (!vehiculoSeleccionado) {
@@ -10337,7 +10358,7 @@ against the dark UI.
     }).catch(function (err) {
       mostrarError("orden-error", "No se pudo abrir la orden: " + err.message);
     });
-  }, "orden-error"));
+  }), "orden-error"));
 
   $("btn-otra-orden").addEventListener("click", function () {
     reiniciarFlujoOrden();
