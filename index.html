@@ -8520,6 +8520,16 @@ against the dark UI.
     finExclusivo.setDate(finExclusivo.getDate() + 1);
     var finExclusivoISO = aFechaISO(finExclusivo);
 
+    // Las columnas fecha_pago/fecha_cierre son "timestamp with time zone".
+    // Si comparamos contra una fecha simple ("2026-09-01"), Postgres la toma
+    // como medianoche UTC — pero el taller opera en hora de Bogotá (UTC-5).
+    // Una orden pagada el último día del período a las 11pm en Bogotá queda
+    // guardada como las 4am UTC del día siguiente, y con la comparación vieja
+    // quedaba fuera del período por error. Por eso anclamos el rango al
+    // inicio del día en Bogotá (-05:00), no en UTC.
+    var inicioBogotaISO = inicio + "T00:00:00-05:00";
+    var finExclusivoBogotaISO = finExclusivoISO + "T00:00:00-05:00";
+
     var filtroRol = esPagoPorDia ? null : (rol === "asesor" ? "id_asesor" : (rol === "tecnico" ? "id_tecnico" : null));
 
     // Al técnico se le paga la mano de obra de lo que vendió, sin importar si el
@@ -8528,8 +8538,8 @@ against the dark UI.
     // por completo — así que para el asesor se filtra por fecha en que quedó pagada
     // (fecha_pago), no por fecha de cierre, y solo las que ya están 100% pagadas.
     var filtroFechaOrdenes = rol === "asesor"
-      ? "estado_pago=eq.pagada&fecha_pago=gte." + inicio + "&fecha_pago=lt." + finExclusivoISO
-      : "fecha_cierre=gte." + inicio + "&fecha_cierre=lt." + finExclusivoISO;
+      ? "estado_pago=eq.pagada&fecha_pago=gte." + inicioBogotaISO + "&fecha_pago=lt." + finExclusivoBogotaISO
+      : "fecha_cierre=gte." + inicioBogotaISO + "&fecha_cierre=lt." + finExclusivoBogotaISO;
 
     var pedidoOrdenes = filtroRol
       ? restRequest("GET", "ordenes_trabajo", {
