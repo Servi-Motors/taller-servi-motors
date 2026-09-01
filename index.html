@@ -20,6 +20,10 @@ against the dark UI.
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Se cambia este valor cada vez que se sube una versión nueva de este
+     archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
+     cuando alguien tiene abierta una versión vieja en el celular. -->
+<meta name="app-build" content="2026-09-01-1">
 <title>Taller Servi Motors – Panel principal</title>
 <script>
   // Aplica el tema guardado (si la persona ya lo eligió a mano) antes de que
@@ -3746,6 +3750,46 @@ against the dark UI.
       refrescarSesion().catch(function (err) { console.error("No se pudo renovar la sesión de forma preventiva:", err); });
     }
   }, 5 * 60 * 1000);
+
+  // Aviso de versión nueva disponible: el celular de un asesor/técnico
+  // puede quedar horas con esta página abierta, y GitHub Pages no siempre
+  // avisa al navegador que hay un archivo nuevo cuando Jaime sube una
+  // corrección. Cada cierto tiempo se pide el mismo documento otra vez
+  // "sin caché" y se compara la etiqueta de versión — si cambió, se avisa
+  // con un aviso discreto en vez de recargar solo (recargar de golpe podría
+  // interrumpir a alguien a mitad de firmar o de llenar un formulario).
+  var VERSION_APP_ACTUAL = (function () {
+    var m = document.querySelector('meta[name="app-build"]');
+    return m ? m.getAttribute("content") : "";
+  })();
+  var avisoVersionNuevaMostrado = false;
+  function mostrarAvisoVersionNueva() {
+    if (avisoVersionNuevaMostrado) return;
+    avisoVersionNuevaMostrado = true;
+    var aviso = document.createElement("div");
+    aviso.textContent = "Hay una versión más nueva de la app. Toca aquí para actualizar (no perderás la sesión).";
+    aviso.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#111827;color:#fff;" +
+      "padding:12px 16px;text-align:center;font-size:14px;cursor:pointer;box-shadow:0 -2px 8px rgba(0,0,0,.25);";
+    aviso.addEventListener("click", function () { location.reload(); });
+    document.body.appendChild(aviso);
+  }
+  function verificarVersionNueva() {
+    // Solo tiene sentido dentro de la app ya autenticada (shell visible) —
+    // en las páginas públicas (firma remota, consulta, agendar cita) no se
+    // debe mostrar este aviso a un cliente externo.
+    if (!VERSION_APP_ACTUAL || avisoVersionNuevaMostrado || document.hidden) return;
+    if (!$("shell") || $("shell").classList.contains("oculto")) return;
+    fetchConTiempoLimite(location.href, { cache: "no-store" }, 15000)
+      .then(function (res) { return res.text(); })
+      .then(function (html) {
+        var m = html.match(/<meta name="app-build" content="([^"]*)"/);
+        if (m && m[1] && m[1] !== VERSION_APP_ACTUAL) mostrarAvisoVersionNueva();
+      })
+      .catch(function () { /* sin señal ahora mismo: no molestar, se reintenta solo más tarde */ });
+  }
+  setInterval(verificarVersionNueva, 10 * 60 * 1000);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) verificarVersionNueva(); });
+  window.addEventListener("focus", verificarVersionNueva);
 
   // El técnico solo puede cargar mano de obra (nombre + tiempo) y repuestos/
   // insumos (nombre + cantidad), sin precio. Los trabajos externos y la
@@ -13550,9 +13594,9 @@ against the dark UI.
   function obtenerUrlImagenPrivada(ruta) {
     var headers = { "apikey": SUPABASE_KEY };
     if (accessToken) headers["Authorization"] = "Bearer " + accessToken;
-    return fetch(SUPABASE_URL + "/storage/v1/object/evidencias/" + ruta, {
+    return fetchConTiempoLimite(SUPABASE_URL + "/storage/v1/object/evidencias/" + ruta, {
       headers: headers
-    }).then(function (res) {
+    }, 30000).then(function (res) {
       if (!res.ok) throw new Error("No se pudo cargar la foto.");
       return res.blob();
     }).then(function (blob) { return URL.createObjectURL(blob); });
@@ -13566,7 +13610,7 @@ against the dark UI.
   function obtenerDataUrlImagenPrivada(bucket, ruta) {
     var headers = { "apikey": SUPABASE_KEY };
     if (accessToken) headers["Authorization"] = "Bearer " + accessToken;
-    return fetch(SUPABASE_URL + "/storage/v1/object/" + bucket + "/" + ruta, { headers: headers })
+    return fetchConTiempoLimite(SUPABASE_URL + "/storage/v1/object/" + bucket + "/" + ruta, { headers: headers }, 30000)
       .then(function (res) {
         if (!res.ok) throw new Error("No se pudo cargar la firma.");
         return res.blob();
@@ -13650,17 +13694,82 @@ against the dark UI.
   // "item-error" queda oculto mientras se está en esa etapa).
   var ERROR_POR_ETAPA_EVIDENCIA = { recepcion: "recepcion-error", diagnostico: "item-error", en_proceso: "item-error", control_calidad: "item-error" };
 
+  // Comprime la foto en el propio celular antes de subirla: una foto de
+  // cámara moderna pesa 3-8 MB, y con señal débil en el taller o en campo
+  // eso puede tardar mucho o fallar. Reducirla a un ancho máximo razonable
+  // baja el peso típico a unos cientos de KB sin que se note al ojo. Si
+  // algo falla en el proceso (navegador viejo, imagen dañada, etc.) se sube
+  // la foto original tal cual — esto nunca debe bloquear la subida.
+  function comprimirImagenParaSubir(archivo) {
+    var LADO_MAXIMO = 1600;
+    var CALIDAD = 0.72;
+    if (!archivo || archivo.size < 400 * 1024 || !/^image\//.test(archivo.type || "") || typeof HTMLCanvasElement === "undefined") {
+      return Promise.resolve(archivo);
+    }
+    return new Promise(function (resolve) {
+      var urlObjeto = URL.createObjectURL(archivo);
+      var img = new Image();
+      var terminar = function (resultado) {
+        URL.revokeObjectURL(urlObjeto);
+        resolve(resultado);
+      };
+      img.onload = function () {
+        try {
+          var escala = Math.min(1, LADO_MAXIMO / Math.max(img.width, img.height));
+          var ancho = Math.round(img.width * escala) || img.width;
+          var alto = Math.round(img.height * escala) || img.height;
+          var canvas = document.createElement("canvas");
+          canvas.width = ancho;
+          canvas.height = alto;
+          var ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, ancho, alto);
+          canvas.toBlob(function (blob) {
+            terminar(blob && blob.size > 0 && blob.size < archivo.size ? blob : archivo);
+          }, "image/jpeg", CALIDAD);
+        } catch (e) {
+          terminar(archivo);
+        }
+      };
+      img.onerror = function () { terminar(archivo); };
+      img.src = urlObjeto;
+    });
+  }
+
   function subirEvidencias(etapa, input) {
     var idError = ERROR_POR_ETAPA_EVIDENCIA[etapa] || "item-error";
     ocultarError(idError);
     var archivos = Array.prototype.slice.call(input.files || []);
     if (!archivos.length) return Promise.resolve();
+    // Una foto puede tardar hasta 60s en subir con señal débil — sin este
+    // aviso, la persona ve la pantalla "quieta" y puede pensar que no
+    // funcionó y volver a tomar/elegir la foto, subiéndola dos veces.
+    var ui = UI_EVIDENCIAS[etapa];
+    var elContador = ui ? $(ui.contador) : null;
+    var textoContadorOriginal = elContador ? elContador.textContent : null;
+    var botonesEvidencia = ui ? [$(ui.btnCamara), $(ui.btnArchivo)] : [];
+    if (elContador) elContador.textContent = "Subiendo " + archivos.length + " foto(s)…";
+    botonesEvidencia.forEach(function (b) { if (b) b.disabled = true; });
+    // Nota: en el camino de éxito NO se debe restaurar el texto del
+    // contador aquí — cargarEvidencias(etapa) ya lo deja con el conteo
+    // real y actualizado; sobreescribirlo de nuevo lo dejaría con el
+    // número viejo (antes de subir las fotos nuevas).
+    function restaurarBotonesEvidencias() {
+      botonesEvidencia.forEach(function (b) { if (b) b.disabled = false; });
+    }
+    function restaurarContadorTrasError() {
+      if (elContador && textoContadorOriginal !== null) elContador.textContent = textoContadorOriginal;
+    }
     var subidas = archivos.map(function (archivo) {
       var ruta = ordenActual.id_ot + "/" + etapa + "/" + Date.now() + "-" + Math.random().toString(36).slice(2) + ".jpg";
-      return fetch(SUPABASE_URL + "/storage/v1/object/evidencias/" + ruta, {
-        method: "POST",
-        headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + accessToken, "Content-Type": archivo.type || "image/jpeg" },
-        body: archivo
+      // 60 segundos: una foto de celular puede pesar varios MB y con señal
+      // débil en el taller/campo puede tardar; 60s da margen sin dejar el
+      // botón "congelado" para siempre si de plano no hay conexión.
+      return comprimirImagenParaSubir(archivo).then(function (archivoFinal) {
+        return fetchConTiempoLimite(SUPABASE_URL + "/storage/v1/object/evidencias/" + ruta, {
+          method: "POST",
+          headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + accessToken, "Content-Type": archivoFinal.type || archivo.type || "image/jpeg" },
+          body: archivoFinal
+        }, 60000);
       }).then(function (res) {
         if (!res.ok) return res.text().then(function (t) { throw new Error("No se pudo subir una foto: " + t); });
         return restRequest("POST", "evidencias_ot", {
@@ -13671,8 +13780,13 @@ against the dark UI.
     return Promise.all(subidas).then(function () {
       input.value = "";
       return cargarEvidencias(etapa);
+    }).then(function (v) {
+      restaurarBotonesEvidencias();
+      return v;
     }).catch(function (err) {
       input.value = "";
+      restaurarBotonesEvidencias();
+      restaurarContadorTrasError();
       mostrarError(idError, err.message);
     });
   }
@@ -14070,11 +14184,11 @@ against the dark UI.
       ? Promise.resolve(null)
       : firmaChecklistRecepcion.obtenerBlob().then(function (blob) {
         var ruta = ordenActual.id_ot + "/checklist-" + Date.now() + ".png";
-        return fetch(SUPABASE_URL + "/storage/v1/object/firmas/" + ruta, {
+        return fetchConTiempoLimite(SUPABASE_URL + "/storage/v1/object/firmas/" + ruta, {
           method: "POST",
           headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + accessToken, "Content-Type": "image/png" },
           body: blob
-        }).then(function (res) {
+        }, 30000).then(function (res) {
           if (!res.ok) return res.text().then(function (t) { throw new Error("No se pudo guardar la firma: " + t); });
           return ruta;
         });
@@ -14636,10 +14750,19 @@ against the dark UI.
       mostrarError("item-error", "El cliente no tiene teléfono registrado.");
       return;
     }
+    // Esta pestaña se abre EN BLANCO de inmediato, en el mismo clic del
+    // usuario — en el celular (Android/iPhone) el navegador solo permite
+    // abrir una pestaña nueva si ocurre justo en respuesta al toque; si se
+    // espera a que terminen las 2 consultas al servidor de abajo, la
+    // bloquea como si fuera propaganda y WhatsApp nunca se abre. Por eso se
+    // abre ya mismo y solo se le cambia la dirección cuando ya sepamos el
+    // enlace real.
+    var pestanaWhatsApp = window.open("", "_blank");
     var queryPendientes = "select=cantidad,precio_aplicado_cliente&id_ot=eq." + ordenActual.id_ot + "&estado_autorizacion=eq.pendiente";
     return restRequest("GET", "ot_detalle", { query: queryPendientes }).then(function (filas) {
       var total = (filas || []).reduce(function (acc, f) { return acc + f.cantidad * f.precio_aplicado_cliente; }, 0);
       if (total <= 0) {
+        if (pestanaWhatsApp && !pestanaWhatsApp.closed) pestanaWhatsApp.close();
         mostrarError("item-error", "No hay ítems pendientes de autorización.");
         return;
       }
@@ -14652,7 +14775,17 @@ against the dark UI.
           orden: prefijoOT + ordenActual.numero_ot,
           enlace: url
         });
-        window.open("https://wa.me/" + numero + "?text=" + encodeURIComponent(mensaje), "_blank");
+        var urlWhatsApp = "https://wa.me/" + numero + "?text=" + encodeURIComponent(mensaje);
+        if (pestanaWhatsApp && !pestanaWhatsApp.closed) {
+          pestanaWhatsApp.location.href = urlWhatsApp;
+        } else {
+          // El navegador ya la había bloqueado al abrirla vacía (pasa poco,
+          // pero puede pasar) — se intenta una vez más directamente.
+          window.open(urlWhatsApp, "_blank");
+        }
+      }).catch(function (err) {
+        if (pestanaWhatsApp && !pestanaWhatsApp.closed) pestanaWhatsApp.close();
+        throw err;
       });
     });
   }, "item-error"));
@@ -14717,7 +14850,7 @@ against the dark UI.
       }, "image/png");
     }).then(function (blob) {
       var ruta = ordenActual.id_ot + "/" + Date.now() + ".png";
-      return fetch(SUPABASE_URL + "/storage/v1/object/firmas/" + ruta, {
+      return fetchConTiempoLimite(SUPABASE_URL + "/storage/v1/object/firmas/" + ruta, {
         method: "POST",
         headers: {
           "apikey": SUPABASE_KEY,
@@ -14725,7 +14858,7 @@ against the dark UI.
           "Content-Type": "image/png"
         },
         body: blob
-      }).then(function (res) {
+      }, 30000).then(function (res) {
         if (!res.ok) return res.text().then(function (t) { throw new Error("No se pudo guardar la firma: " + t); });
         return ruta;
       });
@@ -14869,7 +15002,7 @@ against the dark UI.
 
   function subirFirmaEntrega(blob, sufijo) {
     var ruta = "entregas/" + ordenActual.id_ot + "/" + Date.now() + "-" + sufijo + ".png";
-    return fetch(SUPABASE_URL + "/storage/v1/object/firmas/" + ruta, {
+    return fetchConTiempoLimite(SUPABASE_URL + "/storage/v1/object/firmas/" + ruta, {
       method: "POST",
       headers: {
         "apikey": SUPABASE_KEY,
@@ -14877,7 +15010,7 @@ against the dark UI.
         "Content-Type": "image/png"
       },
       body: blob
-    }).then(function (res) {
+    }, 30000).then(function (res) {
       if (!res.ok) return res.text().then(function (t) { throw new Error("No se pudo guardar la firma: " + t); });
       return ruta;
     });
