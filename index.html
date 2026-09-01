@@ -1619,7 +1619,7 @@ against the dark UI.
       </div>
     </section>
 
-    <section id="pantalla-contabilidad" class="pagina oculto">
+    <section id="pantalla-contabilidad" class="pagina pagina-ancha oculto">
       <div class="tarjeta">
         <h1>Contabilidad</h1>
         <h2>Costo y precio hora de equilibrio</h2>
@@ -2987,6 +2987,16 @@ against the dark UI.
     margin: 0;
     color: var(--texto);
     font-size: 17px;
+    /* Sin esto, si algún contenido dentro de una pantalla (por ejemplo una
+       tabla ancha) se pasa del ancho disponible, todo el documento —menú
+       lateral incluido— desarrolla su propia barra de desplazamiento
+       horizontal, y al arrastrarla el menú se corre junto con el
+       contenido (el menú es "sticky" solo verticalmente, no
+       horizontalmente). Cada tabla ya tiene su propio scroll interno
+       (.tabla-scroll), así que esto solo bloquea el desplazamiento de
+       más afuera, nunca el de una tabla puntual.
+    */
+    overflow-x: hidden;
   }
   #contenedor-login { max-width: 480px; margin: 0 auto; padding: 12px; }
   #pantalla-firma-remota { max-width: 480px; margin: 0 auto; padding: 12px; }
