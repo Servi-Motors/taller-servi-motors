@@ -1666,25 +1666,6 @@ against the dark UI.
       </div>
 
       <div class="tarjeta">
-        <h2>Historial de egresos</h2>
-        <div class="nota-ayuda">Para registrar un gasto nuevo usa "Registrar gasto" en el menú — cualquier usuario puede registrarlo ahí mismo, apenas ocurra.</div>
-        <div class="tabla-scroll">
-          <table class="tabla-datos" id="tabla-egresos">
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Concepto</th>
-                <th>Proveedor / Orden / Soporte</th>
-                <th>Estado de pago</th>
-                <th>Monto</th>
-              </tr>
-            </thead>
-            <tbody id="cuerpo-tabla-egresos"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="tarjeta">
         <h2>Ingresos del año vs. tope de responsable de IVA</h2>
         <div class="nota-ayuda">Por ley, si tus ingresos brutos del año superan 3.500 UVT te vuelves responsable de IVA desde el mes siguiente y debes empezar a cobrarlo y declararlo. Actualiza el valor de la UVT cada enero en Configuración → Datos del taller.</div>
         <div id="alerta-tope-iva" class="info-vehiculo"></div>
@@ -1846,8 +1827,8 @@ against the dark UI.
       <div id="transferencia-error" class="mensaje-error"></div>
     </div>
 
-    <section id="pantalla-egreso" class="pagina oculto">
-      <div class="tarjeta">
+    <section id="pantalla-egreso" class="pagina pagina-ancha oculto">
+      <div class="tarjeta tarjeta-formulario">
         <h1>Registrar gasto</h1>
         <h2>Regístralo apenas ocurra, para no olvidarlo</h2>
         <label for="egreso-fecha">Fecha</label>
@@ -1897,6 +1878,24 @@ against the dark UI.
         <button id="btn-agregar-egreso">Registrar egreso</button>
         <div id="egreso-error" class="mensaje-error"></div>
         <div id="egreso-exito" class="mensaje-error mensaje-exito oculto"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Historial de egresos</h2>
+        <div class="tabla-scroll">
+          <table class="tabla-datos" id="tabla-egresos">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Concepto</th>
+                <th>Proveedor / Orden / Soporte</th>
+                <th>Estado de pago</th>
+                <th>Monto</th>
+              </tr>
+            </thead>
+            <tbody id="cuerpo-tabla-egresos"></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
@@ -3980,7 +3979,7 @@ against the dark UI.
       $("egreso-vencimiento").value = "";
       $("grupo-egreso-vencimiento").classList.add("oculto");
       cargarListasGasto();
-      promesa = cargarOrdenesParaEgreso();
+      promesa = Promise.all([cargarOrdenesParaEgreso(), cargarHistorialEgresos()]);
     }
 
     var idError = ERROR_POR_PAGINA[nombre];
@@ -7280,12 +7279,15 @@ against the dark UI.
   // id del costo fijo que se está editando en línea (null = ninguno). Se usa
   // para volver a dibujar esa fila como formulario en vez de texto plano.
   var costoFijoEditandoId = null;
-  // Copia en memoria de los costos fijos y egresos ya cargados, para poder
-  // volver a dibujar sus tablas (editar, cancelar, activar/desactivar, o
-  // agregar uno nuevo) SIN tener que volver a pedir las otras 8 consultas de
+  // Copia en memoria de los costos fijos ya cargados, para poder volver a
+  // dibujar su tabla (editar, cancelar, activar/desactivar, o agregar uno
+  // nuevo) SIN tener que volver a pedir las otras 7 consultas de
   // cargarContabilidad() cada vez — eso es lo que hacía sentir lenta la
   // pantalla antes de este ajuste.
   var costosFijosCache = [];
+  // Copia en memoria del historial de egresos, usada por la pantalla
+  // "Registrar gasto" (cargarHistorialEgresos) — el egreso recién
+  // registrado se agrega aquí sin tener que recargar toda la tabla.
   var egresosCache = [];
 
   function renderizarTablaCostosFijos() {
@@ -7567,7 +7569,6 @@ against the dark UI.
       restRequest("POST", "rpc/calcular_precio_hora_equilibrio", { body: {} }),
       restRequest("GET", "parametros_taller", { query: "select=horas_disponibles_mes,pct_variable_tecnico,pct_comisiones,pct_datafono,precio_mano_obra,tramo_horas_tecnico,tarifa_hora_tecnico_base,tarifa_hora_tecnico_extra,tramo_horas_ticket_asesor,pct_comision_mo_baja,pct_comision_mo_alta,pct_comision_margen_otros,valor_uvt_actual&id=eq.1" }),
       restRequest("GET", "costos_fijos_mensuales", { query: "select=*&order=creado_en.desc" }),
-      restRequest("GET", "egresos", { query: "select=*,ordenes_trabajo(numero_ot),abonos_cuentas_pagar(monto,fecha,forma_pago,cuentas_taller(nombre))&order=fecha.desc,creado_en.desc&limit=20" }),
       restRequest("GET", "vista_resultado_mensual", { query: "select=*&limit=1" }),
       obtenerCuentasTaller(),
       restRequest("GET", "vista_saldo_cuentas", { query: "select=*" }),
@@ -7578,18 +7579,17 @@ against the dark UI.
       var precioHora = r[1];
       var parametros = r[2] && r[2][0];
       var costosFijos = r[3] || [];
-      var egresos = r[4] || [];
-      var resultado = r[5] && r[5][0];
-      todasCuentasTaller = r[6] || [];
+      var resultado = r[4] && r[4][0];
+      todasCuentasTaller = r[5] || [];
       llenarSelectCuentas($("transf-origen"), false);
       llenarSelectCuentas($("transf-destino"), false);
-      renderizarSaldoCuentas(r[7] || []);
+      renderizarSaldoCuentas(r[6] || []);
       saldosPorCuenta = {};
-      (r[7] || []).forEach(function (f) { saldosPorCuenta[f.id_cuenta] = Number(f.saldo_calculado); });
-      renderizarListaTransferencias(r[8] || []);
+      (r[6] || []).forEach(function (f) { saldosPorCuenta[f.id_cuenta] = Number(f.saldo_calculado); });
+      renderizarListaTransferencias(r[7] || []);
       if (!$("transf-fecha").value) $("transf-fecha").value = aFechaISO(new Date());
 
-      var ingresosAnio = (r[9] || []).reduce(function (acc, f) { return acc + Number(f.monto_ingreso || 0); }, 0);
+      var ingresosAnio = (r[8] || []).reduce(function (acc, f) { return acc + Number(f.monto_ingreso || 0); }, 0);
       var valorUvt = (parametros && parametros.valor_uvt_actual) ? Number(parametros.valor_uvt_actual) : 52374;
       var topeIva = valorUvt * 3500;
       var pctTope = topeIva > 0 ? (ingresosAnio / topeIva) * 100 : 0;
@@ -7604,9 +7604,7 @@ against the dark UI.
       aplicarEquilibrioYParametros(costoHora, precioHora, parametros);
 
       costosFijosCache = costosFijos;
-      egresosCache = egresos;
       renderizarTablaCostosFijos();
-      renderizarTablaEgresos();
 
       if (resultado) {
         $("resultado-mensual").innerHTML =
@@ -7620,6 +7618,17 @@ against the dark UI.
         $("resultado-mensual").innerHTML = "Todavía no hay órdenes cerradas ni egresos este mes.";
       }
     });
+  }
+
+  // El historial de egresos vive en la pantalla "Registrar gasto" (antes
+  // estaba en Contabilidad) — se carga aparte de cargarContabilidad() para
+  // no traer esta consulta cuando no hace falta, y viceversa.
+  function cargarHistorialEgresos() {
+    return restRequest("GET", "egresos", { query: "select=*,ordenes_trabajo(numero_ot),abonos_cuentas_pagar(monto,fecha,forma_pago,cuentas_taller(nombre))&order=fecha.desc,creado_en.desc&limit=20" })
+      .then(function (egresos) {
+        egresosCache = egresos || [];
+        renderizarTablaEgresos();
+      });
   }
 
   $("btn-guardar-horas").addEventListener("click", conManejoDeErrores(function () {
