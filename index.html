@@ -1648,6 +1648,26 @@ against the dark UI.
       </div>
 
       <div class="tarjeta">
+        <h2>Anticipos de clientes pendientes por entregar</h2>
+        <div class="nota-ayuda">Dinero que ya recibiste de clientes por servicios que todavía no has entregado. Contablemente todavía no es tuyo — es una deuda del taller con el cliente hasta que cierres la orden. No está incluido en "Utilidad neta" de arriba.</div>
+        <div class="tabla-scroll">
+          <table class="tabla-datos" id="tabla-anticipos-pendientes">
+            <thead>
+              <tr>
+                <th>Orden</th>
+                <th>Cliente</th>
+                <th>Vehículo</th>
+                <th>Estado</th>
+                <th>Anticipado</th>
+              </tr>
+            </thead>
+            <tbody id="cuerpo-tabla-anticipos-pendientes"></tbody>
+          </table>
+        </div>
+        <div id="total-anticipos-pendientes" class="info-vehiculo"></div>
+      </div>
+
+      <div class="tarjeta">
         <h2>Costos fijos mensuales</h2>
         <div class="tabla-scroll">
           <table class="tabla-datos" id="tabla-costos-fijos">
@@ -7588,7 +7608,8 @@ against the dark UI.
       obtenerCuentasTaller(),
       restRequest("GET", "vista_saldo_cuentas", { query: "select=*" }),
       restRequest("GET", "transferencias_entre_cuentas", { query: "select=fecha,monto,nota,origen:cuentas_taller!transferencias_entre_cuentas_id_cuenta_origen_fkey(nombre),destino:cuentas_taller!transferencias_entre_cuentas_id_cuenta_destino_fkey(nombre)&order=fecha.desc,creado_en.desc&limit=20" }),
-      restRequest("GET", "vista_ingresos_ot", { query: "select=monto_ingreso&fecha_cierre=gte." + inicioAnio })
+      restRequest("GET", "vista_ingresos_ot", { query: "select=monto_ingreso&fecha_cierre=gte." + inicioAnio }),
+      restRequest("GET", "vista_anticipos_pendientes", { query: "select=*&order=primera_fecha.asc" })
     ]).then(function (r) {
       var costoHora = r[0];
       var precioHora = r[1];
@@ -7632,7 +7653,32 @@ against the dark UI.
       } else {
         $("resultado-mensual").innerHTML = "Todavía no hay órdenes cerradas ni egresos este mes.";
       }
+
+      renderizarAnticiposPendientes(r[9] || []);
     });
+  }
+
+  // "Anticipos pendientes por entregar": plata que ya recibiste de clientes
+  // por servicios que aún no se han cerrado (no es utilidad todavía, es una
+  // deuda del taller con el cliente). Ver vista_anticipos_pendientes.
+  function renderizarAnticiposPendientes(filas) {
+    var cuerpo = $("cuerpo-tabla-anticipos-pendientes");
+    if (!filas.length) {
+      cuerpo.innerHTML = "<tr><td colspan=\"5\" class=\"tabla-vacia\">No hay anticipos pendientes por entregar en este momento.</td></tr>";
+      $("total-anticipos-pendientes").innerHTML = "<b>Total comprometido: " + formatoMoneda(0) + "</b>";
+      return;
+    }
+    var total = 0;
+    cuerpo.innerHTML = filas.map(function (f) {
+      total += Number(f.total_anticipado || 0);
+      var etiquetaEstado = ETIQUETAS_ESTADO_ORDEN[f.estado] || f.estado;
+      return "<tr><td>" + prefijoOT + f.numero_ot + "</td>" +
+        "<td>" + (f.cliente_nombre || "—") + "</td>" +
+        "<td>" + (f.vehiculo_placa || "—") + "</td>" +
+        "<td>" + etiquetaEstado + "</td>" +
+        "<td class=\"celda-numero\">" + formatoMoneda(f.total_anticipado) + "</td></tr>";
+    }).join("");
+    $("total-anticipos-pendientes").innerHTML = "<b>Total comprometido con clientes: " + formatoMoneda(total) + "</b> — " + filas.length + " orden" + (filas.length === 1 ? "" : "es") + " sin entregar con anticipo recibido.";
   }
 
   // El historial de egresos vive en la pantalla "Registrar gasto" (antes
@@ -8997,17 +9043,42 @@ against the dark UI.
       });
     })
       .then(function () {
-        nominaCalculo = null;
-        $("nomina-inicio").value = "";
-        $("nomina-fin").value = "";
-        // Solo el historial cambió con esta liquidación — los empleados, las
-        // cuentas y los parámetros de nómina siguen igual, así que basta con
-        // reiniciar el formulario y refrescar el historial (2 consultas en
-        // vez de las 4 de cargarNomina()).
-        reiniciarFormularioNomina();
-        return cargarHistorialLiquidaciones().then(function () {
-          $("nomina-exito").textContent = "Liquidación registrada. También quedó como egreso real, descontando la cuenta elegida.";
-          $("nomina-exito").classList.remove("oculto");
+        // Ajuste final: mientras se trabajaba la orden, el costo de mano de
+        // obra que quedó guardado en cada línea era un ESTIMADO (ver
+        // estimar_costo_hora_tecnico). Ahora que ya se sabe EXACTAMENTE
+        // cuánto se le pagó de verdad a este técnico en el período (el
+        // mismo "Variable técnico" de arriba), se reemplaza ese estimado
+        // por el valor real en las órdenes que se acaban de liquidar —
+        // simplemente lo sobrescribe, no crea ni suma nada nuevo, así que
+        // la Utilidad Bruta de esas órdenes queda exacta de aquí en
+        // adelante. Solo aplica a técnicos por hora (no a comisión de
+        // asesor ni a empleados de pago por día, como Juan Andrade).
+        var idUsuarioTecnico = optEmp.getAttribute("data-usuario");
+        var esRolTecnico = optEmp.getAttribute("data-rol") === "tecnico";
+        var corregirCosto = (esRolTecnico && !nominaCalculo.es_pago_por_dia && nominaCalculo.horas_trabajadas > 0)
+          ? restRequest("POST", "rpc/corregir_costo_mano_obra_periodo", {
+              body: {
+                p_id_tecnico: idUsuarioTecnico,
+                p_periodo_inicio: nominaCalculo.periodo_inicio,
+                p_periodo_fin: nominaCalculo.periodo_fin,
+                p_costo_promedio: nominaCalculo.variable_tecnico / nominaCalculo.horas_trabajadas
+              }
+            }).catch(function () { /* no bloquea el registro de la liquidación si esto falla */ })
+          : Promise.resolve();
+
+        return corregirCosto.then(function () {
+          nominaCalculo = null;
+          $("nomina-inicio").value = "";
+          $("nomina-fin").value = "";
+          // Solo el historial cambió con esta liquidación — los empleados, las
+          // cuentas y los parámetros de nómina siguen igual, así que basta con
+          // reiniciar el formulario y refrescar el historial (2 consultas en
+          // vez de las 4 de cargarNomina()).
+          reiniciarFormularioNomina();
+          return cargarHistorialLiquidaciones().then(function () {
+            $("nomina-exito").textContent = "Liquidación registrada. También quedó como egreso real, descontando la cuenta elegida.";
+            $("nomina-exito").classList.remove("oculto");
+          });
         });
       })
       .then(function () {
@@ -14707,9 +14778,20 @@ against the dark UI.
     // El "costo" que se guarda es lo que se le paga al técnico por esa hora,
     // no el precio que se le cobra al cliente (ese lo pone la base de datos
     // aparte, a partir de precio_mano_obra). Así la utilidad queda bien.
-    var costoRealTecnico = costoHoraTecnicoActual !== null ? costoHoraTecnicoActual : 0;
+    // Se le pide a la base de datos un ESTIMADO en tiempo real que ya tiene
+    // en cuenta si el técnico de esta orden se pasó del tope de horas de la
+    // quincena (tarifa alta) — si no hay técnico asignado a la orden, o el
+    // cálculo falla por lo que sea, se usa la tarifa base plana de siempre
+    // como respaldo (nunca bloquea agregar la línea).
+    var costoEstimado = ordenActual.idTecnico
+      ? restRequest("POST", "rpc/estimar_costo_hora_tecnico", { body: { p_id_tecnico: ordenActual.idTecnico, p_horas: horas } })
+          .then(function (r) { return (r !== null && r !== undefined) ? Number(r) : (costoHoraTecnicoActual !== null ? costoHoraTecnicoActual : 0); })
+          .catch(function () { return costoHoraTecnicoActual !== null ? costoHoraTecnicoActual : 0; })
+      : Promise.resolve(costoHoraTecnicoActual !== null ? costoHoraTecnicoActual : 0);
 
-    return agregarLineaOrden({ tipo: "mano_obra", nombre: nombre, costo: costoRealTecnico, cantidad: horas, codigo: codigo, descuento: descuento })
+    return costoEstimado.then(function (costoRealTecnico) {
+      return agregarLineaOrden({ tipo: "mano_obra", nombre: nombre, costo: costoRealTecnico, cantidad: horas, codigo: codigo, descuento: descuento });
+    })
       .then(function () {
         $("mo-nombre").value = "";
         $("mo-horas").value = "1";
