@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-09-06-1">
+<meta name="app-build" content="2026-09-01-1">
 <title>Taller Servi Motors – Panel principal</title>
 <script>
   // Aplica el tema guardado (si la persona ya lo eligió a mano) antes de que
@@ -1045,7 +1045,7 @@ against the dark UI.
 
       <div id="tarjeta-entrega" class="tarjeta tarjeta-formulario oculto">
         <h1>Entrega del vehículo</h1>
-        <h2>Firma del asesor y del cliente confirmando la entrega</h2>
+        <h2>Firma del técnico y del cliente confirmando la entrega</h2>
 
         <label for="entrega-nombre-recibe">Nombre de quien recibe el vehículo</label>
         <input id="entrega-nombre-recibe" type="text" placeholder="Nombre completo" autocomplete="off">
@@ -1056,7 +1056,7 @@ against the dark UI.
 
         <div class="datos-orden-grid">
           <div>
-            <label for="entrega-canvas-tecnico">Firma del asesor</label>
+            <label for="entrega-canvas-tecnico">Firma del técnico</label>
             <canvas id="entrega-canvas-tecnico" style="width:100%;height:150px;border:1px solid var(--borde);border-radius:8px;touch-action:none;background:#fff;display:block;"></canvas>
             <button type="button" class="secundario" id="btn-limpiar-firma-tecnico">Limpiar</button>
           </div>
@@ -11032,7 +11032,7 @@ against the dark UI.
       var hayEntrega = datosFirma.entregaTecnico || datosFirma.entregaCliente;
       var bloqueFirmas = hayEntrega
         ? "<div style=\"display:flex;gap:24px;flex-wrap:wrap;\">" +
-          "<div style=\"flex:1;min-width:200px;\">" + bloqueFirma(datosFirma.entregaTecnico, "Firma asesor", false) + "</div>" +
+          "<div style=\"flex:1;min-width:200px;\">" + bloqueFirma(datosFirma.entregaTecnico, "Firma técnico", false) + "</div>" +
           "<div style=\"flex:1;min-width:200px;\">" + bloqueFirma(datosFirma.entregaCliente, "Firma cliente (recibe)", false) + "</div>" +
           "</div>"
         : bloqueFirma(datosFirma.autorizacion, "Autorizado por", false);
@@ -11235,7 +11235,7 @@ against the dark UI.
             telefono: autorizacionInicial.telefono_firmante || "",
             userAgent: autorizacionInicial.user_agent_firmante || ""
           } : null,
-          entregaTecnico: entrega ? { nombre: orden.asesor ? orden.asesor.nombre : null, dataUrl: urlsFirma[1] } : null,
+          entregaTecnico: entrega ? { nombre: orden.tecnico ? orden.tecnico.nombre : null, dataUrl: urlsFirma[1] } : null,
           entregaCliente: entrega ? { nombre: entrega.nombre_recibe, fecha: entrega.creado_en, dataUrl: urlsFirma[2] } : null
         };
 
@@ -15224,7 +15224,7 @@ against the dark UI.
       return;
     }
     if (firmaEntregaTecnico.estaVacia()) {
-      mostrarError("entrega-error", "Falta la firma del asesor.");
+      mostrarError("entrega-error", "Falta la firma del técnico.");
       return;
     }
     if (firmaEntregaCliente.estaVacia()) {
