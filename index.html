@@ -607,7 +607,13 @@ against the dark UI.
 
         <div id="orden-recepcion" class="oculto">
           <h3>Recepción</h3>
-          <label for="orden-presupuesto-tentativo">Presupuesto tentativo (opcional)</label>
+          <label for="orden-motivo-ingreso">Motivo de ingreso (opcional)</label>
+          <input id="orden-motivo-ingreso" type="text" list="lista-motivos-ingreso" placeholder="Ej. Cambio de aceite, Frenos, Ruido en suspensión" autocomplete="off">
+          <datalist id="lista-motivos-ingreso"></datalist>
+          <button type="button" class="secundario" id="btn-guardar-motivo-ingreso">Guardar motivo de ingreso</button>
+          <div class="nota-ayuda">Con esto la app aprende, con el tiempo, qué repuestos suelen ir con cada tipo de caso y te los va a sugerir en el diagnóstico.</div>
+
+          <label for="orden-presupuesto-tentativo" style="margin-top:16px;">Presupuesto tentativo (opcional)</label>
           <input id="orden-presupuesto-tentativo" type="number" min="0" step="1000" placeholder="Ej. 200000">
           <button type="button" class="secundario" id="btn-guardar-presupuesto-tentativo">Guardar presupuesto tentativo</button>
           <div class="nota-ayuda">Es solo un estimado inicial; puede cambiar una vez se haga el diagnóstico.</div>
@@ -762,11 +768,20 @@ against the dark UI.
           </div>
         </div>
 
+        <div id="orden-recepcion-nota-tecnico" class="oculto nota-ayuda" style="margin:10px 0;">
+          Este vehículo todavía está en Recepción — el asesor debe completar el checklist de ingreso antes de que empieces el diagnóstico.
+        </div>
+
         <div id="orden-diagnostico-bloque" class="oculto">
           <h3>Diagnóstico técnico</h3>
 
           <h3 style="margin-top:4px;">Inspección multipunto</h3>
           <div class="nota-ayuda">Revisa cada sistema del vehículo y marca su estado: verde = bien, amarillo = revisar pronto, rojo = atender ya. Sirve para recomendarle al cliente servicios adicionales con criterio, y queda como respaldo de lo que se revisó.</div>
+          <div class="fila-label-accion">
+            <span></span>
+            <button type="button" class="secundario" id="btn-marcar-todo-verde-inspeccion" style="width:auto;padding:4px 10px;font-size:12px;margin:0;">✓ Marcar todo en verde</button>
+          </div>
+          <div class="nota-ayuda">Marca todo en verde de una vez y después solo cambia los sistemas que de verdad necesiten atención — así no tienes que tocar los 10, uno por uno.</div>
           <div id="inspeccion-multipunto-grupo"></div>
           <label for="inspeccion-multipunto-observaciones">Observaciones generales (opcional)</label>
           <textarea id="inspeccion-multipunto-observaciones" rows="2" placeholder="Ej. Se recomienda revisar de nuevo en el próximo mantenimiento"></textarea>
@@ -866,6 +881,14 @@ against the dark UI.
         </div>
 
         <h3>Repuestos e insumos</h3>
+        <div id="partes-recomendados-bloque" class="oculto">
+          <label style="margin-bottom:4px;">Recomendado para este vehículo — según su historial y casos parecidos</label>
+          <div id="partes-recomendados-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>
+        </div>
+        <div id="partes-mas-usados-bloque" class="oculto">
+          <label style="margin-bottom:4px;">Más usados en el taller — toca para llenar el formulario de abajo</label>
+          <div id="partes-mas-usados-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>
+        </div>
         <div class="tabla-scroll">
           <table class="tabla-datos tabla-items-orden" id="tabla-partes">
             <thead><tr><th>Código</th><th>Tipo</th><th>Cant.</th><th>Descripción</th><th>De tu stock</th><th>Costo</th><th>% Dscto</th><th>Total Dscto</th><th>Total</th><th>Estado</th></tr></thead>
@@ -13244,8 +13267,10 @@ against the dark UI.
   }
 
   function cargarItemsDeOrden() {
+    cargarPartesMasUsadas();
+    cargarListaMotivosIngreso();
     var queryItems = "select=id_detalle,id_item,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,fecha_inicio_real,fecha_fin_real,meses_garantia,pausas_avance_ot(id_pausa,motivo,hora_inicio,hora_fin),items(nombre,tipo,costo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
-    var queryOrden = "select=estado,tipo_orden,token_consulta,fecha_apertura,fecha_cierre,diagnostico,presupuesto_tentativo,hallazgos_diagnostico,veces_devuelta_calidad,motivo_devolucion_calidad,fecha_devolucion_calidad,id_asesor,id_tecnico,asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre),clientes(nombre,telefono,documento,direccion),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,transmision,version,vin,kilometraje)&id_ot=eq." + ordenActual.id_ot;
+    var queryOrden = "select=estado,tipo_orden,token_consulta,fecha_apertura,fecha_cierre,diagnostico,presupuesto_tentativo,hallazgos_diagnostico,motivo_ingreso,veces_devuelta_calidad,motivo_devolucion_calidad,fecha_devolucion_calidad,id_asesor,id_tecnico,id_vehiculo,asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre),clientes(nombre,telefono,documento,direccion),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,transmision,version,vin,kilometraje)&id_ot=eq." + ordenActual.id_ot;
     return Promise.all([
       restRequest("GET", "ot_detalle", { query: queryItems }),
       restRequest("GET", "ordenes_trabajo", { query: queryOrden }),
@@ -13271,6 +13296,7 @@ against the dark UI.
         ordenActual.fechaDevolucionCalidad = orden.fecha_devolucion_calidad || null;
         ordenActual.idAsesor = orden.id_asesor || null;
         ordenActual.idTecnico = orden.id_tecnico || null;
+        ordenActual.idVehiculo = orden.id_vehiculo || null;
         ordenActual.asesorNombre = orden.asesor ? orden.asesor.nombre : null;
         ordenActual.tecnicoNombre = orden.tecnico ? orden.tecnico.nombre : null;
         ordenActual.vehiculoKilometraje = orden.vehiculos ? orden.vehiculos.kilometraje : null;
@@ -13289,12 +13315,20 @@ against the dark UI.
         // remotamente sin que alguien tenga que hacer clic en nada).
         if (document.activeElement !== $("orden-diagnostico")) $("orden-diagnostico").value = orden.diagnostico || "";
         if (document.activeElement !== $("orden-presupuesto-tentativo")) $("orden-presupuesto-tentativo").value = orden.presupuesto_tentativo || "";
+        if (document.activeElement !== $("orden-motivo-ingreso")) $("orden-motivo-ingreso").value = orden.motivo_ingreso || "";
+        ordenActual.motivoIngreso = orden.motivo_ingreso || null;
+        cargarRepuestosRecomendados();
         if (document.activeElement !== $("orden-hallazgos")) $("orden-hallazgos").value = orden.hallazgos_diagnostico || "";
 
         // La etapa de Recepción no muestra tablas de ítems todavía (solo el
         // presupuesto tentativo); Diagnóstico agrega los hallazgos del técnico
         // arriba de las mismas tablas, que ya se pueden ir llenando ahí.
-        $("orden-recepcion").classList.toggle("oculto", orden.estado !== "recepcion");
+        // El técnico nunca hace la recepción del vehículo (checklist, firma
+        // del cliente, presupuesto tentativo) — eso siempre lo hace el
+        // asesor cuando el cliente entrega el carro. Si el técnico entra a
+        // una orden que sigue en Recepción, no debe ver ni tocar este bloque.
+        $("orden-recepcion").classList.toggle("oculto", orden.estado !== "recepcion" || rolActual === "tecnico");
+        $("orden-recepcion-nota-tecnico").classList.toggle("oculto", !(orden.estado === "recepcion" && rolActual === "tecnico"));
         $("orden-diagnostico-bloque").classList.toggle("oculto", orden.estado !== "diagnostico");
         $("orden-trabajo-contenido").classList.toggle("oculto", orden.estado === "recepcion");
         $("orden-evidencias-proceso").classList.toggle("oculto", orden.estado !== "en_proceso");
@@ -14117,6 +14151,19 @@ against the dark UI.
   });
   $("inspeccion-multipunto-observaciones").addEventListener("input", marcarInspeccionMultipuntoTocada);
 
+  // Atajo para el técnico: la mayoría de los sistemas de un vehículo están
+  // bien la mayor parte del tiempo — marcarlos todos en verde de una vez y
+  // luego corregir solo las excepciones es mucho más rápido que tocar los
+  // 10 botones uno por uno en cada carro.
+  $("btn-marcar-todo-verde-inspeccion").addEventListener("click", function () {
+    marcarInspeccionMultipuntoTocada();
+    document.querySelectorAll("#inspeccion-multipunto-grupo .grupo-semaforo-fila").forEach(function (fila) {
+      fila.querySelectorAll(".btn-semaforo").forEach(function (b) {
+        b.classList.toggle("activo", b.getAttribute("data-valor") === "verde");
+      });
+    });
+  });
+
   function cargarInspeccionMultipunto() {
     ocultarError("inspeccion-multipunto-error");
     if (inspeccionMultipuntoIdOtCargado !== ordenActual.id_ot) inspeccionMultipuntoTocada = false;
@@ -14554,6 +14601,18 @@ against the dark UI.
     return restRequest("PATCH", "ordenes_trabajo", { query: "id_ot=eq." + ordenActual.id_ot, body: { diagnostico: texto || null } });
   }, "item-error"));
 
+  // Motivo de ingreso: por qué el cliente trajo el vehículo. Alimenta el
+  // motor de recomendación de repuestos (ver cargarRepuestosRecomendados).
+  $("btn-guardar-motivo-ingreso").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("recepcion-error");
+    var texto = $("orden-motivo-ingreso").value.trim();
+    return restRequest("PATCH", "ordenes_trabajo", { query: "id_ot=eq." + ordenActual.id_ot, body: { motivo_ingreso: texto || null } }).then(function () {
+      ordenActual.motivoIngreso = texto || null;
+      idOtRecomendacionesCargadas = null;
+      return cargarRepuestosRecomendados();
+    });
+  }, "recepcion-error"));
+
   // Etapa de Recepción: presupuesto tentativo + elegir si el servicio
   // necesita diagnóstico o se cotiza y autoriza directamente.
   $("btn-guardar-presupuesto-tentativo").addEventListener("click", conManejoDeErrores(function () {
@@ -14589,6 +14648,150 @@ against the dark UI.
   }, "item-error"));
 
   var itemsStockDisponibles = [];
+
+  // Sugerencias del datalist de "Motivo de ingreso": se llenan con los
+  // nombres del catálogo de Servicios, para que el asesor tenga opciones
+  // consistentes (y no escriba "cambio aceite" una vez y "cambio de aceite"
+  // otra, lo que rompería el conteo del motor de recomendación).
+  var listaMotivosIngresoCargada = false;
+  function cargarListaMotivosIngreso() {
+    if (listaMotivosIngresoCargada) return Promise.resolve();
+    listaMotivosIngresoCargada = true;
+    return restRequest("GET", "servicios_catalogo", { query: "select=nombre&activo=eq.true&order=nombre.asc" })
+      .then(function (filas) {
+        $("lista-motivos-ingreso").innerHTML = (filas || []).map(function (s) {
+          return '<option value="' + String(s.nombre).replace(/"/g, "&quot;") + '"></option>';
+        }).join("");
+      }).catch(function () { listaMotivosIngresoCargada = false; });
+  }
+
+  // Un solo toque en cualquier chip (más usados o recomendados) llena el
+  // formulario de abajo — nombre, tipo y cantidad 1 — sin que la persona
+  // tenga que escribirlo. El costo lo sigue definiendo el asesor/admin (o
+  // queda en 0, bloqueado, si quien está conectado es el técnico).
+  function llenarFormularioParteDesdeChip(tipo, nombre) {
+    $("pa-tipo").value = tipo;
+    $("pa-stock").value = "";
+    $("pa-nombre").disabled = false;
+    $("pa-nombre").value = nombre;
+    $("pa-cantidad").value = "1";
+    var esTecnico = rolActual === "tecnico";
+    $("pa-costo").disabled = esTecnico;
+    $("pa-costo").value = esTecnico ? "0" : "";
+    if (!esTecnico) $("pa-costo").focus(); else $("pa-cantidad").focus();
+  }
+
+  function crearChipParte(nombre, tipo, titulo) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "secundario";
+    btn.style.cssText = "width:auto;padding:6px 12px;font-size:12px;margin:0;border-radius:16px;";
+    btn.textContent = nombre;
+    btn.title = titulo;
+    btn.addEventListener("click", function () { llenarFormularioParteDesdeChip(tipo, nombre); });
+    return btn;
+  }
+
+  // Chips de "más usados": mira los últimos repuestos/insumos cargados en
+  // cualquier orden (no solo la actual) y ofrece los más frecuentes con un
+  // solo toque, para que el técnico no tenga que escribir a mano los mismos
+  // nombres una y otra vez. Se calcula una sola vez por sesión.
+  var PARTES_MAS_USADAS_LIMITE = 8;
+  var partesMasUsadasCargadas = false;
+  function cargarPartesMasUsadas() {
+    if (partesMasUsadasCargadas) return Promise.resolve();
+    partesMasUsadasCargadas = true;
+    return restRequest("GET", "ot_detalle", {
+      query: "select=items!inner(nombre,tipo)&items.tipo=in.(repuesto,insumo)&order=creado_en.desc&limit=500"
+    }).then(function (filas) {
+      var conteo = {};
+      (filas || []).forEach(function (f) {
+        if (!f.items || !f.items.nombre) return;
+        var clave = f.items.tipo + "||" + f.items.nombre;
+        conteo[clave] = (conteo[clave] || 0) + 1;
+      });
+      var top = Object.keys(conteo).map(function (clave) {
+        var partes = clave.split("||");
+        return { tipo: partes[0], nombre: partes[1], veces: conteo[clave] };
+      }).sort(function (a, b) { return b.veces - a.veces; }).slice(0, PARTES_MAS_USADAS_LIMITE);
+      var cont = $("partes-mas-usados-chips");
+      cont.innerHTML = "";
+      top.forEach(function (it) {
+        cont.appendChild(crearChipParte(it.nombre, it.tipo, (it.tipo === "insumo" ? "Insumo" : "Repuesto") + " — usado " + it.veces + " veces recientemente en el taller"));
+      });
+      $("partes-mas-usados-bloque").classList.toggle("oculto", top.length === 0);
+    }).catch(function () {
+      // Si falla, simplemente no se muestran chips — no debe romper el
+      // resto de la orden ni mostrar un error molesto por algo accesorio.
+      partesMasUsadasCargadas = false;
+      $("partes-mas-usados-bloque").classList.add("oculto");
+    });
+  }
+
+  // Motor de recomendación por vehículo: a diferencia de "más usados" (que
+  // es genérico, igual para cualquier carro), esto pronostica según:
+  //  1) el propio historial de ESTE vehículo (peso 3) — si ya le cambiaste
+  //     el filtro de aceite dos veces, es casi seguro que vuelva a tocar;
+  //  2) otras órdenes con el MISMO motivo de ingreso (peso 2) — ej. todas
+  //     las que entraron por "Frenos" tienden a llevar los mismos repuestos;
+  //  3) otros vehículos de la MISMA marca y modelo (peso 1) — señal más
+  //     débil, pero todavía útil (ej. un problema común de ese modelo).
+  // Se recalcula cada vez que se abre una orden distinta, porque depende
+  // del vehículo y del motivo de ESTA orden puntual.
+  var PARTES_RECOMENDADAS_LIMITE = 6;
+  var idOtRecomendacionesCargadas = null;
+  function cargarRepuestosRecomendados() {
+    if (idOtRecomendacionesCargadas === ordenActual.id_ot) return Promise.resolve();
+    idOtRecomendacionesCargadas = ordenActual.id_ot;
+    var vehiculo = ordenActual.vehiculo || {};
+    var marca = vehiculo.marca || null;
+    var modelo = vehiculo.modelo || null;
+    var motivo = (ordenActual.motivoIngreso || "").trim().toLowerCase();
+    if (!ordenActual.idVehiculo && !marca) {
+      $("partes-recomendados-bloque").classList.add("oculto");
+      return Promise.resolve();
+    }
+    return restRequest("GET", "ot_detalle", {
+      query: "select=items!inner(nombre,tipo),ordenes_trabajo!inner(id_vehiculo,motivo_ingreso,vehiculos(marca,modelo))" +
+        "&items.tipo=in.(repuesto,insumo)&order=creado_en.desc&limit=1500"
+    }).then(function (filas) {
+      var puntaje = {};
+      var infoItem = {};
+      (filas || []).forEach(function (f) {
+        if (!f.items || !f.items.nombre) return;
+        var ot = f.ordenes_trabajo || {};
+        var esMismoVehiculo = !!(ordenActual.idVehiculo && ot.id_vehiculo === ordenActual.idVehiculo);
+        var esMismoMotivo = !!(motivo && ot.motivo_ingreso && ot.motivo_ingreso.trim().toLowerCase() === motivo);
+        var vOt = ot.vehiculos || {};
+        var esMismoModelo = !!(marca && modelo && vOt.marca === marca && vOt.modelo === modelo);
+        if (!esMismoVehiculo && !esMismoMotivo && !esMismoModelo) return;
+        var clave = f.items.tipo + "||" + f.items.nombre;
+        var puntos = (esMismoVehiculo ? 3 : 0) + (esMismoMotivo ? 2 : 0) + (esMismoModelo ? 1 : 0);
+        puntaje[clave] = (puntaje[clave] || 0) + puntos;
+        if (!infoItem[clave]) infoItem[clave] = { vehiculo: false, motivo: false, modelo: false };
+        if (esMismoVehiculo) infoItem[clave].vehiculo = true;
+        if (esMismoMotivo) infoItem[clave].motivo = true;
+        if (esMismoModelo) infoItem[clave].modelo = true;
+      });
+      var top = Object.keys(puntaje).map(function (clave) {
+        var partes = clave.split("||");
+        return { tipo: partes[0], nombre: partes[1], puntos: puntaje[clave], info: infoItem[clave] };
+      }).sort(function (a, b) { return b.puntos - a.puntos; }).slice(0, PARTES_RECOMENDADAS_LIMITE);
+      var cont = $("partes-recomendados-chips");
+      cont.innerHTML = "";
+      top.forEach(function (it) {
+        var razones = [];
+        if (it.info.vehiculo) razones.push("ya se usó en este vehículo antes");
+        if (it.info.motivo) razones.push("común en casos con el mismo motivo de ingreso");
+        if (it.info.modelo) razones.push("común en " + marca + " " + modelo);
+        cont.appendChild(crearChipParte(it.nombre, it.tipo, (it.tipo === "insumo" ? "Insumo" : "Repuesto") + " — " + razones.join(", ")));
+      });
+      $("partes-recomendados-bloque").classList.toggle("oculto", top.length === 0);
+    }).catch(function () {
+      idOtRecomendacionesCargadas = null;
+      $("partes-recomendados-bloque").classList.add("oculto");
+    });
+  }
 
   function reiniciarSelectorStockPartes() {
     $("pa-stock").value = "";
