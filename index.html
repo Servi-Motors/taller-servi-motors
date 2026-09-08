@@ -4472,26 +4472,69 @@ against the dark UI.
       backgroundColor: "#2563eb",
       yAxisID: "y"
     }];
+    var ingresosMax = 0;
     if (puedeVerFinanzas) {
+      var datosIngresos = filas.map(function (f) { return f.ingresos; });
+      ingresosMax = Math.max.apply(null, datosIngresos.concat([0]));
       datasets.push({
         type: "line",
         label: "Ingresos ($)",
-        data: filas.map(function (f) { return f.ingresos; }),
+        data: datosIngresos,
         borderColor: "#16a34a",
-        backgroundColor: "#16a34a",
+        backgroundColor: "rgba(22,163,74,0.12)",
         yAxisID: "y1",
-        tension: 0.3
+        tension: 0,
+        fill: true,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        pointBackgroundColor: "#16a34a",
+        pointBorderColor: "#ffffff",
+        pointBorderWidth: 2
       });
     }
+
+    // Con pocos meses cargados (1 o 2 puntos) una línea sola se ve "flotando"
+    // y vacía. Este plugin escribe el monto directamente encima de cada punto
+    // para que el dato se lea de un vistazo, sin depender de pasar el mouse.
+    var etiquetasIngresoPlugin = {
+      id: "etiquetasIngresoEncimaDePunto",
+      afterDatasetsDraw: function (chart) {
+        if (!puedeVerFinanzas) return;
+        var indiceDataset = chart.data.datasets.findIndex(function (d) { return d.label === "Ingresos ($)"; });
+        if (indiceDataset === -1) return;
+        var meta = chart.getDatasetMeta(indiceDataset);
+        var ctx = chart.ctx;
+        ctx.save();
+        ctx.fillStyle = "#15803d";
+        ctx.font = "bold 11px sans-serif";
+        ctx.textAlign = "center";
+        meta.data.forEach(function (punto, i) {
+          var valor = chart.data.datasets[indiceDataset].data[i];
+          ctx.fillText(formatoMoneda(valor), punto.x, punto.y - 12);
+        });
+        ctx.restore();
+      }
+    };
+
     graficoMensual = new Chart($("grafico-mensual").getContext("2d"), {
       type: "bar",
       data: { labels: etiquetas, datasets: datasets },
+      plugins: [etiquetasIngresoPlugin],
       options: {
         responsive: true,
         maintainAspectRatio: false,
         scales: {
           y: { beginAtZero: true, position: "left", title: { display: true, text: "Órdenes" } },
-          y1: { beginAtZero: true, position: "right", display: puedeVerFinanzas, grid: { drawOnChartArea: false }, title: { display: true, text: "Ingresos" } }
+          y1: {
+            beginAtZero: true,
+            position: "right",
+            display: puedeVerFinanzas,
+            grid: { drawOnChartArea: false },
+            title: { display: true, text: "Ingresos" },
+            // Deja aire arriba para que la etiqueta de monto no se corte
+            // contra el borde del gráfico cuando hay pocos meses.
+            suggestedMax: ingresosMax * 1.25
+          }
         }
       }
     });
