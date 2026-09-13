@@ -6572,7 +6572,16 @@ against the dark UI.
     llenarDatalist("lista-combustibles", valoresUnicosOrdenados(filas, "combustible"));
   }
   function cargarListasVehiculo() {
-    if (datosListasVehiculo) { llenarDatalistsVehiculo(datosListasVehiculo); return Promise.resolve(datosListasVehiculo); }
+    // OJO: esta función se llama en cada refresco automático del tablero de
+    // órdenes (cada 2 segundos, ver refrescarPantallaOrdenesSiAplica). Si ya
+    // hay datos en caché, NO hay que volver a rellenar los 6 datalists —
+    // reconstruir esas listas (ordenar + recrear cientos/miles de <option>)
+    // 30 veces por minuto, indefinidamente mientras la pantalla está
+    // abierta, es lo que causaba que la app se sintiera cada vez más lenta
+    // (y eventualmente "congelada") en equipos menos potentes como tablets
+    // o celulares. Solo se vuelve a llenar cuando el caché se invalida de
+    // verdad (se guardó un vehículo nuevo, ver invalidarListasVehiculo()).
+    if (datosListasVehiculo) { return Promise.resolve(datosListasVehiculo); }
     return restRequest("GET", "vehiculos", { query: "select=marca,modelo,color,transmision,version,combustible&limit=3000" }).then(function (filas) {
       datosListasVehiculo = filas || [];
       llenarDatalistsVehiculo(datosListasVehiculo);
