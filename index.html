@@ -236,7 +236,7 @@ against the dark UI.
     <a href="#" class="nav-link oculto" id="nav-combos" data-pagina="combos">🧩 Combos de servicio</a>
 
     <div class="nav-seccion">Contabilidad</div>
-    <a href="#" class="nav-link" data-pagina="egreso">💸 Registrar gasto</a>
+    <a href="#" class="nav-link" id="nav-egreso" data-pagina="egreso">💸 Registrar gasto</a>
     <a href="#" class="nav-link oculto" id="nav-contabilidad" data-pagina="contabilidad">📊 Contabilidad</a>
     <a href="#" class="nav-link oculto" id="nav-facturacion" data-pagina="facturacion">🧾 Facturación</a>
     <a href="#" class="nav-link oculto" id="nav-caja" data-pagina="caja">💰 Caja</a>
@@ -3897,6 +3897,7 @@ against the dark UI.
         $("nav-reportes").classList.toggle("oculto", !puedeVerContabilidad);
         var puedeVerFacturacion = rolActual === "administrador" || rolActual === "asesor" || rolActual === "contador";
         $("nav-facturacion").classList.toggle("oculto", !puedeVerFacturacion);
+        $("nav-egreso").classList.toggle("oculto", rolActual === "tecnico");
         var puedeVerCaja = rolActual === "administrador" || rolActual === "asesor" || rolActual === "contador";
         $("nav-caja").classList.toggle("oculto", !puedeVerCaja);
         $("nav-cuentas").classList.toggle("oculto", !puedeVerCaja);
