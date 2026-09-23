@@ -399,6 +399,7 @@ against the dark UI.
       <div id="tarjeta-encontrado" class="tarjeta tarjeta-formulario tarjeta-modal oculto">
         <h2>Vehículo encontrado</h2>
         <div id="info-vehiculo-encontrado" class="info-vehiculo"></div>
+        <div id="aviso-orden-abierta" class="alerta-atencion oculto"></div>
         <button id="btn-usar-encontrado">Continuar con este vehículo</button>
         <button id="btn-no-es-este" class="secundario">No es este / registrar otro</button>
       </div>
@@ -10438,6 +10439,26 @@ against the dark UI.
           "Teléfono: " + (cliente.telefono || "—") + "<br>" +
           "Kilometraje registrado: " + encontrado.kilometraje;
         $("tarjeta-encontrado").classList.remove("oculto");
+        // Ojo: si esta placa ya tiene una orden en curso, se avisa antes de
+        // seguir — evita crear una orden duplicada por error (le pasó a
+        // OT-119/VAW012, que se creó mientras la OT-118 seguía abierta y
+        // tocó cancelarla al día siguiente). Si de verdad se necesita otra
+        // orden distinta (ej. un problema nuevo) o es solo una cotización,
+        // se puede continuar de todas formas.
+        var avisoOrdenAbierta = $("aviso-orden-abierta");
+        avisoOrdenAbierta.classList.add("oculto");
+        avisoOrdenAbierta.innerHTML = "";
+        restRequest("GET", "ordenes_trabajo", {
+          query: "select=numero_ot,estado&id_vehiculo=eq." + encontrado.id_vehiculo + "&estado=not.in.(cerrada,cancelada)&order=fecha_apertura.desc&limit=5"
+        }).then(function (abiertas) {
+          if (abiertas && abiertas.length) {
+            var listaOts = abiertas.map(function (o) { return (prefijoOT + o.numero_ot) + " (" + (ETIQUETAS_ESTADO_ORDEN[o.estado] || o.estado) + ")"; }).join(", ");
+            avisoOrdenAbierta.innerHTML = "⚠️ Esta placa ya tiene " + (abiertas.length > 1 ? "órdenes abiertas" : "una orden abierta") + ": <b>" + listaOts + "</b>. " +
+              "¿Seguro que necesitas abrir una orden diferente (otro problema, no relacionado con la orden abierta), o es solo una cotización? " +
+              "Si es para seguir trabajando en lo mismo, mejor usa la orden ya abierta desde el tablero, en vez de crear una nueva.";
+            avisoOrdenAbierta.classList.remove("oculto");
+          }
+        }).catch(function (err) { console.error(err); });
       } else {
         $("nuevo-vehiculo-placa").value = placa;
         prepararTarjetaNuevoCliente();
@@ -15314,7 +15335,7 @@ against the dark UI.
     cont.classList.remove("oculto");
   }, "item-error"));
 
-  $("btn-confirmar-firma").addEventListener("click", conManejoDeErrores(function () {
+  $("btn-confirmar-firma").addEventListener("click", conManejoDeErrores(conBotonOcupado($("btn-confirmar-firma"), "Guardando…", function () {
     ocultarError("firma-error");
     var nombreFirmante = $("firma-nombre").value.trim();
     var documento = $("firma-documento").value.trim();
@@ -15361,9 +15382,9 @@ against the dark UI.
     }).catch(function (err) {
       mostrarError("firma-error", err.message);
     });
-  }, "firma-error"));
+  }), "firma-error"));
 
-  $("btn-confirmar-verbal").addEventListener("click", conManejoDeErrores(function () {
+  $("btn-confirmar-verbal").addEventListener("click", conManejoDeErrores(conBotonOcupado($("btn-confirmar-verbal"), "Guardando…", function () {
     ocultarError("firma-error");
     var nombreFirmante = $("firma-nombre").value.trim();
     var nota = $("firma-verbal-nota").value.trim();
@@ -15395,7 +15416,7 @@ against the dark UI.
     }).catch(function (err) {
       mostrarError("firma-error", err.message);
     });
-  }, "firma-error"));
+  }), "firma-error"));
 
   $("btn-volver-items").addEventListener("click", conManejoDeErrores(function () {
     $("tarjeta-firma-exito").classList.add("oculto");
@@ -15496,7 +15517,7 @@ against the dark UI.
     });
   }
 
-  $("btn-confirmar-entrega").addEventListener("click", conManejoDeErrores(function () {
+  $("btn-confirmar-entrega").addEventListener("click", conManejoDeErrores(conBotonOcupado($("btn-confirmar-entrega"), "Guardando…", function () {
     ocultarError("entrega-error");
     var nombreRecibe = $("entrega-nombre-recibe").value.trim();
     var documentoRecibe = $("entrega-documento-recibe").value.trim();
@@ -15546,7 +15567,7 @@ against the dark UI.
       .catch(function (err) {
         mostrarError("entrega-error", err.message);
       });
-  }, "entrega-error"));
+  }), "entrega-error"));
 
   // =====================================================================
   // FIRMA REMOTA POR WHATSAPP (página pública, sin login, activada por ?firmar=token)
