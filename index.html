@@ -62,6 +62,13 @@ against the dark UI.
   <button type="button" id="alerta-flotante-cerrar" aria-label="Cerrar">×</button>
 </div>
 
+<div id="timer-flotante" class="timer-flotante oculto" role="status">
+  <div class="timer-flotante-titulo" id="timer-flotante-titulo">Tarea en curso</div>
+  <div class="timer-flotante-nombre" id="timer-flotante-nombre"></div>
+  <div class="timer-flotante-reloj" id="timer-flotante-reloj">00:00:00</div>
+  <div class="timer-flotante-botones" id="timer-flotante-botones"></div>
+</div>
+
 <div id="contenedor-login">
   <section id="pantalla-login" class="tarjeta">
     <h1 class="marca-flex marca-login"><img class="logo-taller logo-taller-grande" alt="Logo"> Taller Servi Motors</h1>
@@ -392,6 +399,13 @@ against the dark UI.
         <datalist id="lista-placas-existentes"></datalist>
         <div class="nota-ayuda">Empieza a escribir y te mostramos las placas ya registradas para que elijas, sin tener que buscar de nuevo.</div>
         <button id="btn-buscar">Buscar vehículo</button>
+
+        <div class="nota-ayuda" style="margin-top:16px;">¿El cliente llamó y no tienes la placa a la mano? Busca por su nombre o teléfono.</div>
+        <label for="buscar-cliente-vehiculo">Nombre o teléfono del cliente</label>
+        <input id="buscar-cliente-vehiculo" type="text" placeholder="Ej. Juan Pérez o 3001234567" autocomplete="off">
+        <button type="button" class="secundario" id="btn-buscar-cliente-vehiculo">Buscar por cliente</button>
+        <div id="resultado-buscar-cliente-vehiculo"></div>
+
         <button type="button" class="secundario" id="btn-cancelar-nueva-orden">Cancelar</button>
         <div id="buscar-error" class="mensaje-error"></div>
       </div>
@@ -3163,6 +3177,26 @@ against the dark UI.
     to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   }
   @media (max-width: 480px) { .alerta-flotante { width: 88vw; } }
+  /* Timer flotante del técnico: mientras hay una tarea de mano de obra en
+     curso (o pausada) en la orden abierta, se ve siempre en pantalla sin
+     importar a dónde se haga scroll — así no se le "pierde" el cronómetro
+     entre la tabla de ítems y tiene que buscarlo, que era la causa de que
+     Iniciar/Terminar se usaran mal (varios clics juntos al final del turno
+     en vez de marcarlos en el momento real). */
+  .timer-flotante {
+    position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%);
+    z-index: 9997; background: var(--tarjeta-bg); color: var(--texto);
+    border: 2px solid var(--verde); border-radius: 12px; padding: 10px 16px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.28); max-width: 94vw; width: 360px;
+  }
+  .timer-flotante.timer-flotante-pausado { border-color: #b45309; }
+  .timer-flotante-titulo { font-size: 13px; color: var(--gris); margin-bottom: 2px; }
+  .timer-flotante-nombre { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+  .timer-flotante-reloj { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--verde); }
+  .timer-flotante-pausado .timer-flotante-reloj { color: #b45309; }
+  .timer-flotante-botones { display: flex; gap: 8px; margin-top: 6px; }
+  .timer-flotante-botones button { width: auto; padding: 6px 14px; font-size: 13px; margin: 0; }
+  @media (max-width: 420px) { .timer-flotante { width: 92vw; } }
   @media (max-width: 420px) { .denominaciones-grid { grid-template-columns: 1fr; } }
   #tarjeta-exito {
     background: #f0fdf4; color: var(--verde); border: 1px solid #bbf7d0; text-align: center;
@@ -3973,6 +4007,7 @@ against the dark UI.
 
   function mostrarPagina(nombre) {
     if (PAGINAS.indexOf(nombre) === -1) nombre = "inicio";
+    if (nombre !== "app") detenerTimerFlotante();
     PAGINAS.forEach(function (p) {
       $("pantalla-" + p).classList.toggle("oculto", p !== nombre);
     });
@@ -4114,9 +4149,9 @@ against the dark UI.
     if ($("pantalla-app").classList.contains("oculto")) return;
 
     refrescoOrdenesEnCurso = true;
-    var promesa = (ordenActual && !$("tarjeta-items").classList.contains("oculto"))
-      ? cargarItemsDeOrden()
-      : cargarTableroOrdenes();
+    var verDetalleOrden = ordenActual && !$("tarjeta-items").classList.contains("oculto");
+    if (!verDetalleOrden) detenerTimerFlotante();
+    var promesa = verDetalleOrden ? cargarItemsDeOrden() : cargarTableroOrdenes();
     promesa.catch(function (err) { console.error(err); }).then(function () {
       refrescoOrdenesEnCurso = false;
     });
@@ -9289,8 +9324,13 @@ against the dark UI.
         // Si las horas reales quedaron en prácticamente cero (menos de 2 min —
         // normalmente un iniciar/terminar de prueba, no trabajo real), la
         // eficiencia da un número absurdo (miles o millones de %). Se muestra
-        // como "—" en vez de un dato que no significa nada.
-        if (horasReal !== null && horasReal < (2 / 60)) eficiencia = null;
+        // como "—" en vez de un dato que no significa nada. Si en cambio
+        // quedaron en más de 12h seguidas, probablemente se olvidó dar clic
+        // en "Terminar" — se deja el dato pero con un aviso, mismo criterio
+        // que la tabla en pantalla y que "Productividad real por técnico".
+        var avisoTiempoImpreso = "";
+        if (horasReal !== null && horasReal < (2 / 60)) { eficiencia = null; avisoTiempoImpreso = " ⚠️"; }
+        else if (horasReal !== null && horasReal > 12) { avisoTiempoImpreso = " ⚠️"; }
         totales.ingreso += ingreso; totales.costo += costo; totales.margen += margen;
         totales.horasCot += horasCot; if (horasReal !== null) totales.horasReal += horasReal;
         var vehiculo = [o.marca, o.modelo].filter(Boolean).join(" ");
@@ -9305,7 +9345,7 @@ against the dark UI.
           "<td style=\"text-align:right;\"><b>" + formatoMoneda(margen) + "</b></td>" +
           "<td style=\"text-align:right;\">" + (margenPct === null ? "—" : margenPct.toFixed(0) + "%") + "</td>" +
           "<td style=\"text-align:right;\">" + horasCot.toFixed(2) + "</td>" +
-          "<td style=\"text-align:right;\">" + (horasReal === null ? "—" : horasReal.toFixed(2)) + "</td>" +
+          "<td style=\"text-align:right;\">" + (horasReal === null ? "—" : horasReal.toFixed(2)) + avisoTiempoImpreso + "</td>" +
           "<td style=\"text-align:right;\">" + (eficiencia === null ? "—" : eficiencia.toFixed(0) + "%") + "</td>" +
           "<td style=\"text-align:center;\">" + (o.veces_devuelta_calidad > 0 ? o.veces_devuelta_calidad : "—") + "</td>" +
           "<td>" + (ETIQUETAS_ESTADO_PAGO_REPORTE[o.estado_pago] || o.estado_pago || "—") + "</td></tr>";
@@ -9535,13 +9575,28 @@ against the dark UI.
       renderizarPrecioHora();
 
       // --- Rentabilidad por orden ---
+      // Mismos límites de anomalía que "Productividad real por técnico" más
+      // abajo (< 2 min = probable clic de prueba, > 12h = probable olvido de
+      // dar clic en "Terminar") — antes esta tabla no los aplicaba, y por eso
+      // una orden con datos de tiempo mal registrados (ej. OT-118) mostraba
+      // eficiencias absurdas como 16.970% en vez de avisar que el dato no es
+      // confiable.
+      var LIMITE_MINUTOS_CORTO_RENT = 2;
+      var LIMITE_HORAS_LARGO_RENT = 12;
       var tRent = $("cuerpo-tabla-rentabilidad-ot");
       tRent.innerHTML = rentabilidadOt.length ? "" : "<tr><td colspan=\"6\" class=\"nota-ayuda\">Todavía no hay órdenes cerradas.</td></tr>";
       rentabilidadOt.forEach(function (o) {
         var horasReales = o.horas_reales_invertidas === null || o.horas_reales_invertidas === undefined ? null : Number(o.horas_reales_invertidas);
         var eficiencia = o.eficiencia_tiempo_real_pct === null || o.eficiencia_tiempo_real_pct === undefined ? null : Number(o.eficiencia_tiempo_real_pct);
+        var anomaliaTexto = "";
+        if (horasReales !== null && horasReales < (LIMITE_MINUTOS_CORTO_RENT / 60)) {
+          eficiencia = null;
+          anomaliaTexto = "<br><span class=\"fila-detalle\" style=\"color:#b45309;\">⚠️ posible clic de prueba, no trabajo real</span>";
+        } else if (horasReales !== null && horasReales > LIMITE_HORAS_LARGO_RENT) {
+          anomaliaTexto = "<br><span class=\"fila-detalle\" style=\"color:#b45309;\">⚠️ posiblemente olvidaron dar clic en \"Terminar\" — revisar antes de usar este dato</span>";
+        }
         var horasTexto = horasReales === null ? "—" : Number(o.horas_facturadas).toFixed(2) + " vs. " + horasReales.toFixed(2);
-        var productividadTexto = eficiencia === null ? "—" : "<b style=\"color:" + (eficiencia >= 100 ? "var(--verde)" : "#b45309") + ";\">" + eficiencia.toFixed(0) + "%</b>";
+        var productividadTexto = (eficiencia === null ? "—" : "<b style=\"color:" + (eficiencia >= 100 ? "var(--verde)" : "#b45309") + ";\">" + eficiencia.toFixed(0) + "%</b>") + anomaliaTexto;
         var devueltaTexto = o.veces_devuelta_calidad > 0 ? "<br><span class=\"fila-detalle\">↩ Devuelta " + o.veces_devuelta_calidad + " vez(es)</span>" : "";
         var tr = document.createElement("tr");
         tr.innerHTML =
@@ -10468,6 +10523,49 @@ against the dark UI.
       mostrarError("buscar-error", "Error buscando el vehículo: " + err.message);
     });
   }, "buscar-error"));
+
+  // Buscar por nombre/teléfono del cliente cuando llama y no tiene la placa
+  // a la mano — evita que el asesor tenga que colgar y volver a llamar solo
+  // para pedirle la placa. Muestra sus vehículos registrados como opciones;
+  // al elegir uno, se reutiliza la misma búsqueda por placa de siempre.
+  $("btn-buscar-cliente-vehiculo").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("buscar-error");
+    var resultado = $("resultado-buscar-cliente-vehiculo");
+    resultado.innerHTML = "";
+    var texto = $("buscar-cliente-vehiculo").value.trim();
+    if (!texto) {
+      mostrarError("buscar-error", "Escribe el nombre o el teléfono del cliente.");
+      return;
+    }
+    var textoOr = texto.replace(/[,()]/g, "");
+    return restRequest("GET", "clientes", {
+      query: "select=id_cliente,nombre,telefono,vehiculos(id_vehiculo,placa,marca,modelo)&or=(nombre.ilike.*" + encodeURIComponent(textoOr) + "*,telefono.ilike.*" + encodeURIComponent(textoOr) + "*)&limit=10"
+    }).then(function (clientesEncontrados) {
+      clientesEncontrados = clientesEncontrados || [];
+      var vehiculosEncontrados = [];
+      clientesEncontrados.forEach(function (c) {
+        (c.vehiculos || []).forEach(function (v) { vehiculosEncontrados.push({ cliente: c, vehiculo: v }); });
+      });
+      if (!vehiculosEncontrados.length) {
+        resultado.innerHTML = '<div class="nota-ayuda">No se encontró ningún cliente ni vehículo con ese nombre o teléfono.</div>';
+        return;
+      }
+      resultado.innerHTML = '<div class="nota-ayuda">Toca el vehículo correcto:</div>' + vehiculosEncontrados.map(function (r) {
+        return '<button type="button" class="secundario" style="width:100%;text-align:left;margin-top:4px;" onclick="window.elegirVehiculoDesdeCliente(\'' + r.vehiculo.placa + '\')">' +
+          '<b>' + r.vehiculo.placa + '</b> — ' + r.vehiculo.marca + ' ' + r.vehiculo.modelo + ' — ' + r.cliente.nombre + (r.cliente.telefono ? ' (' + r.cliente.telefono + ')' : '') +
+          '</button>';
+      }).join("");
+    }).catch(function (err) {
+      mostrarError("buscar-error", "Error buscando el cliente: " + err.message);
+    });
+  }, "buscar-error"));
+
+  window.elegirVehiculoDesdeCliente = function (placa) {
+    $("buscar-placa").value = placa;
+    $("resultado-buscar-cliente-vehiculo").innerHTML = "";
+    $("buscar-cliente-vehiculo").value = "";
+    $("btn-buscar").click();
+  };
 
   // Busca órdenes ya cerradas de este mismo vehículo, para poder vincular
   // una orden de garantía con la reparación original (opcional).
@@ -13227,6 +13325,71 @@ against the dark UI.
     return '<button type="button" class="secundario" style="width:auto;padding:4px 8px;font-size:11px;" onclick="window.iniciarAvanceServicio(\'' + f.id_detalle + '\')">Iniciar</button>';
   }
 
+  // ---------------------------------------------------------------------
+  // Timer flotante: mientras haya una tarea de mano de obra en curso (o en
+  // pausa) en la orden que se está viendo, queda siempre visible en pantalla
+  // con su cronómetro corriendo en vivo y los mismos botones de Pausar /
+  // Reanudar / Terminar de la tabla de arriba. Antes de esto, el avance
+  // Iniciar/Terminar quedaba enterrado dentro de la tabla de ítems y se
+  // perdía de vista al hacer scroll — eso llevaba a que se marcaran varias
+  // tareas juntas al final del turno en vez de una por una en tiempo real.
+  // ---------------------------------------------------------------------
+  var timerFlotanteIntervalo = null;
+  var timerFlotanteDatos = null; // { pausado, inicioMs, minPausados } o { pausado:true, segundosFijos }
+
+  function detenerTimerFlotante() {
+    if (timerFlotanteIntervalo) { clearInterval(timerFlotanteIntervalo); timerFlotanteIntervalo = null; }
+    timerFlotanteDatos = null;
+    var caja = $("timer-flotante");
+    if (caja) caja.classList.add("oculto");
+  }
+
+  function formatoRelojHHMMSS(totalSegundos) {
+    totalSegundos = Math.max(0, Math.round(totalSegundos));
+    var h = Math.floor(totalSegundos / 3600);
+    var m = Math.floor((totalSegundos % 3600) / 60);
+    var s = totalSegundos % 60;
+    function dosDigitos(n) { return (n < 10 ? "0" : "") + n; }
+    return dosDigitos(h) + ":" + dosDigitos(m) + ":" + dosDigitos(s);
+  }
+
+  function pintarRelojTimerFlotante() {
+    if (!timerFlotanteDatos) return;
+    var segundos = timerFlotanteDatos.pausado
+      ? timerFlotanteDatos.segundosFijos
+      : (Date.now() - timerFlotanteDatos.inicioMs) / 1000 - timerFlotanteDatos.minPausados * 60;
+    $("timer-flotante-reloj").textContent = formatoRelojHHMMSS(segundos);
+  }
+
+  function actualizarTimerFlotante(filasMO) {
+    var puedeOperar = ordenActual && ordenActual.estado === "en_proceso";
+    var enCurso = puedeOperar ? (filasMO || []).filter(function (f) { return f.fecha_inicio_real && !f.fecha_fin_real; })[0] : null;
+
+    if (!enCurso) { detenerTimerFlotante(); return; }
+
+    var pausaAbierta = pausaAbiertaLinea(enCurso);
+    var minPausados = minutosPausadosLinea(enCurso);
+    var caja = $("timer-flotante");
+    caja.classList.remove("oculto");
+    caja.classList.toggle("timer-flotante-pausado", !!pausaAbierta);
+    $("timer-flotante-titulo").textContent = pausaAbierta ? "Tarea en pausa" : "Tarea en curso";
+    $("timer-flotante-nombre").textContent = enCurso.items.nombre;
+
+    var botones = $("timer-flotante-botones");
+    if (pausaAbierta) {
+      botones.innerHTML = '<button type="button" onclick="window.reanudarAvanceServicio(\'' + enCurso.id_detalle + '\')">▶ Reanudar</button>';
+      var segundosFijos = (new Date(pausaAbierta.hora_inicio) - new Date(enCurso.fecha_inicio_real)) / 1000 - minPausados * 60;
+      timerFlotanteDatos = { pausado: true, segundosFijos: segundosFijos };
+    } else {
+      botones.innerHTML =
+        '<button type="button" class="secundario" onclick="window.pausarAvanceServicio(\'' + enCurso.id_detalle + '\')">⏸ Pausar</button>' +
+        '<button type="button" onclick="window.terminarAvanceServicio(\'' + enCurso.id_detalle + '\')">Terminar</button>';
+      timerFlotanteDatos = { pausado: false, inicioMs: new Date(enCurso.fecha_inicio_real).getTime(), minPausados: minPausados };
+    }
+    pintarRelojTimerFlotante();
+    if (!timerFlotanteIntervalo) timerFlotanteIntervalo = setInterval(pintarRelojTimerFlotante, 1000);
+  }
+
   var ETIQUETAS_TIPO_ITEM = { repuesto: "Repuesto", insumo: "Insumo" };
 
   function renderizarTablaPartes(filas) {
@@ -13445,6 +13608,7 @@ against the dark UI.
       var filasPartes = filas.filter(function (f) { return f.items.tipo === "repuesto" || f.items.tipo === "insumo"; });
       var filasExternos = filas.filter(function (f) { return f.items.tipo === "trabajo_externo"; });
       renderizarTablaManoObra(filasMO);
+      actualizarTimerFlotante(filasMO);
       renderizarTablaPartes(filasPartes);
       renderizarTablaExternos(filasExternos);
       renderizarTotalesOrden(filas);
@@ -14744,6 +14908,13 @@ against the dark UI.
   $("btn-enviar-autorizacion").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("item-error");
     if (!exigirEvidencias("diagnostico")) return;
+    // Confirmación antes de mandar a firma: corregir un ítem después de
+    // autorizado obliga a pedir una firma nueva al cliente (le pasó varias
+    // veces a la misma orden en la semana del 16-22 de sept.), así que vale
+    // la pena parar un segundo a revisar antes de enviar, no después.
+    if (!window.confirm("¿Ya revisaste con el cliente (y con el técnico) que los ítems, cantidades y precios de esta orden son correctos?\n\nUna vez el cliente autorice, cualquier corrección va a exigirle firmar de nuevo.")) {
+      return;
+    }
     return cambiarEstadoOrden("sin_autorizacion", "Diagnóstico completo, orden enviada a autorización");
   }, "item-error"));
 
