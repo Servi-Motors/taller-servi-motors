@@ -752,7 +752,7 @@ against the dark UI.
           <button type="button" id="btn-guardar-checklist-recepcion">Guardar checklist de recepción</button>
           <div id="checklist-recepcion-error" class="mensaje-error"></div>
 
-          <label style="margin-top:20px;">Fotos de evidencia (mínimo 4)</label>
+          <label style="margin-top:20px;">Fotos de evidencia (mínimo 1)</label>
           <div id="evidencias-recepcion-galeria" class="galeria-evidencias"></div>
           <div class="agenda-controles">
             <button type="button" class="secundario" id="btn-camara-recepcion">📷 Tomar foto</button>
@@ -795,7 +795,7 @@ against the dark UI.
           <button type="button" class="secundario" id="btn-guardar-hallazgos">Guardar hallazgos</button>
           <div class="nota-ayuda">Agrega abajo los ítems necesarios y, cuando el presupuesto esté listo, envíalo a autorización.</div>
 
-          <label>Fotos de evidencia (mínimo 4)</label>
+          <label>Fotos de evidencia (mínimo 1)</label>
           <div id="evidencias-diagnostico-galeria" class="galeria-evidencias"></div>
           <div class="agenda-controles">
             <button type="button" class="secundario" id="btn-camara-diagnostico">📷 Tomar foto</button>
@@ -811,7 +811,7 @@ against the dark UI.
         <div id="orden-trabajo-contenido">
 
         <div id="orden-evidencias-proceso" class="oculto">
-          <h3>Fotos de evidencia — En proceso (mínimo 4)</h3>
+          <h3>Fotos de evidencia — En proceso (mínimo 1)</h3>
           <div id="evidencias-en_proceso-galeria" class="galeria-evidencias"></div>
           <div class="agenda-controles">
             <button type="button" class="secundario" id="btn-camara-en_proceso">📷 Tomar foto</button>
@@ -823,7 +823,7 @@ against the dark UI.
         </div>
 
         <div id="orden-evidencias-calidad" class="oculto">
-          <h3>Fotos de evidencia — Control de calidad (mínimo 4)</h3>
+          <h3>Fotos de evidencia — Control de calidad (mínimo 1)</h3>
           <div id="evidencias-control_calidad-galeria" class="galeria-evidencias"></div>
           <div class="agenda-controles">
             <button type="button" class="secundario" id="btn-camara-control_calidad">📷 Tomar foto</button>
@@ -13885,10 +13885,10 @@ against the dark UI.
   }
 
   // =====================================================================
-  // EVIDENCIA FOTOGRÁFICA POR ETAPA (mínimo 4 fotos para poder avanzar)
+  // EVIDENCIA FOTOGRÁFICA POR ETAPA (mínimo 1 foto para poder avanzar, sin límite máximo)
   // =====================================================================
   var ETAPAS_EVIDENCIA = ["recepcion", "diagnostico", "en_proceso", "control_calidad"];
-  var MINIMO_EVIDENCIAS = 4;
+  var MINIMO_EVIDENCIAS = 1;
   var UI_EVIDENCIAS = {
     recepcion: { galeria: "evidencias-recepcion-galeria", camara: "evidencias-recepcion-camara", archivo: "evidencias-recepcion-archivo", btnCamara: "btn-camara-recepcion", btnArchivo: "btn-archivo-recepcion", contador: "evidencias-recepcion-contador" },
     diagnostico: { galeria: "evidencias-diagnostico-galeria", camara: "evidencias-diagnostico-camara", archivo: "evidencias-diagnostico-archivo", btnCamara: "btn-camara-diagnostico", btnArchivo: "btn-archivo-diagnostico", contador: "evidencias-diagnostico-contador" },
