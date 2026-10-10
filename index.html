@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-09-01-1">
+<meta name="app-build" content="2026-10-10-2">
 <title>Taller Servi Motors – Panel principal</title>
 <script>
   // Aplica el tema guardado (si la persona ya lo eligió a mano) antes de que
@@ -2755,6 +2755,22 @@ against the dark UI.
         <button id="btn-agregar-prestamo">Registrar préstamo</button>
         <div id="prestamo-error" class="mensaje-error"></div>
       </div>
+
+      <div class="tarjeta oculto" id="tarjeta-errores-app">
+        <h2>Errores recientes de la app</h2>
+        <div class="nota-ayuda">Aquí quedan guardados automáticamente los errores que le salen a cualquier usuario (fallos de conexión, de código o de una consulta). Sirve para revisarlos después sin depender de una captura de pantalla. Se muestran los últimos 50.</div>
+        <div class="agenda-controles">
+          <button type="button" class="secundario" id="btn-actualizar-errores-app">Actualizar</button>
+          <button type="button" class="secundario" id="btn-limpiar-errores-app">Borrar los de hace más de 30 días</button>
+        </div>
+        <div class="tabla-scroll">
+          <table>
+            <thead><tr><th>Fecha</th><th>Rol</th><th>Pantalla</th><th>Tipo</th><th>Mensaje</th></tr></thead>
+            <tbody id="cuerpo-errores-app"></tbody>
+          </table>
+        </div>
+        <div id="errores-app-error" class="mensaje-error"></div>
+      </div>
     </section>
 
     <section id="pantalla-nomina" class="pagina oculto">
@@ -3667,6 +3683,9 @@ against the dark UI.
         .then(function () { return fn.apply(null, args); })
         .catch(function (err) {
           console.error(err);
+          // Los fallos de consulta/conexión ya se registran en restRequest;
+          // aquí solo se guardan los errores de código propios de la pantalla.
+          if (!(err && (err.status || err.esRed))) registrarErrorApp("pantalla", (elIdError || "") + ": " + (err && err.message ? err.message : String(err)), err && err.stack ? err.stack : "");
           mostrarError(elIdError, "Error inesperado: " + (err && err.message ? err.message : String(err)));
         });
     };
@@ -3726,7 +3745,19 @@ against the dark UI.
     }).catch(function (err) {
       if (idTiempo) clearTimeout(idTiempo);
       if (err && err.name === "AbortError") {
-        throw new Error("No se pudo conectar con el servidor (la conexión tardó demasiado). Revisa tu internet e intenta de nuevo.");
+        var eTiempo = new Error("No se pudo conectar con el servidor (la conexión tardó demasiado). Revisa tu internet e intenta de nuevo.");
+        eTiempo.esRed = true;
+        throw eTiempo;
+      }
+      // "Failed to fetch" (Chrome), "Load failed" (Safari) o "NetworkError"
+      // (Firefox) significan que el celular perdió la conexión a mitad de la
+      // petición — no que el servidor respondió con un error. Se avisa con
+      // un mensaje claro, porque la acción pudo haberse guardado de todas
+      // formas (se perdió solo la respuesta).
+      if (err && err.name === "TypeError" && /failed to fetch|load failed|networkerror|network request failed/i.test(err.message || "")) {
+        var eRed = new Error("Se perdió la conexión a internet un momento. Revisa tu señal; tu última acción pudo haberse guardado, así que recarga la pantalla para confirmarlo antes de repetirla.");
+        eRed.esRed = true;
+        throw eRed;
       }
       throw err;
     });
@@ -3767,16 +3798,31 @@ against the dark UI.
   // la clave a la persona otra vez. Se usa tanto de forma preventiva (cada
   // pocos minutos, si falta poco para que venza) como apenas una petición
   // falle por sesión vencida.
+  // Una sola renovación a la vez: al abrir una pantalla la app lanza varias
+  // consultas en paralelo, y si la sesión estaba vencida TODAS fallaban a la
+  // vez y cada una pedía su propia renovación con el mismo refresh_token
+  // (se vieron hasta 5 en el mismo segundo). Supabase cambia el refresh_token
+  // en cada renovación, y reutilizar uno ya cambiado puede hacer que
+  // invalide toda la sesión — que es justo lo que se siente como que la app
+  // "se cae" y pide la clave otra vez. Ahora todas comparten la misma
+  // renovación en curso.
+  var renovacionEnCurso = null;
   function refrescarSesion() {
     if (!refreshToken) return Promise.reject(new Error("No hay sesión para renovar."));
-    return authFetch("token?grant_type=refresh_token", { refresh_token: refreshToken })
+    if (renovacionEnCurso) return renovacionEnCurso;
+    renovacionEnCurso = authFetch("token?grant_type=refresh_token", { refresh_token: refreshToken })
       .then(function (data) {
         accessToken = data.access_token;
         if (data.refresh_token) refreshToken = data.refresh_token;
         sesionExpiraEn = Date.now() + (data.expires_in || 3600) * 1000;
         guardarSesionLocal();
+        renovacionEnCurso = null;
         return data;
+      }, function (err) {
+        renovacionEnCurso = null;
+        throw err;
       });
+    return renovacionEnCurso;
   }
 
   function restRequest(method, tabla, opts, _yaReintentado) {
@@ -3800,21 +3846,39 @@ against the dark UI.
           var msg = (data && (data.message || data.hint || data.details)) || res.statusText;
           // Si la sesión venció a mitad de una acción, se renueva sola UNA
           // vez y se repite la misma petición — la persona ni se entera.
-          // Solo si el refresh_token también falló (p. ej. lleva días sin
-          // entrar) se cierra la sesión pidiendo que vuelva a iniciarla.
+          // Solo si el servidor RECHAZÓ el refresh_token (p. ej. lleva días
+          // sin entrar) se cierra la sesión pidiendo que vuelva a iniciarla.
+          // Si lo que falló fue la conexión (esRed), NO se cierra la sesión:
+          // sería castigar a la persona por una señal débil momentánea.
           var pareceSesionVencida = res.status === 401 || /jwt expired|invalid jwt|jwtexpired/i.test(msg || "");
           if (pareceSesionVencida && !_yaReintentado && refreshToken) {
             return refrescarSesion().then(function () {
               return restRequest(method, tabla, opts, true);
-            }).catch(function () {
+            }, function (errRefresco) {
+              if (errRefresco && errRefresco.esRed) throw errRefresco;
               cerrarSesion();
               throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");
             });
           }
-          throw new Error(msg);
+          var errHttp = new Error(msg);
+          errHttp.status = res.status;
+          registrarErrorApp("api", method + " " + tabla + " → " + res.status + ": " + msg, opts.query || "");
+          throw errHttp;
         }
         return data;
       });
+    }).catch(function (err) {
+      // Consultas de solo lectura (GET) que fallan por un corte momentáneo
+      // de conexión se repiten UNA vez solas. Las escrituras (POST/PATCH/
+      // DELETE) nunca se repiten solas: podrían duplicar un registro si la
+      // primera sí llegó al servidor.
+      if (err && err.esRed && method === "GET" && !opts._reintentoRed) {
+        return new Promise(function (resolver) { setTimeout(resolver, 1500); }).then(function () {
+          return restRequest(method, tabla, Object.assign({}, opts, { _reintentoRed: true }), _yaReintentado);
+        });
+      }
+      if (err && err.esRed) registrarErrorApp("red", method + " " + tabla + ": " + err.message, opts.query || "");
+      throw err;
     });
   }
 
@@ -3866,7 +3930,15 @@ against the dark UI.
     refrescarSesion().then(function (data) {
       usuarioActualId = data.user.id;
       return entrarAlApp(data.user.email);
-    }).catch(function () {
+    }).catch(function (err) {
+      // Solo se borra la sesión guardada si el servidor la RECHAZÓ. Si lo
+      // que falló fue la conexión (abrir la app con poca señal en el taller),
+      // se conserva para que al recargar con internet entre directo, sin
+      // volver a pedir la clave.
+      if (err && err.esRed) {
+        mostrarError("login-error", "No hay conexión para abrir tu sesión. Revisa tu señal y recarga la página; no tendrás que escribir tu clave otra vez.");
+        return;
+      }
       borrarSesionLocal();
     });
   })();
@@ -3879,6 +3951,80 @@ against the dark UI.
       refrescarSesion().catch(function (err) { console.error("No se pudo renovar la sesión de forma preventiva:", err); });
     }
   }, 5 * 60 * 1000);
+
+  // Al volver a la app desde otra aplicación (o desbloquear el celular), los
+  // navegadores móviles suelen haber "dormido" el temporizador de arriba, y
+  // la sesión puede haber vencido mientras tanto. Se renueva de inmediato al
+  // volver, antes de que la persona toque algo.
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden || !accessToken || !refreshToken || !sesionExpiraEn) return;
+    if (sesionExpiraEn - Date.now() < 10 * 60 * 1000) {
+      refrescarSesion().catch(function () {});
+    }
+  });
+
+  // --- Registro propio de errores de la app (tabla errores_app) ---
+  // Guarda lo que falló (error de código, de conexión o de una consulta)
+  // para poder revisarlo días después en Configuración → Errores recientes,
+  // sin depender de que alguien se acuerde de tomar captura. Nunca debe
+  // romper la app: si no se puede guardar el error, se descarta en silencio.
+  var colaErroresApp = [];
+  var erroresAppEnviados = 0;
+  var ultimosErroresApp = {};
+  function pantallaVisibleActual() {
+    var s = document.querySelector("section.pagina:not(.oculto)");
+    return s ? s.id.replace("pantalla-", "") : "";
+  }
+  function registrarErrorApp(origen, mensaje, detalle) {
+    try {
+      if (!accessToken) return;
+      mensaje = String(mensaje || "").slice(0, 900);
+      var clave = origen + "|" + mensaje;
+      var ahora = Date.now();
+      // El mismo error repetido en menos de 1 minuto se cuenta una sola vez,
+      // y hay un tope por sesión para no llenar la tabla si algo entra en ciclo.
+      if (ultimosErroresApp[clave] && ahora - ultimosErroresApp[clave] < 60000) return;
+      if (erroresAppEnviados >= 40) return;
+      ultimosErroresApp[clave] = ahora;
+      colaErroresApp.push({
+        origen: origen,
+        mensaje: mensaje,
+        detalle: detalle ? String(detalle).slice(0, 3500) : null,
+        pantalla: pantallaVisibleActual(),
+        rol: rolActual || null,
+        version_app: VERSION_APP_ACTUAL || null,
+        user_agent: (navigator.userAgent || "").slice(0, 250)
+      });
+      if (colaErroresApp.length > 20) colaErroresApp.shift();
+      vaciarColaErroresApp();
+    } catch (e) {}
+  }
+  function vaciarColaErroresApp() {
+    if (!colaErroresApp.length || !accessToken) return;
+    var item = colaErroresApp[0];
+    fetch(SUPABASE_URL + "/rest/v1/errores_app", {
+      method: "POST",
+      headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + accessToken, "Content-Type": "application/json", "Prefer": "return=minimal" },
+      body: JSON.stringify(item)
+    }).then(function (res) {
+      // Si el servidor respondió (aunque sea con rechazo), el item sale de la
+      // cola — así un rechazo permanente no se reintenta para siempre. Solo
+      // se conserva en cola si no hubo conexión (ver catch).
+      colaErroresApp.shift();
+      if (res.ok) erroresAppEnviados++;
+      if (colaErroresApp.length) vaciarColaErroresApp();
+    }).catch(function () {});
+  }
+  window.addEventListener("online", vaciarColaErroresApp);
+  window.addEventListener("error", function (ev) {
+    if (/ResizeObserver|^Script error/i.test(ev.message || "")) return;
+    registrarErrorApp("js", ev.message || "Error de JavaScript", (ev.filename || "") + ":" + (ev.lineno || "") + ":" + (ev.colno || ""));
+  });
+  window.addEventListener("unhandledrejection", function (ev) {
+    var r = ev.reason;
+    if (r && r.esRed) return;
+    registrarErrorApp("promesa", (r && r.message) ? r.message : String(r), r && r.stack ? r.stack : "");
+  });
 
   // Aviso de versión nueva disponible: el celular de un asesor/técnico
   // puede quedar horas con esta página abierta, y GitHub Pages no siempre
@@ -8165,8 +8311,51 @@ against the dark UI.
     });
   }
 
+  // Tarjeta "Errores recientes de la app" (solo administrador): lee la tabla
+  // errores_app, que se llena sola desde registrarErrorApp().
+  var ETIQUETAS_ORIGEN_ERROR = { js: "Código", promesa: "Código", api: "Consulta", red: "Conexión", pantalla: "Pantalla" };
+  function cargarErroresApp() {
+    var tarjeta = $("tarjeta-errores-app");
+    if (!tarjeta) return Promise.resolve();
+    var esAdmin = rolActual === "administrador";
+    tarjeta.classList.toggle("oculto", !esAdmin);
+    if (!esAdmin) return Promise.resolve();
+    ocultarError("errores-app-error");
+    return restRequest("GET", "errores_app", { query: "select=creado_en,rol,origen,mensaje,pantalla&order=creado_en.desc&limit=50" }).then(function (filas) {
+      var tbody = $("cuerpo-errores-app");
+      tbody.innerHTML = "";
+      if (!filas || !filas.length) {
+        tbody.innerHTML = "<tr><td colspan=\"5\" class=\"tabla-vacia\">Sin errores registrados. Todo en orden.</td></tr>";
+        return;
+      }
+      filas.forEach(function (f) {
+        var tr = document.createElement("tr");
+        var celdas = [
+          new Date(f.creado_en).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" }),
+          f.rol || "—",
+          f.pantalla || "—",
+          ETIQUETAS_ORIGEN_ERROR[f.origen] || f.origen,
+          f.mensaje
+        ];
+        celdas.forEach(function (texto) {
+          var td = document.createElement("td");
+          td.textContent = texto;
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+    });
+  }
+  $("btn-actualizar-errores-app").addEventListener("click", conManejoDeErrores(cargarErroresApp, "errores-app-error"));
+  $("btn-limpiar-errores-app").addEventListener("click", conManejoDeErrores(function () {
+    if (!window.confirm("¿Borrar los errores registrados hace más de 30 días?")) return;
+    var limite = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    return restRequest("DELETE", "errores_app", { query: "creado_en=lt." + encodeURIComponent(limite) }).then(cargarErroresApp);
+  }, "errores-app-error"));
+
   function cargarConfiguracion() {
     ocultarError("config-error");
+    cargarErroresApp().catch(function () {});
     return Promise.all([
       restRequest("GET", "empleados", { query: "select=*,usuarios(nombre,rol,correo)&order=creado_en.desc" }),
       restRequest("GET", "usuarios", { query: "select=id_usuario,nombre,rol&estado=eq.activo&order=nombre.asc" }),
@@ -14845,13 +15034,30 @@ against the dark UI.
   // (no un PATCH directo) porque el técnico solo tiene permiso de insertar
   // ítems, no de editarlos — así se registra el avance sin abrirle la puerta
   // a cambiar precios ni cantidades.
+  // Mientras una acción de avance está en camino para un servicio, un
+  // segundo clic (o un toque doble en el celular) se ignora: antes llegaba
+  // el segundo pedido y la base respondía "ya fue marcado como terminado".
+  var avancesEnCurso = {};
   function registrarProgresoServicio(idDetalle, accion, motivo) {
     ocultarError("item-error");
+    if (avancesEnCurso[idDetalle]) return Promise.resolve();
+    avancesEnCurso[idDetalle] = true;
     var cuerpo = { p_id_detalle: idDetalle, p_accion: accion };
     if (motivo) cuerpo.p_motivo = motivo;
+    function liberar() { delete avancesEnCurso[idDetalle]; }
     return restRequest("POST", "rpc/registrar_progreso_servicio", { body: cuerpo })
-      .then(function () { return cargarItemsDeOrden(); })
+      .then(function () { liberar(); return cargarItemsDeOrden(); })
       .catch(function (err) {
+        liberar();
+        if (err && err.esRed) {
+          // Se cortó la conexión: el avance pudo haberse guardado de todas
+          // formas. Se avisa claro y se intenta recargar la lista para que
+          // la pantalla muestre lo que realmente quedó en la base.
+          mostrarError("item-error", "Se perdió la conexión mientras se registraba el avance. Revisa tu señal: se está verificando si quedó guardado; no repitas la acción hasta ver la lista actualizada.");
+          return new Promise(function (r) { setTimeout(r, 2500); })
+            .then(function () { return cargarItemsDeOrden(); })
+            .catch(function () {});
+        }
         mostrarError("item-error", "No se pudo registrar el avance: " + err.message);
       });
   }
