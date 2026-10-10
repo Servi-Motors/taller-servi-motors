@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-10-10-2">
+<meta name="app-build" content="2026-10-10-3">
 <title>Taller Servi Motors – Panel principal</title>
 <script>
   // Aplica el tema guardado (si la persona ya lo eligió a mano) antes de que
@@ -4287,20 +4287,74 @@ against the dark UI.
   // el mismo servidor, esas peticiones amontonadas terminan tapando el
   // turno de cualquier otra acción (como guardar algo), y la app entera se
   // siente "trabada" aunque el wifi del aparato siga conectado.
+  //
+  // AJUSTE (oct 2026): en el celular del técnico (Android 10, poca memoria)
+  // salía "Chrome no responde". Causa: cada 2s se volvía a pedir y a
+  // DIBUJAR de cero todo el tablero (hasta 100 tarjetas) o toda la orden
+  // abierta (con 5 consultas), aunque nada hubiera cambiado — y mientras la
+  // persona hacía scroll o escribía. Ahora:
+  //  1) El reloj sigue revisando cada 2s, pero solo ejecuta una
+  //     actualización cada 5s como mínimo, y si el celular tarda en
+  //     responder se espera 4 veces lo que tardó (hasta 30s) — se adapta
+  //     solo a equipos lentos o señal débil.
+  //  2) No actualiza mientras la persona está tocando/haciendo scroll
+  //     (últimos 2,5s) ni mientras escribe en un campo de la orden.
+  //  3) Si lo que llegó es idéntico a lo que ya se ve, NO redibuja nada.
+  //  4) Al volver a la app (visibilidad/foco), sí actualiza de inmediato.
   var refrescoOrdenesEnCurso = false;
-  function refrescarPantallaOrdenesSiAplica() {
+  var proximoRefrescoOrdenesEn = 0;
+  var ultimaInteraccionOrdenes = 0;
+  var firmaTableroOrdenes = null;
+  var firmaDetalleOrden = null;
+  var ultimoRefrescoCompletoDetalleEn = 0;
+  function marcarInteraccionOrdenes() { ultimaInteraccionOrdenes = Date.now(); }
+  ["touchstart", "touchmove", "pointerdown", "keydown"].forEach(function (ev) {
+    document.addEventListener(ev, marcarInteraccionOrdenes, { passive: true });
+  });
+  document.addEventListener("scroll", marcarInteraccionOrdenes, { passive: true, capture: true });
+
+  // Revisa con 2 consultas livianas si algo de la orden abierta cambió; solo
+  // si cambió (o pasó 1 minuto, como red de seguridad) recarga y redibuja
+  // la orden completa.
+  function refrescarDetalleOrdenSiCambio() {
+    var id = ordenActual.id_ot;
+    return Promise.all([
+      restRequest("GET", "ot_detalle", { query: "select=id_detalle,id_item,cantidad,precio_aplicado_cliente,pct_descuento,estado_autorizacion,codigo,meses_garantia,fecha_inicio_real,fecha_fin_real,pausas_avance_ot(id_pausa,hora_fin)&id_ot=eq." + id + "&order=creado_en.asc" }),
+      restRequest("GET", "ordenes_trabajo", { query: "select=estado,tipo_orden,diagnostico,hallazgos_diagnostico,motivo_ingreso,presupuesto_tentativo,veces_devuelta_calidad,id_asesor,id_tecnico,fecha_cierre&id_ot=eq." + id })
+    ]).then(function (r) {
+      var firma = id + "|" + JSON.stringify(r);
+      var ahora = Date.now();
+      var pasoUnMinuto = ahora - ultimoRefrescoCompletoDetalleEn > 60000;
+      if (firma === firmaDetalleOrden && !pasoUnMinuto) return;
+      firmaDetalleOrden = firma;
+      ultimoRefrescoCompletoDetalleEn = ahora;
+      return cargarItemsDeOrden();
+    });
+  }
+
+  function refrescarPantallaOrdenesSiAplica(forzar) {
+    forzar = forzar === true;
     if (document.hidden) return;
     if (!accessToken) return;
     if (refrescoOrdenesEnCurso) return;
     if ($("shell").classList.contains("oculto")) return;
     if ($("pantalla-app").classList.contains("oculto")) return;
+    var ahora = Date.now();
+    if (!forzar && ahora < proximoRefrescoOrdenesEn) return;
+    if (!forzar && ahora - ultimaInteraccionOrdenes < 2500) return;
 
-    refrescoOrdenesEnCurso = true;
     var verDetalleOrden = ordenActual && !$("tarjeta-items").classList.contains("oculto");
+    if (!forzar && verDetalleOrden) {
+      var activo = document.activeElement;
+      if (activo && /^(INPUT|TEXTAREA|SELECT)$/.test(activo.tagName)) return;
+    }
+    refrescoOrdenesEnCurso = true;
     if (!verDetalleOrden) detenerTimerFlotante();
-    var promesa = verDetalleOrden ? cargarItemsDeOrden() : cargarTableroOrdenes();
+    var promesa = verDetalleOrden ? refrescarDetalleOrdenSiCambio() : cargarTableroOrdenes({ soloSiCambio: true });
     promesa.catch(function (err) { console.error(err); }).then(function () {
       refrescoOrdenesEnCurso = false;
+      var duracion = Date.now() - ahora;
+      proximoRefrescoOrdenesEn = Date.now() + Math.min(30000, Math.max(5000, duracion * 4));
     });
   }
   setInterval(refrescarPantallaOrdenesSiAplica, 2000);
@@ -4310,9 +4364,10 @@ against the dark UI.
   // tanto. "focus" y "pageshow" (esta última cubre cuando el navegador
   // restaura la página desde su caché en vez de recargarla) son más
   // confiables ahí, así que se refresca también con esos dos eventos.
-  document.addEventListener("visibilitychange", refrescarPantallaOrdenesSiAplica);
-  window.addEventListener("focus", refrescarPantallaOrdenesSiAplica);
-  window.addEventListener("pageshow", refrescarPantallaOrdenesSiAplica);
+  function refrescarOrdenesAlVolver() { refrescarPantallaOrdenesSiAplica(true); }
+  document.addEventListener("visibilitychange", refrescarOrdenesAlVolver);
+  window.addEventListener("focus", refrescarOrdenesAlVolver);
+  window.addEventListener("pageshow", refrescarOrdenesAlVolver);
 
   $("btn-actualizar-tablero").addEventListener("click", conManejoDeErrores(function () {
     var btn = $("btn-actualizar-tablero");
@@ -4441,7 +4496,7 @@ against the dark UI.
     { clave: "cancelada", etiqueta: "Cancelada" }
   ];
 
-  function cargarTableroOrdenes() {
+  function cargarTableroOrdenes(opciones) {
     ocultarError("tablero-error");
     cargarListasVehiculo(); // sugerencias de marca/modelo/color para "Nueva orden" (no bloquea la carga del tablero)
     var query = "select=id_ot,numero_ot,estado,tipo_orden,fecha_apertura,veces_devuelta_calidad,vehiculos(placa,marca,modelo),clientes(nombre)," +
@@ -4449,7 +4504,16 @@ against the dark UI.
       "&order=fecha_apertura.desc&limit=100";
     return restRequest("GET", "ordenes_trabajo", { query: query }).then(function (ordenes) {
       ordenes = ordenes || [];
+      // Si es una actualización automática y lo recibido es idéntico a lo que
+      // ya está dibujado, no se toca la pantalla (evita trabajo inútil en
+      // celulares lentos y evita que las columnas "salten" al hacer scroll).
+      var firmaNueva = prefijoOT + "|" + JSON.stringify(ordenes);
+      if (opciones && opciones.soloSiCambio && firmaNueva === firmaTableroOrdenes) return;
+      firmaTableroOrdenes = firmaNueva;
       var contenedor = $("tablero-ordenes");
+      // Guardar el scroll de cada columna para restaurarlo tras redibujar.
+      var scrollColumnas = [];
+      contenedor.querySelectorAll(".kanban-lista").forEach(function (l) { scrollColumnas.push(l.scrollTop); });
       contenedor.innerHTML = "";
       ESTADOS_TABLERO.forEach(function (col) {
         var filas = ordenes.filter(function (o) { return o.estado === col.clave; });
@@ -4486,6 +4550,9 @@ against the dark UI.
         });
         divCol.appendChild(lista);
         contenedor.appendChild(divCol);
+      });
+      contenedor.querySelectorAll(".kanban-lista").forEach(function (l, i) {
+        if (scrollColumnas[i]) l.scrollTop = scrollColumnas[i];
       });
     });
   }
