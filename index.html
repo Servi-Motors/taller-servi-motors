@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-10-10-3">
+<meta name="app-build" content="2026-10-22-1">
 <title>Taller Servi Motors – Panel principal</title>
 <script>
   // Aplica el tema guardado (si la persona ya lo eligió a mano) antes de que
@@ -767,7 +767,7 @@ against the dark UI.
           <button type="button" id="btn-guardar-checklist-recepcion">Guardar checklist de recepción</button>
           <div id="checklist-recepcion-error" class="mensaje-error"></div>
 
-          <label style="margin-top:20px;">Fotos de evidencia (mínimo 1)</label>
+          <label style="margin-top:20px;">Fotos de evidencia (mínimo 1, obligatoria)</label>
           <div id="evidencias-recepcion-galeria" class="galeria-evidencias"></div>
           <div class="agenda-controles">
             <button type="button" class="secundario" id="btn-camara-recepcion">📷 Tomar foto</button>
@@ -810,7 +810,7 @@ against the dark UI.
           <button type="button" class="secundario" id="btn-guardar-hallazgos">Guardar hallazgos</button>
           <div class="nota-ayuda">Agrega abajo los ítems necesarios y, cuando el presupuesto esté listo, envíalo a autorización.</div>
 
-          <label>Fotos de evidencia (mínimo 1)</label>
+          <label>Fotos de evidencia (opcional)</label>
           <div id="evidencias-diagnostico-galeria" class="galeria-evidencias"></div>
           <div class="agenda-controles">
             <button type="button" class="secundario" id="btn-camara-diagnostico">📷 Tomar foto</button>
@@ -826,7 +826,7 @@ against the dark UI.
         <div id="orden-trabajo-contenido">
 
         <div id="orden-evidencias-proceso" class="oculto">
-          <h3>Fotos de evidencia — En proceso (mínimo 1)</h3>
+          <h3>Fotos de evidencia — En proceso (opcional)</h3>
           <div id="evidencias-en_proceso-galeria" class="galeria-evidencias"></div>
           <div class="agenda-controles">
             <button type="button" class="secundario" id="btn-camara-en_proceso">📷 Tomar foto</button>
@@ -838,7 +838,7 @@ against the dark UI.
         </div>
 
         <div id="orden-evidencias-calidad" class="oculto">
-          <h3>Fotos de evidencia — Control de calidad (mínimo 1)</h3>
+          <h3>Fotos de evidencia — Control de calidad (opcional)</h3>
           <div id="evidencias-control_calidad-galeria" class="galeria-evidencias"></div>
           <div class="agenda-controles">
             <button type="button" class="secundario" id="btn-camara-control_calidad">📷 Tomar foto</button>
@@ -3977,7 +3977,6 @@ against the dark UI.
   }
   function registrarErrorApp(origen, mensaje, detalle) {
     try {
-      if (!accessToken) return;
       mensaje = String(mensaje || "").slice(0, 900);
       var clave = origen + "|" + mensaje;
       var ahora = Date.now();
@@ -4016,6 +4015,9 @@ against the dark UI.
     }).catch(function () {});
   }
   window.addEventListener("online", vaciarColaErroresApp);
+  // Lo que se anotó antes de iniciar sesión (p. ej. una carga inicial lenta)
+  // queda en cola y se envía apenas hay sesión.
+  setInterval(vaciarColaErroresApp, 20000);
   window.addEventListener("error", function (ev) {
     if (/ResizeObserver|^Script error/i.test(ev.message || "")) return;
     registrarErrorApp("js", ev.message || "Error de JavaScript", (ev.filename || "") + ":" + (ev.lineno || "") + ":" + (ev.colno || ""));
@@ -4024,6 +4026,42 @@ against the dark UI.
     var r = ev.reason;
     if (r && r.esRed) return;
     registrarErrorApp("promesa", (r && r.message) ? r.message : String(r), r && r.stack ? r.stack : "");
+  });
+
+  // --- Diagnóstico de rendimiento (celulares que se "congelan") ---
+  // "Chrome no responde" ocurre cuando el navegador queda más de ~5s
+  // ocupado sin atender al usuario. Esto deja constancia (en la misma tabla
+  // de errores) de cada vez que algo ocupa el celular más de 1 segundo
+  // seguido, en qué pantalla ocurrió, cuánta memoria usaba la página y qué
+  // tan potente es el aparato, para saber QUÉ lo causa en vez de adivinar.
+  function datosEquipoParaDiagnostico() {
+    var d = [];
+    try { d.push("RAM aprox: " + (navigator.deviceMemory || "?") + " GB"); } catch (e) {}
+    try { d.push("núcleos: " + (navigator.hardwareConcurrency || "?")); } catch (e) {}
+    try { if (performance.memory) d.push("memoria JS usada: " + Math.round(performance.memory.usedJSHeapSize / 1048576) + " MB de " + Math.round(performance.memory.jsHeapSizeLimit / 1048576) + " MB"); } catch (e) {}
+    try { if (navigator.connection) d.push("red: " + (navigator.connection.effectiveType || "?")); } catch (e) {}
+    d.push("elementos en pantalla: " + document.getElementsByTagName("*").length);
+    return d.join(" · ");
+  }
+  try {
+    if (window.PerformanceObserver && PerformanceObserver.supportedEntryTypes && PerformanceObserver.supportedEntryTypes.indexOf("longtask") !== -1) {
+      new PerformanceObserver(function (lista) {
+        lista.getEntries().forEach(function (e) {
+          if (e.duration < 1000) return;
+          registrarErrorApp("js", "Pantalla congelada " + (Math.round(e.duration / 100) / 10) + " s en " + (pantallaVisibleActual() || "carga inicial"), datosEquipoParaDiagnostico());
+        });
+      }).observe({ type: "longtask", buffered: true });
+    }
+  } catch (e) {}
+  window.addEventListener("load", function () {
+    setTimeout(function () {
+      try {
+        var nav = performance.getEntriesByType("navigation")[0];
+        if (nav && nav.loadEventEnd > 6000) {
+          registrarErrorApp("js", "Carga inicial lenta: " + Math.round(nav.loadEventEnd / 100) / 10 + " s", datosEquipoParaDiagnostico());
+        }
+      } catch (e) {}
+    }, 0);
   });
 
   // Aviso de versión nueva disponible: el celular de un asesor/técnico
@@ -6875,8 +6913,8 @@ against the dark UI.
   function cargarListasGasto() {
     if (datosListasGasto) { llenarDatalistsGasto(datosListasGasto); return Promise.resolve(datosListasGasto); }
     return Promise.all([
-      restRequest("GET", "proveedores", { query: "select=nombre&order=nombre.asc" }),
-      restRequest("GET", "egresos", { query: "select=proveedor,concepto&limit=3000" })
+      restRequest("GET", "proveedores", { query: "select=nombre,nit&order=nombre.asc" }),
+      restRequest("GET", "egresos", { query: "select=proveedor,concepto,nit_proveedor&order=creado_en.desc&limit=3000" })
     ]).then(function (r) {
       datosListasGasto = { proveedores: r[0] || [], egresos: r[1] || [] };
       llenarDatalistsGasto(datosListasGasto);
@@ -6884,6 +6922,33 @@ against the dark UI.
     });
   }
   function invalidarListasGasto() { datosListasGasto = null; }
+
+  // Al elegir (o escribir completo) un proveedor ya conocido en "Registrar
+  // gasto", se traen solos sus datos: el NIT sale del módulo Proveedores y,
+  // si ahí no lo tiene, del último gasto que se le registró. No pisa un NIT
+  // que la persona ya escribió a mano.
+  var nitGastoAutocompletado = "";
+  function autocompletarProveedorGasto() {
+    var datos = datosListasGasto;
+    if (!datos) return;
+    var nombre = $("egreso-proveedor").value.trim().toLowerCase();
+    if (!nombre) return;
+    var campoNit = $("egreso-nit-proveedor");
+    var puedeSobrescribir = !campoNit.value.trim() || campoNit.value === nitGastoAutocompletado;
+    if (!puedeSobrescribir) return;
+    var prov = (datos.proveedores || []).filter(function (p) { return (p.nombre || "").trim().toLowerCase() === nombre; })[0];
+    var nit = prov && prov.nit ? prov.nit : "";
+    if (!nit) {
+      var previo = (datos.egresos || []).filter(function (e) { return (e.proveedor || "").trim().toLowerCase() === nombre && e.nit_proveedor; })[0];
+      nit = previo ? previo.nit_proveedor : "";
+    }
+    if (nit) {
+      campoNit.value = nit;
+      nitGastoAutocompletado = nit;
+    }
+  }
+  $("egreso-proveedor").addEventListener("input", autocompletarProveedorGasto);
+  $("egreso-proveedor").addEventListener("change", autocompletarProveedorGasto);
 
   function cargarVehiculos() {
     ocultarError("vehiculos-error");
@@ -13886,15 +13951,33 @@ against the dark UI.
 
       var hayPendientes = false;
       var montoPendiente = 0;
+      var lineasEnCeroPendientes = [];
       filas.forEach(function (f) {
         if (f.estado_autorizacion === "pendiente") {
-          hayPendientes = true;
-          montoPendiente += totalLineaOrden(f);
+          // Una línea pendiente en $0 (p. ej. un repuesto que trajo el propio
+          // cliente) no tiene nada que autorizar: no cuenta como pendiente ni
+          // bloquea el avance (la base de datos aplica la misma regla).
+          if (f.cantidad * f.precio_aplicado_cliente > 0) {
+            hayPendientes = true;
+            montoPendiente += totalLineaOrden(f);
+          } else {
+            lineasEnCeroPendientes.push(f.items ? f.items.nombre : "ítem");
+          }
         }
       });
       $("btn-ir-firma").style.display = hayPendientes ? "block" : "none";
 
       renderizarAutorizacionPendiente(hayPendientes, montoPendiente);
+      // Aviso suave (no bloquea) para el asesor: si un ítem en $0 no es un
+      // aporte del cliente sino un precio que quedó sin definir (típico
+      // cuando lo agrega el técnico), conviene que lo note antes de cerrar.
+      if (lineasEnCeroPendientes.length && rolActual !== "tecnico") {
+        var notaCero = document.createElement("div");
+        notaCero.className = "nota-ayuda";
+        notaCero.textContent = "En $0 (sin cobro, no requieren autorización): " + lineasEnCeroPendientes.join(", ") +
+          ". Si alguno debía cobrarse, ponle su precio.";
+        $("autorizacion-pendiente-cont").appendChild(notaCero);
+      }
     });
   }
 
@@ -14322,7 +14405,12 @@ against the dark UI.
   // EVIDENCIA FOTOGRÁFICA POR ETAPA (mínimo 1 foto para poder avanzar, sin límite máximo)
   // =====================================================================
   var ETAPAS_EVIDENCIA = ["recepcion", "diagnostico", "en_proceso", "control_calidad"];
-  var MINIMO_EVIDENCIAS = 1;
+  // Foto OBLIGATORIA: una sola en todo el proceso (en Recepción, como
+  // constancia del estado en que llega el vehículo). En las demás etapas las
+  // fotos son opcionales — se pueden agregar, pero no bloquean el avance.
+  // Para exigir fotos en otra etapa basta con cambiar el 0 por 1 aquí.
+  var MINIMO_EVIDENCIAS_POR_ETAPA = { recepcion: 1, diagnostico: 0, en_proceso: 0, control_calidad: 0 };
+  function minimoEvidencias(etapa) { return MINIMO_EVIDENCIAS_POR_ETAPA[etapa] || 0; }
   var UI_EVIDENCIAS = {
     recepcion: { galeria: "evidencias-recepcion-galeria", camara: "evidencias-recepcion-camara", archivo: "evidencias-recepcion-archivo", btnCamara: "btn-camara-recepcion", btnArchivo: "btn-archivo-recepcion", contador: "evidencias-recepcion-contador" },
     diagnostico: { galeria: "evidencias-diagnostico-galeria", camara: "evidencias-diagnostico-camara", archivo: "evidencias-diagnostico-archivo", btnCamara: "btn-camara-diagnostico", btnArchivo: "btn-archivo-diagnostico", contador: "evidencias-diagnostico-contador" },
@@ -14332,12 +14420,12 @@ against the dark UI.
   var conteoEvidenciasPorEtapa = {};
 
   function cuentaEvidenciasSuficiente(etapa) {
-    return (conteoEvidenciasPorEtapa[etapa] || 0) >= MINIMO_EVIDENCIAS;
+    return (conteoEvidenciasPorEtapa[etapa] || 0) >= minimoEvidencias(etapa);
   }
 
   function exigirEvidencias(etapa, idError) {
     if (cuentaEvidenciasSuficiente(etapa)) return true;
-    mostrarError(idError || "item-error", "Faltan fotos de evidencia en esta etapa: hay " + (conteoEvidenciasPorEtapa[etapa] || 0) + " de " + MINIMO_EVIDENCIAS + " mínimo.");
+    mostrarError(idError || "item-error", "Falta la foto obligatoria de esta etapa: hay " + (conteoEvidenciasPorEtapa[etapa] || 0) + " de " + minimoEvidencias(etapa) + " mínimo.");
     return false;
   }
 
@@ -14441,7 +14529,9 @@ against the dark UI.
         galeria.appendChild(mini);
       });
       var contador = $(ui.contador);
-      contador.textContent = filas.length + " de " + MINIMO_EVIDENCIAS + " fotos mínimo" + (filas.length >= MINIMO_EVIDENCIAS ? " ✅" : "");
+      contador.textContent = minimoEvidencias(etapa) > 0
+        ? filas.length + " de " + minimoEvidencias(etapa) + " foto obligatoria" + (filas.length >= minimoEvidencias(etapa) ? " ✅" : "")
+        : filas.length + " foto(s) (opcional)";
     });
   }
 
