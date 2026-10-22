@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-10-22-1">
+<meta name="app-build" content="2026-10-22-2">
 <title>Taller Servi Motors – Panel principal</title>
 <script>
   // Aplica el tema guardado (si la persona ya lo eligió a mano) antes de que
@@ -810,7 +810,7 @@ against the dark UI.
           <button type="button" class="secundario" id="btn-guardar-hallazgos">Guardar hallazgos</button>
           <div class="nota-ayuda">Agrega abajo los ítems necesarios y, cuando el presupuesto esté listo, envíalo a autorización.</div>
 
-          <label>Fotos de evidencia (opcional)</label>
+          <label>Fotos de evidencia (mínimo 1, obligatoria)</label>
           <div id="evidencias-diagnostico-galeria" class="galeria-evidencias"></div>
           <div class="agenda-controles">
             <button type="button" class="secundario" id="btn-camara-diagnostico">📷 Tomar foto</button>
@@ -826,7 +826,7 @@ against the dark UI.
         <div id="orden-trabajo-contenido">
 
         <div id="orden-evidencias-proceso" class="oculto">
-          <h3>Fotos de evidencia — En proceso (opcional)</h3>
+          <h3>Fotos de evidencia — En proceso (mínimo 1, obligatoria)</h3>
           <div id="evidencias-en_proceso-galeria" class="galeria-evidencias"></div>
           <div class="agenda-controles">
             <button type="button" class="secundario" id="btn-camara-en_proceso">📷 Tomar foto</button>
@@ -838,7 +838,7 @@ against the dark UI.
         </div>
 
         <div id="orden-evidencias-calidad" class="oculto">
-          <h3>Fotos de evidencia — Control de calidad (opcional)</h3>
+          <h3>Fotos de evidencia — Control de calidad (mínimo 1, obligatoria)</h3>
           <div id="evidencias-control_calidad-galeria" class="galeria-evidencias"></div>
           <div class="agenda-controles">
             <button type="button" class="secundario" id="btn-camara-control_calidad">📷 Tomar foto</button>
@@ -13392,8 +13392,11 @@ against the dark UI.
 
     if (ordenActual.estado === "en_proceso") {
       agregarBotonEstado(cont, "Enviar a control de calidad", function () {
-        if (!exigirEvidencias("en_proceso")) return;
-        return verificarAvanceCompleto().then(function (faltantes) {
+        return exigirEvidencias("en_proceso").then(function (ok) {
+          if (!ok) return;
+          return verificarAvanceCompleto();
+        }).then(function (faltantes) {
+          if (!faltantes) return;
           if (faltantes.length) {
             mostrarError("item-error", "No se puede enviar a control de calidad: falta iniciar o terminar el avance del técnico en: " + faltantes.join(", ") + ".");
             return;
@@ -13404,8 +13407,10 @@ against the dark UI.
     }
     if (ordenActual.estado === "control_calidad" && esAdminOAsesor) {
       agregarBotonEstado(cont, "Marcar listo para entrega", function () {
-        if (!exigirEvidencias("control_calidad")) return;
-        return cambiarEstadoOrden("listo_entrega", "Orden marcada como lista para entrega");
+        return exigirEvidencias("control_calidad").then(function (ok) {
+          if (!ok) return;
+          return cambiarEstadoOrden("listo_entrega", "Orden marcada como lista para entrega");
+        });
       });
       agregarBotonEstado(cont, "Devolver a en proceso (no pasó control de calidad)", function () {
         if (!window.confirm("¿Devolver esta orden a \"En proceso\"? El técnico verá el aviso y deberá corregir el trabajo.")) return;
@@ -14409,7 +14414,7 @@ against the dark UI.
   // constancia del estado en que llega el vehículo). En las demás etapas las
   // fotos son opcionales — se pueden agregar, pero no bloquean el avance.
   // Para exigir fotos en otra etapa basta con cambiar el 0 por 1 aquí.
-  var MINIMO_EVIDENCIAS_POR_ETAPA = { recepcion: 1, diagnostico: 0, en_proceso: 0, control_calidad: 0 };
+  var MINIMO_EVIDENCIAS_POR_ETAPA = { recepcion: 1, diagnostico: 1, en_proceso: 1, control_calidad: 1 };
   function minimoEvidencias(etapa) { return MINIMO_EVIDENCIAS_POR_ETAPA[etapa] || 0; }
   var UI_EVIDENCIAS = {
     recepcion: { galeria: "evidencias-recepcion-galeria", camara: "evidencias-recepcion-camara", archivo: "evidencias-recepcion-archivo", btnCamara: "btn-camara-recepcion", btnArchivo: "btn-archivo-recepcion", contador: "evidencias-recepcion-contador" },
@@ -14423,10 +14428,17 @@ against the dark UI.
     return (conteoEvidenciasPorEtapa[etapa] || 0) >= minimoEvidencias(etapa);
   }
 
+  // Consulta el conteo REAL en el servidor al momento del clic (evita falsas
+  // advertencias por un conteo viejo). Devuelve una promesa true/false.
   function exigirEvidencias(etapa, idError) {
-    if (cuentaEvidenciasSuficiente(etapa)) return true;
-    mostrarError(idError || "item-error", "Falta la foto obligatoria de esta etapa: hay " + (conteoEvidenciasPorEtapa[etapa] || 0) + " de " + minimoEvidencias(etapa) + " mínimo.");
-    return false;
+    return restRequest("GET", "evidencias_ot", { query: "select=id_evidencia&id_ot=eq." + ordenActual.id_ot + "&etapa=eq." + etapa })
+      .then(function (filas) {
+        var n = (filas || []).length;
+        conteoEvidenciasPorEtapa[etapa] = n;
+        if (n >= minimoEvidencias(etapa)) return true;
+        mostrarError(idError || "item-error", "Falta la foto obligatoria de esta etapa: hay " + n + " de " + minimoEvidencias(etapa) + " mínimo.");
+        return false;
+      });
   }
 
   // Las fotos quedan en un bucket privado, así que para mostrarlas hay que
@@ -15264,14 +15276,18 @@ against the dark UI.
 
   $("btn-enviar-diagnostico").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("recepcion-error");
-    if (!exigirEvidencias("recepcion", "recepcion-error")) return;
-    return cambiarEstadoOrden("diagnostico", "Orden enviada a diagnóstico");
+    return exigirEvidencias("recepcion", "recepcion-error").then(function (ok) {
+      if (!ok) return;
+      return cambiarEstadoOrden("diagnostico", "Orden enviada a diagnóstico");
+    });
   }, "recepcion-error"));
 
   $("btn-saltar-diagnostico").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("recepcion-error");
-    if (!exigirEvidencias("recepcion", "recepcion-error")) return;
-    return cambiarEstadoOrden("sin_autorizacion", "Orden cotizada directamente, sin diagnóstico");
+    return exigirEvidencias("recepcion", "recepcion-error").then(function (ok) {
+      if (!ok) return;
+      return cambiarEstadoOrden("sin_autorizacion", "Orden cotizada directamente, sin diagnóstico");
+    });
   }, "recepcion-error"));
 
   // Etapa de Diagnóstico: hallazgos del técnico, luego se agregan los ítems
@@ -15284,7 +15300,8 @@ against the dark UI.
 
   $("btn-enviar-autorizacion").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("item-error");
-    if (!exigirEvidencias("diagnostico")) return;
+    return exigirEvidencias("diagnostico").then(function (ok) {
+    if (!ok) return;
     // Confirmación antes de mandar a firma: corregir un ítem después de
     // autorizado obliga a pedir una firma nueva al cliente (le pasó varias
     // veces a la misma orden en la semana del 16-22 de sept.), así que vale
@@ -15293,6 +15310,7 @@ against the dark UI.
       return;
     }
     return cambiarEstadoOrden("sin_autorizacion", "Diagnóstico completo, orden enviada a autorización");
+    });
   }, "item-error"));
 
   var itemsStockDisponibles = [];
