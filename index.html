@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-10-22-2">
+<meta name="app-build" content="2026-10-22-3">
 <title>Taller Servi Motors – Panel principal</title>
 <script>
   // Aplica el tema guardado (si la persona ya lo eligió a mano) antes de que
@@ -531,6 +531,8 @@ against the dark UI.
         <select id="select-asesor"></select>
         <label for="select-tecnico">Técnico responsable</label>
         <select id="select-tecnico"></select>
+        <label for="select-aprendiz">Aprendiz (opcional)</label>
+        <select id="select-aprendiz"><option value="">— Sin aprendiz —</option></select>
         <label for="orden-km-ingreso">Kilometraje al ingresar (opcional)</label>
         <input id="orden-km-ingreso" type="number" min="0">
         <label for="select-tipo-orden">Tipo de orden</label>
@@ -571,6 +573,8 @@ against the dark UI.
             <select id="orden-select-asesor"></select>
             <label for="orden-select-tecnico">Técnico responsable</label>
             <select id="orden-select-tecnico"></select>
+            <label for="orden-select-aprendiz">Aprendiz (opcional)</label>
+            <select id="orden-select-aprendiz"><option value="">— Sin aprendiz —</option></select>
             <button type="button" id="btn-guardar-responsables">Guardar</button>
             <button type="button" class="secundario" id="btn-cancelar-responsables">Cancelar</button>
             <div id="responsables-error" class="mensaje-error"></div>
@@ -8922,6 +8926,7 @@ against the dark UI.
         opt.value = emp.id_empleado;
         opt.setAttribute("data-usuario", emp.id_usuario || "");
         opt.setAttribute("data-rol", u.rol || "");
+        opt.setAttribute("data-contrato", emp.tipo_contrato || "");
         opt.setAttribute("data-salario", emp.salario_base);
         opt.setAttribute("data-carga-prestacional", emp.aplica_carga_prestacional ? "1" : "0");
         opt.setAttribute("data-valor-dia-habil", emp.valor_dia_habil || "");
@@ -9194,6 +9199,9 @@ against the dark UI.
     var idEmpleado = opt.value;
     var idUsuario = opt.getAttribute("data-usuario");
     var rol = opt.getAttribute("data-rol");
+    // Aprendiz sin acceso a la app: gana un % (25%) del variable de técnico
+    // sobre las horas de mano de obra de las órdenes donde fue asignado.
+    if (!idUsuario && opt.getAttribute("data-contrato") === "aprendiz") rol = "aprendiz";
     var salarioMensual = parseFloat(opt.getAttribute("data-salario")) || 0;
     var aplicaCargaPrestacional = opt.getAttribute("data-carga-prestacional") === "1";
     var valorDiaHabil = parseFloat(opt.getAttribute("data-valor-dia-habil")) || 0;
@@ -9241,7 +9249,7 @@ against the dark UI.
     var inicioBogotaISO = inicio + "T00:00:00-05:00";
     var finExclusivoBogotaISO = finExclusivoISO + "T00:00:00-05:00";
 
-    var filtroRol = esPagoPorDia ? null : (rol === "asesor" ? "id_asesor" : (rol === "tecnico" ? "id_tecnico" : null));
+    var filtroRol = esPagoPorDia ? null : (rol === "asesor" ? "id_asesor" : (rol === "tecnico" ? "id_tecnico" : (rol === "aprendiz" ? "id_aprendiz" : null)));
 
     // Al técnico se le paga la mano de obra de lo que vendió, sin importar si el
     // cliente ya pagó o quedó a crédito (el técnico ya hizo el trabajo).
@@ -9254,11 +9262,11 @@ against the dark UI.
 
     var pedidoOrdenes = filtroRol
       ? restRequest("GET", "ordenes_trabajo", {
-          query: "select=id_ot,ot_detalle(cantidad,precio_aplicado_cliente,costo_interno,estado_autorizacion,items(tipo))&estado=eq.cerrada&" + filtroRol + "=eq." + idUsuario + "&" + filtroFechaOrdenes
+          query: "select=id_ot,ot_detalle(cantidad,precio_aplicado_cliente,costo_interno,estado_autorizacion,items(tipo))&estado=eq.cerrada&" + filtroRol + "=eq." + (rol === "aprendiz" ? idEmpleado : idUsuario) + "&" + filtroFechaOrdenes
         })
       : Promise.resolve([]);
 
-    var pedidoParametros = restRequest("GET", "parametros_taller", { query: "select=tramo_horas_tecnico,tarifa_hora_tecnico_base,tarifa_hora_tecnico_extra,tramo_horas_ticket_asesor,pct_comision_mo_baja,pct_comision_mo_alta,pct_comision_margen_otros,precio_mano_obra&id=eq.1" });
+    var pedidoParametros = restRequest("GET", "parametros_taller", { query: "select=tramo_horas_tecnico,tarifa_hora_tecnico_base,tarifa_hora_tecnico_extra,tramo_horas_ticket_asesor,pct_comision_mo_baja,pct_comision_mo_alta,pct_comision_margen_otros,precio_mano_obra,pct_variable_aprendiz&id=eq.1" });
     var pedidoPrestamos = restRequest("GET", "prestamos", { query: "select=*&id_empleado=eq." + idEmpleado + "&saldo_pendiente=gt.0&order=fecha.asc" });
 
     btnCalcular.disabled = true;
@@ -9287,7 +9295,8 @@ against the dark UI.
       var tramoHoras = Number(parametros.tramo_horas_tecnico);
       var tarifaBase = Number(parametros.tarifa_hora_tecnico_base);
       var tarifaExtra = Number(parametros.tarifa_hora_tecnico_extra);
-      var horasTramoBase = rol === "tecnico" ? Math.min(horas, tramoHoras) : 0;
+      var pctAprendiz = Number(parametros.pct_variable_aprendiz != null ? parametros.pct_variable_aprendiz : 0.25);
+      var horasTramoBase = rol === "tecnico" ? Math.min(horas, tramoHoras) : (rol === "aprendiz" ? horas : 0);
       var horasTramoExtra = rol === "tecnico" ? Math.max(0, horas - tramoHoras) : 0;
 
       // Comisión de asesor: % de mano de obra según el ticket promedio EN PESOS (venta de
@@ -9311,7 +9320,8 @@ against the dark UI.
       var comisionMargenOtros = rol === "asesor" ? margenOtros * pctComisionMargenAplicado : 0;
 
       var comisiones = comisionManoObra + comisionMargenOtros;
-      var variableTecnico = rol === "tecnico" ? (horasTramoBase * tarifaBase + horasTramoExtra * tarifaExtra) : 0;
+      var variableTecnico = rol === "tecnico" ? (horasTramoBase * tarifaBase + horasTramoExtra * tarifaExtra)
+        : (rol === "aprendiz" ? Math.round(horas * tarifaBase * pctAprendiz) : 0);
       var cargaPrestacionalValor = aplicaCargaPrestacional ? Math.round(salarioBase * pctCargaPrestacionalActual) : 0;
 
       nominaCalculo = {
@@ -9335,7 +9345,7 @@ against the dark UI.
         comisiones: comisiones,
         horas_tramo_base: horasTramoBase,
         horas_tramo_extra: horasTramoExtra,
-        tarifa_hora_base: rol === "tecnico" ? tarifaBase : 0,
+        tarifa_hora_base: rol === "tecnico" ? tarifaBase : (rol === "aprendiz" ? tarifaBase * pctAprendiz : 0),
         tarifa_hora_extra: rol === "tecnico" ? tarifaExtra : 0,
         variable_tecnico: variableTecnico,
         horas_trabajadas: horas,
@@ -9354,6 +9364,9 @@ against the dark UI.
         ? ("Variable: " + formatoMoneda(variableTecnico) + " — " + horas.toFixed(2) + " horas vendidas en total"
             + "<br>&nbsp;&nbsp;" + horasTramoBase.toFixed(2) + " h × " + formatoMoneda(tarifaBase) + " = " + formatoMoneda(horasTramoBase * tarifaBase)
             + (horasTramoExtra > 0 ? "<br>&nbsp;&nbsp;" + horasTramoExtra.toFixed(2) + " h excedentes × " + formatoMoneda(tarifaExtra) + " = " + formatoMoneda(horasTramoExtra * tarifaExtra) : ""))
+        : rol === "aprendiz"
+        ? ("Variable aprendiz: " + formatoMoneda(variableTecnico) + " — " + horas.toFixed(2) + " horas de mano de obra en órdenes donde fue asignado"
+            + "<br>&nbsp;&nbsp;" + horas.toFixed(2) + " h × " + formatoMoneda(tarifaBase) + " × " + (pctAprendiz * 100).toFixed(0) + "% = " + formatoMoneda(variableTecnico))
         : "Este rol no tiene comisión ni variable automática — solo salario base.";
 
       var etiquetaBase = esPagoPorDia
@@ -10787,6 +10800,7 @@ against the dark UI.
         opt.value = u.id_usuario; opt.textContent = u.nombre;
         selT.appendChild(opt);
       });
+      return llenarSelectAprendiz($("select-aprendiz"), "");
     });
   }
 
@@ -11164,6 +11178,7 @@ against the dark UI.
         id_vehiculo: vehiculoSeleccionado.id_vehiculo,
         id_asesor: id_asesor,
         id_tecnico: id_tecnico,
+        id_aprendiz: $("select-aprendiz").value || null,
         estado: "recepcion",
         tipo_orden: tipoOrden,
         id_ot_garantia_original: idOtGarantiaOriginal,
@@ -13276,9 +13291,39 @@ against the dark UI.
   // formulario se cerraría solo mientras la persona todavía está eligiendo
   // el técnico nuevo. Ese formulario solo se abre/cierra desde sus propios
   // botones (Cambiar / Guardar / Cancelar) o al entrar a una orden distinta.
+  // Aprendices (empleados sin acceso a la app, con contrato "aprendiz"): se
+  // piden por una función de la base porque asesor no puede leer "empleados".
+  var aprendicesCache = null;
+  function cargarAprendices() {
+    if (aprendicesCache) return Promise.resolve(aprendicesCache);
+    return restRequest("POST", "rpc/listar_aprendices", { body: {} }).then(function (f) {
+      aprendicesCache = f || [];
+      return aprendicesCache;
+    }).catch(function () { return []; });
+  }
+  function llenarSelectAprendiz(sel, valor) {
+    return cargarAprendices().then(function (lista) {
+      sel.innerHTML = "<option value=\"\">— Sin aprendiz —</option>";
+      lista.forEach(function (a) {
+        var opt = document.createElement("option");
+        opt.value = a.id_empleado; opt.textContent = a.nombre;
+        sel.appendChild(opt);
+      });
+      sel.value = valor || "";
+    });
+  }
+  function nombreAprendiz(id) {
+    var a = (aprendicesCache || []).filter(function (x) { return x.id_empleado === id; })[0];
+    return a ? a.nombre : "";
+  }
+
   function renderizarResponsablesOrden() {
     var esAdminOAsesor = rolActual === "administrador" || rolActual === "asesor";
-    $("orden-responsables-info").textContent = "Asesor: " + (ordenActual.asesorNombre || "—") + " · Técnico: " + (ordenActual.tecnicoNombre || "—");
+    var textoAprendiz = ordenActual.idAprendiz ? (" · Aprendiz: " + (nombreAprendiz(ordenActual.idAprendiz) || "asignado")) : "";
+    $("orden-responsables-info").textContent = "Asesor: " + (ordenActual.asesorNombre || "—") + " · Técnico: " + (ordenActual.tecnicoNombre || "—") + textoAprendiz;
+    if (ordenActual.idAprendiz && esAdminOAsesor && !aprendicesCache) {
+      cargarAprendices().then(function () { renderizarResponsablesOrden(); });
+    }
     $("btn-editar-responsables").classList.toggle("oculto", !esAdminOAsesor || ordenActual.estado === "cerrada");
   }
 
@@ -13305,6 +13350,7 @@ against the dark UI.
       });
       if (ordenActual.idAsesor) selA.value = ordenActual.idAsesor;
       if (ordenActual.idTecnico) selT.value = ordenActual.idTecnico;
+      return llenarSelectAprendiz($("orden-select-aprendiz"), ordenActual.idAprendiz);
     });
   }
 
@@ -13328,10 +13374,10 @@ against the dark UI.
     }
     return restRequest("PATCH", "ordenes_trabajo", {
       query: "id_ot=eq." + ordenActual.id_ot,
-      body: { id_asesor: idAsesor, id_tecnico: idTecnico }
+      body: { id_asesor: idAsesor, id_tecnico: idTecnico, id_aprendiz: $("orden-select-aprendiz").value || null }
     }).then(function () {
       return restRequest("POST", "historial_ot", {
-        body: { id_ot: ordenActual.id_ot, accion: "Se corrigió el asesor/técnico asignado a la orden", id_usuario: usuarioActualId }
+        body: { id_ot: ordenActual.id_ot, accion: "Se corrigió el asesor/técnico/aprendiz asignado a la orden", id_usuario: usuarioActualId }
       });
     }).then(function () {
       return cargarItemsDeOrden();
@@ -13860,7 +13906,7 @@ against the dark UI.
     cargarPartesMasUsadas();
     cargarListaMotivosIngreso();
     var queryItems = "select=id_detalle,id_item,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,fecha_inicio_real,fecha_fin_real,meses_garantia,pausas_avance_ot(id_pausa,motivo,hora_inicio,hora_fin),items(nombre,tipo,costo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
-    var queryOrden = "select=estado,tipo_orden,token_consulta,fecha_apertura,fecha_cierre,diagnostico,presupuesto_tentativo,hallazgos_diagnostico,motivo_ingreso,veces_devuelta_calidad,motivo_devolucion_calidad,fecha_devolucion_calidad,id_asesor,id_tecnico,id_vehiculo,asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre),clientes(nombre,telefono,documento,direccion),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,transmision,version,vin,kilometraje)&id_ot=eq." + ordenActual.id_ot;
+    var queryOrden = "select=estado,tipo_orden,token_consulta,fecha_apertura,fecha_cierre,diagnostico,presupuesto_tentativo,hallazgos_diagnostico,motivo_ingreso,veces_devuelta_calidad,motivo_devolucion_calidad,fecha_devolucion_calidad,id_asesor,id_tecnico,id_aprendiz,id_vehiculo,asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre),clientes(nombre,telefono,documento,direccion),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,transmision,version,vin,kilometraje)&id_ot=eq." + ordenActual.id_ot;
     return Promise.all([
       restRequest("GET", "ot_detalle", { query: queryItems }),
       restRequest("GET", "ordenes_trabajo", { query: queryOrden }),
@@ -13899,6 +13945,7 @@ against the dark UI.
         ordenActual.fechaDevolucionCalidad = orden.fecha_devolucion_calidad || null;
         ordenActual.idAsesor = orden.id_asesor || null;
         ordenActual.idTecnico = orden.id_tecnico || null;
+        ordenActual.idAprendiz = orden.id_aprendiz || null;
         ordenActual.idVehiculo = orden.id_vehiculo || null;
         ordenActual.asesorNombre = orden.asesor ? orden.asesor.nombre : null;
         ordenActual.tecnicoNombre = orden.tecnico ? orden.tecnico.nombre : null;
@@ -14423,10 +14470,6 @@ against the dark UI.
     control_calidad: { galeria: "evidencias-control_calidad-galeria", camara: "evidencias-control_calidad-camara", archivo: "evidencias-control_calidad-archivo", btnCamara: "btn-camara-control_calidad", btnArchivo: "btn-archivo-control_calidad", contador: "evidencias-control_calidad-contador" }
   };
   var conteoEvidenciasPorEtapa = {};
-
-  function cuentaEvidenciasSuficiente(etapa) {
-    return (conteoEvidenciasPorEtapa[etapa] || 0) >= minimoEvidencias(etapa);
-  }
 
   // Consulta el conteo REAL en el servidor al momento del clic (evita falsas
   // advertencias por un conteo viejo). Devuelve una promesa true/false.
