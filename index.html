@@ -23,7 +23,13 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-10-22-3">
+<meta name="app-build" content="2026-10-22-4">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1f2937">
+<meta name="apple-mobile-web-app-title" content="Servi Motors">
 <title>Taller Servi Motors – Panel principal</title>
 <script>
   // Aplica el tema guardado (si la persona ya lo eligió a mano) antes de que
@@ -3566,6 +3572,9 @@ against the dark UI.
   // (Android e iOS). No necesita ningún archivo aparte: reutiliza el logo que
   // ya está guardado arriba.
   (function aplicarLogoComoIcono() {
+    // Si el HTML ya trae los íconos como archivos (favicon.ico, apple-touch-icon.png),
+    // no se tocan: los navegadores los leen mejor así que desde JavaScript.
+    if (document.querySelector("link[rel~='icon'][href='favicon.ico']")) return;
     var favicon = document.querySelector("link[rel~='icon']");
     if (!favicon) {
       favicon = document.createElement("link");
