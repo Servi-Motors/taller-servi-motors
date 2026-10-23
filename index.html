@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-10-22-4">
+<meta name="app-build" content="2026-10-23-1">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -2994,6 +2994,13 @@ against the dark UI.
       </div>
 
       <div class="tarjeta">
+        <h2>Recordar pagos pendientes (cuentas por cobrar)</h2>
+        <div class="nota-ayuda">Órdenes con saldo por cobrar, las más atrasadas primero. El mensaje de WhatsApp queda escrito con el valor que debe cada cliente; puedes cambiar el texto en Configuración → Plantillas de mensajes.</div>
+        <div id="resumen-recordatorios-cobro" class="nota-ayuda"></div>
+        <div id="lista-recordatorios-cobro"></div>
+      </div>
+
+      <div class="tarjeta">
         <h2>Servicios que el cliente no autorizó</h2>
         <div class="nota-ayuda">Ítems que quedaron rechazados en alguna orden — para volver a ofrecerlos en la próxima visita. Si el cliente ya no quiere saber nada de ese servicio (ej. vendió el vehículo), descártalo para que deje de aparecer.</div>
         <div id="lista-recordatorios-rechazados"></div>
@@ -3623,7 +3630,8 @@ against the dark UI.
     soat_vencimiento: "Hola {cliente}, te recordamos que el SOAT de tu vehículo {placa} vence el {fecha}. Te recomendamos renovarlo a tiempo para evitar multas.",
     tecnomecanica_vencimiento: "Hola {cliente}, te recordamos que la Tecnomecánica de tu vehículo {placa} vence el {fecha}. Podemos ayudarte a agendar la revisión.",
     consulta_estado: "Hola {cliente}, puedes consultar en cualquier momento cómo va la reparación de tu vehículo {placa} en este enlace: {enlace}",
-    historial_vehiculo: "Hola {cliente}, aquí puedes ver el historial de visitas de tu vehículo {placa} en Taller Servi Motors: {enlace}"
+    historial_vehiculo: "Hola {cliente}, aquí puedes ver el historial de visitas de tu vehículo {placa} en Taller Servi Motors: {enlace}",
+    cuenta_por_cobrar: "Hola {cliente}, te escribimos de Taller Servi Motors. Te recordamos que tienes un saldo pendiente de {saldo} por la orden {factura} de tu vehículo {placa}{vence}. Puedes pagar en efectivo, tarjeta o transferencia. Si ya pagaste, ignora este mensaje. ¡Gracias por tu confianza!"
   };
   var plantillasMensajes = {};
 
@@ -5726,7 +5734,8 @@ against the dark UI.
       restRequest("GET", "parametros_taller", { query: "select=enlace_resenas&id=eq.1" }),
       restRequest("GET", "vista_vencimientos_documentos", { query: "select=*&limit=50" }),
       restRequest("GET", "ot_detalle", { query: "select=id_detalle,items(nombre),ordenes_trabajo(numero_ot,clientes(nombre,telefono),vehiculos(placa,marca,modelo))&estado_autorizacion=eq.rechazado&seguimiento_descartado=eq.false&order=creado_en.desc&limit=100" }),
-      restRequest("GET", "vista_garantias_activas", { query: "select=*&fecha_limite_garantia=gte." + aFechaISO(ahora) + "&order=fecha_limite_garantia.asc&limit=100" })
+      restRequest("GET", "vista_garantias_activas", { query: "select=*&fecha_limite_garantia=gte." + aFechaISO(ahora) + "&order=fecha_limite_garantia.asc&limit=100" }),
+      restRequest("GET", "vista_cuentas_por_cobrar", { query: "select=*&saldo=gt.0&order=fecha_cierre.asc&limit=200" }).catch(function () { return []; })
     ]).then(function (r) {
       var ordenesCerradasRecientes = r[1] || [];
       renderizarRecordatoriosCitas(r[0] || []);
@@ -5736,6 +5745,7 @@ against the dark UI.
       renderizarRecordatoriosDocumentos(r[5] || []);
       renderizarRecordatoriosRechazados(r[6] || []);
       renderizarGarantiasVigentes(r[7] || []);
+      renderizarRecordatoriosCobro(r[8] || []);
       var enlaceResenas = (r[4] && r[4][0] && r[4][0].enlace_resenas) || "";
       var ordenesParaResena = ordenesCerradasRecientes.filter(function (o) {
         return o.fecha_cierre && new Date(o.fecha_cierre) >= hace7dias && !o.resena_solicitada_en;
@@ -5764,6 +5774,58 @@ against the dark UI.
       fila.appendChild(crearBotonWhatsApp(cliente && cliente.telefono, mensaje));
       cont.appendChild(fila);
     });
+  }
+
+  function renderizarRecordatoriosCobro(filas) {
+    var cont = $("lista-recordatorios-cobro");
+    var resumen = $("resumen-recordatorios-cobro");
+    cont.innerHTML = filas.length ? "" : "<p class=\"nota-ayuda\">No hay cuentas por cobrar pendientes. ✅</p>";
+    var hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    var totalSaldo = 0, totalVencido = 0;
+    // Primero las vencidas (más atrasadas arriba); luego las que vencen pronto;
+    // al final las que no tienen fecha de vencimiento.
+    var datos = filas.map(function (c) {
+      var venc = c.fecha_vencimiento_pago ? new Date(String(c.fecha_vencimiento_pago).slice(0, 10) + "T00:00:00") : null;
+      var dias = venc ? Math.round((venc - hoy) / 86400000) : null; // negativo = vencida
+      return { c: c, venc: venc, dias: dias };
+    }).sort(function (a, b) {
+      var da = a.dias === null ? 9999 : a.dias, db = b.dias === null ? 9999 : b.dias;
+      return da - db;
+    });
+    datos.forEach(function (d) {
+      var c = d.c;
+      var saldo = Number(c.saldo || 0);
+      totalSaldo += saldo;
+      var textoVence = "", etiqueta;
+      if (d.dias === null) {
+        etiqueta = "Sin fecha de vencimiento";
+      } else if (d.dias < 0) {
+        totalVencido += saldo;
+        textoVence = " (venció el " + formatoFechaCorta(d.venc) + ", hace " + Math.abs(d.dias) + " día" + (Math.abs(d.dias) === 1 ? "" : "s") + ")";
+        etiqueta = "<span style=\"color:#b91c1c;font-weight:600;\">Vencida hace " + Math.abs(d.dias) + " día" + (Math.abs(d.dias) === 1 ? "" : "s") + "</span>";
+      } else {
+        textoVence = " (vence el " + formatoFechaCorta(d.venc) + ")";
+        etiqueta = d.dias === 0 ? "Vence hoy" : "Vence en " + d.dias + " día" + (d.dias === 1 ? "" : "s");
+      }
+      var factura = c.numero_factura ? ("N.º " + c.numero_factura) : ("OT #" + c.numero_ot);
+      var mensaje = aplicarPlantilla("cuenta_por_cobrar", {
+        cliente: c.cliente_nombre || "",
+        placa: c.vehiculo_placa || "",
+        factura: factura,
+        saldo: formatoMoneda(saldo),
+        vence: textoVence
+      });
+      var fila = document.createElement("div");
+      fila.className = "fila-renglon";
+      fila.innerHTML =
+        "<span><b>" + (c.cliente_nombre || "Sin cliente") + "</b> <span class=\"fila-detalle\">" + factura + (c.vehiculo_placa ? " · " + c.vehiculo_placa : "") + "</span><br>" +
+        "<span class=\"fila-detalle\">Debe " + formatoMoneda(saldo) + " de " + formatoMoneda(Number(c.total || 0)) + " · " + etiqueta + "</span></span>";
+      fila.appendChild(crearBotonWhatsApp(c.cliente_telefono, mensaje));
+      cont.appendChild(fila);
+    });
+    resumen.innerHTML = filas.length
+      ? "<b>" + filas.length + " cuenta" + (filas.length === 1 ? "" : "s") + " por cobrar · total " + formatoMoneda(totalSaldo) + "</b>" + (totalVencido > 0 ? " · vencido: " + formatoMoneda(totalVencido) : "")
+      : "";
   }
 
   function renderizarRecordatoriosListos(filas) {
