@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-10-23-3">
+<meta name="app-build" content="2026-10-23-4">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -288,6 +288,11 @@ against the dark UI.
         <button id="btn-inicio-registrar-gasto" class="secundario">+ Registrar gasto</button>
       </div>
 
+      <div class="tarjeta oculto" id="tarjeta-alertas-inicio">
+        <h2>Alertas del taller</h2>
+        <div id="alertas-inicio" class="alertas-inicio"></div>
+      </div>
+
       <h2>Visión general de tu taller</h2>
 
       <div class="grid-kpis">
@@ -398,6 +403,7 @@ against the dark UI.
           <button type="button" class="secundario" id="btn-actualizar-tablero" style="width:auto;padding:6px 12px;font-size:12px;">🔄 Actualizar ahora</button>
         </div>
         <div class="nota-ayuda">Toca una orden para seguir trabajando en ella. Más recientes primero en cada columna. Esta lista se actualiza sola cada pocos segundos.</div>
+        <div id="resumen-tablero" class="resumen-tablero"></div>
         <div id="tablero-ordenes" class="tablero-ordenes"></div>
       </div>
 
@@ -3303,6 +3309,8 @@ against the dark UI.
      a la derecha. */
   .pagina:not(.pagina-ancha) { max-width: 560px; margin-left: auto; margin-right: auto; }
   .pagina-ancha { max-width: 1500px; margin-left: auto; margin-right: auto; }
+  /* Pantallas grandes: se aprovecha casi todo el ancho disponible */
+  @media (min-width: 1300px) { .pagina-ancha { max-width: min(1900px, 100%); } }
   /* Las tarjetas de formulario (un solo formulario, no una lista/tabla)
      siempre quedan centradas, sin importar en qué tipo de pantalla estén. */
   .tarjeta-formulario { max-width: 620px; margin-left: auto; margin-right: auto; }
@@ -3436,6 +3444,13 @@ against the dark UI.
   }
 
   .grid-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 10px; }
+  @media (min-width: 1300px) {
+    .grid-kpis { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+    .kpi-numero { font-size: 26px; }
+    #pantalla-inicio .grid-graficos { grid-template-columns: 1fr 1fr; }
+  }
+  .alertas-inicio { display: flex; flex-wrap: wrap; gap: 8px; }
+  .alertas-inicio .chip-resumen { cursor: pointer; }
   .tarjeta-kpi { background: var(--tarjeta-bg); border-radius: 12px; padding: 11px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 4px solid transparent; transition: border-color 0.15s; }
   /* Semáforo: para que un vistazo rápido diga si un indicador está bien o mal,
      sin tener que leer la flechita de comparación. "Positiva" = mejoró o está
@@ -3473,8 +3488,25 @@ against the dark UI.
 
   .tablero-ordenes { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
   .kanban-columna { background: var(--gris-claro); border-radius: 10px; padding: 8px; flex: 1 1 170px; min-width: 170px; max-width: 240px; display: flex; flex-direction: column; }
+  @media (min-width: 1100px) { .kanban-columna { flex: 1 1 200px; min-width: 200px; max-width: 360px; } }
+  @media (min-width: 1500px) { .kanban-columna { flex: 1 1 220px; max-width: 420px; } .kanban-foto { height: 120px; } }
+  .resumen-tablero { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 10px; }
+  .chip-resumen { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--gris-claro); color: var(--texto); border: 1px solid var(--borde); }
+  .chip-resumen b { font-size: 15px; }
+  .chip-alerta { border-color: #d97706; color: #b45309; background: rgba(217,119,6,.10); }
+  .chip-peligro { border-color: #dc2626; color: #b91c1c; background: rgba(220,38,38,.10); }
+  .chip-ok { border-color: #16a34a; color: #15803d; background: rgba(22,163,74,.10); }
+  :root.tema-oscuro .chip-alerta { color: #fbbf24; } :root.tema-oscuro .chip-peligro { color: #fca5a5; } :root.tema-oscuro .chip-ok { color: #86efac; }
+  .kanban-etiquetas { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 2px; }
+  .mini-etiqueta { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--gris-claro); color: var(--gris); border: 1px solid var(--borde); }
+  .mini-etiqueta.dias-alerta { background: rgba(217,119,6,.15); color: #b45309; border-color: #d97706; }
+  .mini-etiqueta.dias-peligro { background: rgba(220,38,38,.15); color: #b91c1c; border-color: #dc2626; }
+  .mini-etiqueta.pago-ok { background: rgba(22,163,74,.15); color: #15803d; border-color: #16a34a; }
+  .mini-etiqueta.pago-debe { background: rgba(220,38,38,.12); color: #b91c1c; border-color: #dc2626; }
+  .kanban-linea { font-size: 12.5px; color: var(--gris); }
   .kanban-columna h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .03em; color: var(--gris); margin: 0 0 8px; padding: 0 2px; }
   .kanban-lista { overflow-y: auto; max-height: min(65vh, 720px); display: flex; flex-direction: column; gap: 6px; }
+  @media (min-width: 901px) { .kanban-lista { max-height: calc(100vh - 330px); min-height: 220px; } }
   .kanban-tarjeta { background: var(--tarjeta-bg); border-radius: 8px; padding: 8px 10px; font-size: 13px; cursor: pointer; border: 1px solid var(--borde); line-height: 1.5; }
   .kanban-tarjeta:hover { border-color: var(--azul); }
   .kanban-foto { height: 92px; margin: -8px -10px 8px; border-radius: 8px 8px 0 0; background: #e5e7eb; display: flex; align-items: center; justify-content: center; font-size: 30px; overflow: hidden; }
@@ -4690,7 +4722,7 @@ against the dark UI.
   function cargarTableroOrdenes(opciones) {
     ocultarError("tablero-error");
     cargarListasVehiculo(); // sugerencias de marca/modelo/color para "Nueva orden" (no bloquea la carga del tablero)
-    var query = "select=id_ot,numero_ot,estado,tipo_orden,fecha_apertura,veces_devuelta_calidad,vehiculos(placa,marca,modelo),clientes(nombre)," +
+    var query = "select=id_ot,numero_ot,estado,estado_pago,tipo_orden,fecha_apertura,fecha_cierre,veces_devuelta_calidad,vehiculos(placa,marca,modelo,color),clientes(nombre,telefono)," +
       "asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre)" +
       "&order=fecha_apertura.desc&limit=100";
     return restRequest("GET", "ordenes_trabajo", { query: query }).then(function (ordenes) {
@@ -4701,6 +4733,7 @@ against the dark UI.
       var firmaNueva = prefijoOT + "|" + JSON.stringify(ordenes);
       if (opciones && opciones.soloSiCambio && firmaNueva === firmaTableroOrdenes) return;
       firmaTableroOrdenes = firmaNueva;
+      dibujarResumenTablero(ordenes);
       var contenedor = $("tablero-ordenes");
       // Guardar el scroll de cada columna para restaurarlo tras redibujar.
       var scrollColumnas = [];
@@ -4731,10 +4764,11 @@ against the dark UI.
             "<b>" + prefijoOT + o.numero_ot + " · " + (veh.placa || "—") + "</b>" +
             (o.tipo_orden === "garantia" ? ' <span class="etiqueta-garantia">GARANTÍA</span>' : "") +
             (o.veces_devuelta_calidad > 0 && (o.estado === "en_proceso" || o.estado === "control_calidad") ? ' <span class="etiqueta-devuelta">↩ DEVUELTA</span>' : "") + "<br>" +
-            (cli.nombre || "—") + "<br>" +
-            "<span class=\"fila-detalle\">" + [veh.marca, veh.modelo].filter(Boolean).join(" ") + "</span><br>" +
-            "<span class=\"fila-detalle\">Técnico: " + (o.tecnico ? o.tecnico.nombre : "—") + "</span><br>" +
-            "<span class=\"fila-detalle\">" + (o.fecha_apertura ? o.fecha_apertura.slice(0, 10) : "") + "</span>";
+            (cli.nombre || "—") + (cli.telefono ? " <span class=\"kanban-linea\">· " + cli.telefono + "</span>" : "") + "<br>" +
+            "<span class=\"fila-detalle\">" + [veh.marca, veh.modelo, veh.color].filter(Boolean).join(" · ") + "</span><br>" +
+            "<span class=\"fila-detalle\">Técnico: " + (o.tecnico ? o.tecnico.nombre : "—") + (o.asesor ? " · Asesor: " + o.asesor.nombre : "") + "</span><br>" +
+            "<span class=\"fila-detalle\">Entró " + (o.fecha_apertura ? o.fecha_apertura.slice(0, 10) : "") + "</span>" +
+            etiquetasTarjetaOrden(o);
           tarjeta.addEventListener("click", conManejoDeErrores(function () {
             return abrirOrdenExistente(o.id_ot, o.numero_ot);
           }, "tablero-error"));
@@ -4841,6 +4875,39 @@ against the dark UI.
     });
   }
 
+  // Días que lleva una orden en el taller (solo mientras sigue abierta).
+  function diasEnTaller(o) {
+    if (!o.fecha_apertura || o.estado === "cerrada" || o.estado === "cancelada") return null;
+    var d = Math.floor((Date.now() - new Date(o.fecha_apertura).getTime()) / 86400000);
+    return d < 0 ? 0 : d;
+  }
+  function etiquetasTarjetaOrden(o) {
+    var html = "";
+    var dias = diasEnTaller(o);
+    if (dias !== null) {
+      var clase = dias >= 8 ? " dias-peligro" : (dias >= 4 ? " dias-alerta" : "");
+      html += "<span class=\"mini-etiqueta" + clase + "\">⏱ " + (dias === 0 ? "hoy" : dias + (dias === 1 ? " día" : " días")) + " en taller</span>";
+    }
+    if (o.estado === "listo_entrega" || o.estado === "cerrada") {
+      if (o.estado_pago === "pagada") html += "<span class=\"mini-etiqueta pago-ok\">💲 Pagada</span>";
+      else if (o.estado_pago === "credito") html += "<span class=\"mini-etiqueta pago-debe\">💲 A crédito</span>";
+      else html += "<span class=\"mini-etiqueta pago-debe\">💲 Pago pendiente</span>";
+    }
+    return html ? "<div class=\"kanban-etiquetas\">" + html + "</div>" : "";
+  }
+  function dibujarResumenTablero(ordenes) {
+    var abiertas = ordenes.filter(function (o) { return o.estado !== "cerrada" && o.estado !== "cancelada"; });
+    var atrasadas = abiertas.filter(function (o) { return diasEnTaller(o) >= 8; });
+    var listas = ordenes.filter(function (o) { return o.estado === "listo_entrega"; });
+    var sinPagar = ordenes.filter(function (o) { return (o.estado === "listo_entrega" || o.estado === "cerrada") && o.estado_pago !== "pagada"; });
+    function chip(texto, n, clase) { return "<span class=\"chip-resumen " + (clase || "") + "\"><b>" + n + "</b> " + texto + "</span>"; }
+    $("resumen-tablero").innerHTML =
+      chip("en el taller", abiertas.length, "") +
+      chip("con 8+ días", atrasadas.length, atrasadas.length ? "chip-peligro" : "chip-ok") +
+      chip("listas para entregar", listas.length, listas.length ? "chip-alerta" : "") +
+      chip("entregadas o listas sin pagar", sinPagar.length, sinPagar.length ? "chip-peligro" : "chip-ok");
+  }
+
   function abrirOrdenExistente(idOt, numeroOt) {
     ordenActual = { id_ot: idOt, numero_ot: numeroOt };
     sugerenciaMantenimientoCalculada = false;
@@ -4886,16 +4953,18 @@ against the dark UI.
     var puedeVerFinanzasHoy = rolActual === "administrador" || rolActual === "contador";
 
     var pedidosInicio = [
-      restRequest("GET", "ordenes_trabajo", { query: "select=id_ot,estado,fecha_cierre,tipo_orden" }),
+      restRequest("GET", "ordenes_trabajo", { query: "select=id_ot,estado,fecha_cierre,fecha_apertura,tipo_orden" }),
       restRequest("GET", "items", { query: "select=id_item,stock_actual,stock_minimo&stock_gestionado=eq.true" }),
       restRequest("GET", "vista_estado_ordenes", { query: "select=*" }),
       restRequest("GET", "vista_resultado_mensual", { query: "select=periodo,ordenes_cerradas,ingresos&order=periodo.desc&limit=6" })
     ];
+    // Posición fija de este pedido: r[4] (antes de los de finanzas)
+    pedidosInicio.push(restRequest("GET", "vista_vencimientos_documentos", { query: "select=*&limit=200" }).catch(function () { return []; }));
     if (puedeVerFinanzasHoy) {
       pedidosInicio.push(
         restRequest("GET", "vista_facturacion", { query: "select=total,forma_pago&estado_pago=eq.pagada&forma_pago=neq.credito&fecha_pago=gte." + hoyStr + "&fecha_pago=lt." + mananaStr }),
         restRequest("GET", "pagos_factura", { query: "select=forma_pago,monto&fecha_pago=gte." + hoyStr + "&fecha_pago=lt." + mananaStr }),
-        restRequest("GET", "vista_cuentas_por_cobrar", { query: "select=saldo" }),
+        restRequest("GET", "vista_cuentas_por_cobrar", { query: "select=saldo,fecha_vencimiento_pago" }),
         restRequest("GET", "vista_cuentas_por_pagar", { query: "select=saldo" }),
         restRequest("GET", "vista_ingresos_por_tipo_mes", { query: "select=periodo,tipo,monto&order=periodo.desc&limit=12" })
       );
@@ -4939,11 +5008,11 @@ against the dark UI.
       $("tarjeta-resumen-financiero-hoy").classList.toggle("oculto", !puedeVerFinanzasHoy);
       $("tarjeta-ingresos-por-tipo").classList.toggle("oculto", !puedeVerFinanzasHoy);
       if (puedeVerFinanzasHoy) {
-        var ventasHoyFilas = r[4] || [];
-        var pagosDivididosHoyFilas = r[5] || [];
-        var cxcFilas = r[6] || [];
-        var cxpFilas = r[7] || [];
-        var ingresosPorTipoFilas = r[8] || [];
+        var ventasHoyFilas = r[5] || [];
+        var pagosDivididosHoyFilas = r[6] || [];
+        var cxcFilas = r[7] || [];
+        var cxpFilas = r[8] || [];
+        var ingresosPorTipoFilas = r[9] || [];
 
         var ventasHoy = ventasHoyFilas.reduce(function (a, f) { return a + Number(f.total || 0); }, 0);
         var efectivoHoy = ventasHoyFilas.reduce(function (a, f) {
@@ -4971,6 +5040,13 @@ against the dark UI.
         $("kpi-ingreso-externos").textContent = formatoMoneda(montoPorTipo.trabajo_externo);
       }
 
+      dibujarAlertasInicio({
+        ordenes: ordenes,
+        stockBajo: stockBajo,
+        vencimientos: r[4] || [],
+        cxc: puedeVerFinanzasHoy ? (r[7] || []) : null
+      });
+
       dibujarGraficoMensual(resultadoMensual, puedeVerFinanzas);
       dibujarGraficoEstados(estados);
 
@@ -4978,6 +5054,43 @@ against the dark UI.
       if (puedeVerFinanzasHoy) {
         return cargarProductividadInicio();
       }
+    });
+  }
+
+  // Alertas del panel principal: cosas que piden atención hoy, cada una lleva
+  // a la pantalla donde se resuelve. Solo se muestran las que tienen algo.
+  function dibujarAlertasInicio(d) {
+    var tarjeta = $("tarjeta-alertas-inicio");
+    var cont = $("alertas-inicio");
+    var hoyISO = aFechaISO(new Date());
+    var items = [];
+    var atrasadas = d.ordenes.filter(function (o) {
+      return o.estado !== "cerrada" && o.estado !== "cancelada" && o.fecha_apertura &&
+        (Date.now() - new Date(o.fecha_apertura).getTime()) / 86400000 >= 8;
+    }).length;
+    if (atrasadas) items.push({ n: atrasadas, t: "órdenes con 8+ días en el taller", c: "chip-peligro", p: "app" });
+    var listas = d.ordenes.filter(function (o) { return o.estado === "listo_entrega"; }).length;
+    if (listas) items.push({ n: listas, t: "vehículos listos esperando entrega", c: "chip-alerta", p: "app" });
+    if (d.stockBajo) items.push({ n: d.stockBajo, t: "productos con stock bajo", c: "chip-alerta", p: "inventario" });
+    var docs = (d.vencimientos || []).length;
+    if (docs) items.push({ n: docs, t: "SOAT / tecnomecánica vencidos o por vencer", c: "chip-alerta", p: "comunicaciones" });
+    if (d.cxc) {
+      var vencidas = d.cxc.filter(function (f) {
+        return f.fecha_vencimiento_pago && String(f.fecha_vencimiento_pago).slice(0, 10) < hoyISO && Number(f.saldo || 0) > 0;
+      });
+      if (vencidas.length) {
+        var monto = vencidas.reduce(function (a, f) { return a + Number(f.saldo || 0); }, 0);
+        items.push({ n: vencidas.length, t: "pagos de clientes vencidos (" + formatoMoneda(monto) + ")", c: "chip-peligro", p: "cuentas" });
+      }
+    }
+    tarjeta.classList.toggle("oculto", !items.length);
+    cont.innerHTML = "";
+    items.forEach(function (it) {
+      var chip = document.createElement("span");
+      chip.className = "chip-resumen " + it.c;
+      chip.innerHTML = "<b>" + it.n + "</b> " + it.t;
+      chip.addEventListener("click", function () { mostrarPagina(it.p); });
+      cont.appendChild(chip);
     });
   }
 
