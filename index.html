@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-10-24-3">
+<meta name="app-build" content="2026-10-24-4">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -11301,7 +11301,7 @@ against the dark UI.
         opt.value = u.id_usuario; opt.textContent = u.nombre;
         selT.appendChild(opt);
       });
-      return llenarSelectAprendiz($("select-aprendiz"), "");
+      return llenarSelectAprendiz($("select-aprendiz"), "", true);
     });
   }
 
@@ -13826,7 +13826,9 @@ against the dark UI.
       return aprendicesCache;
     }).catch(function () { return []; });
   }
-  function llenarSelectAprendiz(sel, valor) {
+  // preseleccionarUnico: en una orden NUEVA, si el taller tiene un solo
+  // aprendiz activo, queda ya elegido (se quita a mano cuando no trabaje).
+  function llenarSelectAprendiz(sel, valor, preseleccionarUnico) {
     return cargarAprendices().then(function (lista) {
       sel.innerHTML = "<option value=\"\">— Sin aprendiz —</option>";
       lista.forEach(function (a) {
@@ -13834,7 +13836,7 @@ against the dark UI.
         opt.value = a.id_empleado; opt.textContent = a.nombre;
         sel.appendChild(opt);
       });
-      sel.value = valor || "";
+      sel.value = valor || ((preseleccionarUnico && lista.length === 1) ? lista[0].id_empleado : "");
     });
   }
   function nombreAprendiz(id) {
