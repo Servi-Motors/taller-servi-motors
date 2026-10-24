@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-10-24-2">
+<meta name="app-build" content="2026-10-24-3">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -9710,7 +9710,7 @@ against the dark UI.
 
     var pedidoOrdenes = filtroRol
       ? restRequest("GET", "ordenes_trabajo", {
-          query: "select=id_ot,ot_detalle(cantidad,precio_aplicado_cliente,costo_interno,estado_autorizacion,items(tipo))&estado=eq.cerrada&" + filtroRol + "=eq." + (rol === "aprendiz" ? idEmpleado : idUsuario) + "&" + filtroFechaOrdenes
+          query: "select=id_ot,id_tecnico,ot_detalle(cantidad,precio_aplicado_cliente,costo_interno,pct_descuento,estado_autorizacion,items(tipo))&estado=eq.cerrada&" + filtroRol + "=eq." + (rol === "aprendiz" ? idEmpleado : idUsuario) + "&" + filtroFechaOrdenes
         })
       : Promise.resolve([]);
 
@@ -9721,6 +9721,17 @@ against the dark UI.
     btnCalcular.textContent = "Calculando…";
 
     return Promise.all([pedidoOrdenes, pedidoParametros, pedidoPrestamos]).then(function (r) {
+      // Aprendiz: gana el % (25%) de lo que GANA EL TÉCNICO por la mano de obra
+      // de las órdenes donde fue asignado. Como la tarifa del técnico cambia
+      // según cuántas horas lleva en el período (tarifa base hasta el tope,
+      // tarifa mayor después), se calcula la tarifa promedio real de cada
+      // técnico en este mismo período y se aplica a las horas del aprendiz.
+      if (rol !== "aprendiz") return { r: r, mezcla: null };
+      var par = (r[1] && r[1][0]) || {};
+      return calcularMezclaAprendiz(r[0] || [], par, inicioBogotaISO, finExclusivoBogotaISO).then(function (m) { return { r: r, mezcla: m }; });
+    }).then(function (paquete) {
+      var r = paquete.r;
+      var mezclaAprendiz = paquete.mezcla;
       var ordenes = r[0] || [];
       var parametros = (r[1] && r[1][0]) || { tramo_horas_tecnico: 0, tarifa_hora_tecnico_base: 0, tarifa_hora_tecnico_extra: 0, tramo_horas_ticket_asesor: 0, pct_comision_mo_baja: 0, pct_comision_mo_alta: 0, pct_comision_margen_otros: 0, precio_mano_obra: 0 };
       var prestamos = r[2] || [];
@@ -9733,9 +9744,9 @@ against the dark UI.
           var tipo = d.items && d.items.tipo;
           if (tipo === "mano_obra") {
             horas += cant;
-            valorManoObra += cant * Number(d.precio_aplicado_cliente);
+            valorManoObra += cant * Number(d.precio_aplicado_cliente) * (1 - Number(d.pct_descuento || 0) / 100);
           } else {
-            margenOtros += cant * Number(d.precio_aplicado_cliente) - cant * Number(d.costo_interno);
+            margenOtros += cant * Number(d.precio_aplicado_cliente) * (1 - Number(d.pct_descuento || 0) / 100) - cant * Number(d.costo_interno);
           }
         });
       });
@@ -9769,7 +9780,7 @@ against the dark UI.
 
       var comisiones = comisionManoObra + comisionMargenOtros;
       var variableTecnico = rol === "tecnico" ? (horasTramoBase * tarifaBase + horasTramoExtra * tarifaExtra)
-        : (rol === "aprendiz" ? Math.round(horas * tarifaBase * pctAprendiz) : 0);
+        : (rol === "aprendiz" ? Math.round(mezclaAprendiz.valorTecnico * pctAprendiz) : 0);
       var cargaPrestacionalValor = aplicaCargaPrestacional ? Math.round(salarioBase * pctCargaPrestacionalActual) : 0;
 
       nominaCalculo = {
@@ -9793,7 +9804,7 @@ against the dark UI.
         comisiones: comisiones,
         horas_tramo_base: horasTramoBase,
         horas_tramo_extra: horasTramoExtra,
-        tarifa_hora_base: rol === "tecnico" ? tarifaBase : (rol === "aprendiz" ? tarifaBase * pctAprendiz : 0),
+        tarifa_hora_base: rol === "tecnico" ? tarifaBase : (rol === "aprendiz" ? (horas > 0 ? (mezclaAprendiz.valorTecnico / horas) * pctAprendiz : 0) : 0),
         tarifa_hora_extra: rol === "tecnico" ? tarifaExtra : 0,
         variable_tecnico: variableTecnico,
         horas_trabajadas: horas,
@@ -9814,7 +9825,8 @@ against the dark UI.
             + (horasTramoExtra > 0 ? "<br>&nbsp;&nbsp;" + horasTramoExtra.toFixed(2) + " h excedentes × " + formatoMoneda(tarifaExtra) + " = " + formatoMoneda(horasTramoExtra * tarifaExtra) : ""))
         : rol === "aprendiz"
         ? ("Variable aprendiz: " + formatoMoneda(variableTecnico) + " — " + horas.toFixed(2) + " horas de mano de obra en órdenes donde fue asignado"
-            + "<br>&nbsp;&nbsp;" + horas.toFixed(2) + " h × " + formatoMoneda(tarifaBase) + " × " + (pctAprendiz * 100).toFixed(0) + "% = " + formatoMoneda(variableTecnico))
+            + "<br>&nbsp;&nbsp;Lo que gana el técnico por esas horas: " + formatoMoneda(mezclaAprendiz.valorTecnico) + " (tarifa promedio " + formatoMoneda(horas > 0 ? mezclaAprendiz.valorTecnico / horas : 0) + " por hora)"
+            + "<br>&nbsp;&nbsp;" + formatoMoneda(mezclaAprendiz.valorTecnico) + " × " + (pctAprendiz * 100).toFixed(0) + "% = " + formatoMoneda(variableTecnico))
         : "Este rol no tiene comisión ni variable automática — solo salario base.";
 
       var etiquetaBase = esPagoPorDia
@@ -9851,6 +9863,47 @@ against the dark UI.
       throw err;
     });
   }, "nomina-error"));
+
+  // Para el aprendiz: suma, por cada técnico con el que trabajó, las horas del
+  // aprendiz × la tarifa PROMEDIO que ese técnico ganó en el período
+  // (tarifa base hasta el tope de horas, tarifa mayor por las que excedan).
+  function calcularMezclaAprendiz(ordenesAprendiz, par, inicioISO, finExclusivoISO) {
+    var tramo = Number(par.tramo_horas_tecnico) || 0;
+    var base = Number(par.tarifa_hora_tecnico_base) || 0;
+    var extra = Number(par.tarifa_hora_tecnico_extra) || 0;
+    function horasMO(ots) {
+      var h = 0;
+      (ots || []).forEach(function (ot) {
+        (ot.ot_detalle || []).forEach(function (d) {
+          if (d.estado_autorizacion === "rechazado") return;
+          if (d.items && d.items.tipo === "mano_obra") h += Number(d.cantidad);
+        });
+      });
+      return h;
+    }
+    var horasAprendizPorTecnico = {};
+    ordenesAprendiz.forEach(function (ot) {
+      var k = ot.id_tecnico || "sin";
+      horasAprendizPorTecnico[k] = (horasAprendizPorTecnico[k] || 0) + horasMO([ot]);
+    });
+    var tecnicos = Object.keys(horasAprendizPorTecnico).filter(function (k) { return k !== "sin"; });
+    return Promise.all(tecnicos.map(function (idTec) {
+      return restRequest("GET", "ordenes_trabajo", {
+        query: "select=id_ot,ot_detalle(cantidad,estado_autorizacion,items(tipo))&estado=eq.cerrada&id_tecnico=eq." + idTec +
+          "&fecha_cierre=gte." + inicioISO + "&fecha_cierre=lt." + finExclusivoISO
+      }).then(function (ots) { return { id: idTec, horas: horasMO(ots) }; });
+    })).then(function (totales) {
+      var valorTecnico = 0;
+      totales.forEach(function (t) {
+        var h = t.horas;
+        var promedio = h > 0 ? (Math.min(h, tramo) * base + Math.max(0, h - tramo) * extra) / h : base;
+        valorTecnico += horasAprendizPorTecnico[t.id] * promedio;
+      });
+      // Órdenes sin técnico asignado: se usa la tarifa base.
+      if (horasAprendizPorTecnico.sin) valorTecnico += horasAprendizPorTecnico.sin * base;
+      return { valorTecnico: valorTecnico };
+    });
+  }
 
   function actualizarTotalNomina() {
     if (!nominaCalculo) return;
