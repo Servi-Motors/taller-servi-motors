@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-10-23-2">
+<meta name="app-build" content="2026-10-23-3">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -225,6 +225,11 @@ against the dark UI.
   </header>
 
   <div id="fondo-menu-movil" class="oculto"></div>
+
+  <!-- Barra de menú inferior (pantallas anchas: computador y tablet horizontal).
+       Se arma sola desde los mismos enlaces del menú lateral, así respeta los
+       permisos de cada rol. -->
+  <div id="barra-inferior"></div>
 
   <nav id="sidebar">
     <div class="sidebar-marca marca-flex"><img class="logo-taller" alt="Logo"> <span>Taller Servi Motors</span></div>
@@ -3542,6 +3547,41 @@ against the dark UI.
   .agenda-turno-acciones { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 8px 8px; }
   .agenda-turno-acciones button { width: auto; margin: 0; padding: 5px 8px; font-size: 12px; }
 
+  /* Barra de menú inferior — solo pantallas anchas (en celular se usa el ☰) */
+  #barra-inferior { display: none; }
+  @media (min-width: 901px) {
+    #sidebar { display: none; }
+    #shell { display: block; }
+    #contenido-principal { padding: 16px 20px 86px; }
+    #barra-inferior {
+      display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: nowrap;
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 35;
+      padding: 8px 14px; background: var(--sidebar-bg); border-top: 1px solid var(--sidebar-borde);
+      box-shadow: 0 -2px 10px rgba(0,0,0,.18);
+    }
+    .barra-marca { display: flex; align-items: center; gap: 8px; color: var(--sidebar-texto); font-weight: 700; font-size: 14px; margin-right: 10px; white-space: nowrap; }
+    .barra-marca .logo-taller { width: 34px; height: 34px; border-radius: 8px; }
+    .barra-btn {
+      width: auto; margin: 0; padding: 9px 14px; font-size: 14px; font-weight: 600; white-space: nowrap;
+      background: rgba(255,255,255,.12); color: var(--sidebar-texto); border: 1px solid var(--sidebar-borde); border-radius: 10px; cursor: pointer;
+    }
+    .barra-btn:hover { background: var(--sidebar-hover); }
+    .barra-btn.activo { background: var(--sidebar-activo-bg); color: var(--sidebar-activo-texto); border-color: var(--sidebar-activo-bg); }
+    .barra-grupo { position: relative; }
+    .barra-menu {
+      display: none; position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%);
+      min-width: 210px; padding: 6px; border-radius: 12px; background: var(--sidebar-bg);
+      border: 1px solid var(--sidebar-borde); box-shadow: 0 -4px 18px rgba(0,0,0,.28);
+    }
+    .barra-grupo.abierto .barra-menu { display: block; }
+    .barra-menu .barra-btn { display: block; width: 100%; text-align: left; margin: 2px 0; background: transparent; border-color: transparent; }
+    .barra-menu .barra-btn:hover { background: var(--sidebar-hover); }
+    .barra-menu .barra-btn.activo { background: var(--sidebar-activo-bg); }
+    .barra-menu .barra-usuario { font-size: 12px; color: var(--sidebar-texto); opacity: .75; padding: 6px 12px 8px; word-break: break-all; border-bottom: 1px solid var(--sidebar-borde); margin-bottom: 4px; }
+    .barra-menu .barra-salir { color: #fecaca; }
+    .timer-flotante { bottom: 84px; }
+  }
+
   @media (max-width: 900px) {
     #shell { display: block; }
     #barra-movil {
@@ -4224,6 +4264,7 @@ against the dark UI.
     });
     $("titulo-pagina-movil").textContent = TITULOS_PAGINA[nombre] || "Taller Servi Motors";
     cerrarMenuMovil();
+    actualizarBarraInferior();
     window.scrollTo({ top: 0 });
     // Los formularios de Servicios y Combos son modales independientes del
     // contenido de la página (para que queden fijos y centrados): hay que
@@ -4470,6 +4511,95 @@ against the dark UI.
     if ($("sidebar").classList.contains("abierto")) cerrarMenuMovil(); else abrirMenuMovil();
   });
   $("fondo-menu-movil").addEventListener("click", cerrarMenuMovil);
+
+  // ---- Barra de menú inferior (pantallas anchas) ----
+  // Se arma desde los enlaces del menú lateral (que siguen existiendo, ocultos
+  // en pantallas anchas): así la barra muestra solo lo que cada rol puede ver.
+  var ELEMENTOS_BARRA = [
+    { pagina: "inicio" }, { pagina: "app" }, { pagina: "agenda" }, { pagina: "clientes" }, { pagina: "comunicaciones" },
+    { titulo: "📂 Gestión", paginas: ["vehiculos", "proveedores", "ordenescompra", "personal"] },
+    { titulo: "📦 Stock", paginas: ["inventario", "activos", "servicios", "combos"] },
+    { titulo: "💰 Contabilidad", paginas: ["egreso", "contabilidad", "facturacion", "caja", "cuentas"] },
+    { titulo: "⋯ Más", paginas: ["configuracion", "nomina", "reportes"], extras: true }
+  ];
+  var grupoBarraAbierto = null;
+
+  function enlaceMenuDe(pagina) { return document.querySelector('.nav-link[data-pagina="' + pagina + '"]'); }
+  function paginaVisibleEnMenu(pagina) { var a = enlaceMenuDe(pagina); return !!a && !a.classList.contains("oculto"); }
+  function etiquetaMenuDe(pagina) { var a = enlaceMenuDe(pagina); return a ? a.textContent.trim() : pagina; }
+  function paginaActivaEnMenu() { var a = document.querySelector(".nav-link.activo"); return a ? a.getAttribute("data-pagina") : null; }
+
+  function cerrarMenusBarra() {
+    grupoBarraAbierto = null;
+    document.querySelectorAll(".barra-grupo.abierto").forEach(function (g) { g.classList.remove("abierto"); });
+  }
+
+  function crearBotonBarra(texto, clase, alClic) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "barra-btn" + (clase ? " " + clase : "");
+    b.textContent = texto;
+    b.addEventListener("click", function (e) { e.stopPropagation(); alClic(); });
+    return b;
+  }
+
+  function actualizarBarraInferior() {
+    var barra = $("barra-inferior");
+    if (!barra) return;
+    var activa = paginaActivaEnMenu();
+    barra.innerHTML = "";
+    var marca = document.createElement("div");
+    marca.className = "barra-marca";
+    var logo = document.createElement("img");
+    logo.className = "logo-taller"; logo.alt = "Logo"; logo.src = LOGO_TALLER_BASE64;
+    marca.appendChild(logo);
+    barra.appendChild(marca);
+
+    ELEMENTOS_BARRA.forEach(function (el) {
+      if (el.pagina) {
+        if (!paginaVisibleEnMenu(el.pagina)) return;
+        barra.appendChild(crearBotonBarra(etiquetaMenuDe(el.pagina), el.pagina === activa ? "activo" : "", function () {
+          cerrarMenusBarra(); mostrarPagina(el.pagina);
+        }));
+        return;
+      }
+      var visibles = el.paginas.filter(paginaVisibleEnMenu);
+      if (!visibles.length && !el.extras) return;
+      var grupo = document.createElement("div");
+      grupo.className = "barra-grupo" + (grupoBarraAbierto === el.titulo ? " abierto" : "");
+      var enGrupo = visibles.indexOf(activa) !== -1;
+      grupo.appendChild(crearBotonBarra(el.titulo + " ▴", enGrupo ? "activo" : "", function () {
+        var estabaAbierto = grupo.classList.contains("abierto");
+        cerrarMenusBarra();
+        if (!estabaAbierto) { grupo.classList.add("abierto"); grupoBarraAbierto = el.titulo; }
+      }));
+      var menu = document.createElement("div");
+      menu.className = "barra-menu";
+      if (el.extras) {
+        var u = document.createElement("div");
+        u.className = "barra-usuario";
+        u.textContent = $("usuario-actual").textContent;
+        menu.appendChild(u);
+      }
+      visibles.forEach(function (p) {
+        menu.appendChild(crearBotonBarra(etiquetaMenuDe(p), p === activa ? "activo" : "", function () {
+          cerrarMenusBarra(); mostrarPagina(p);
+        }));
+      });
+      if (el.extras) {
+        menu.appendChild(crearBotonBarra($("btn-tema").textContent, "", function () { cerrarMenusBarra(); $("btn-tema").click(); actualizarBarraInferior(); }));
+        menu.appendChild(crearBotonBarra("Cerrar sesión", "barra-salir", function () { cerrarMenusBarra(); $("btn-logout").click(); }));
+      }
+      grupo.appendChild(menu);
+      barra.appendChild(grupo);
+    });
+  }
+  document.addEventListener("click", function () {
+    if (grupoBarraAbierto) cerrarMenusBarra();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && grupoBarraAbierto) cerrarMenusBarra();
+  });
 
   // Tema claro/oscuro: por defecto sigue el sistema (ver el script chiquito
   // en <head> que evita el parpadeo). El botón fuerza una elección manual
