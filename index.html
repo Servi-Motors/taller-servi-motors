@@ -23,12 +23,12 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-10-23-5">
+<meta name="app-build" content="2026-10-23-6">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#1f2937">
+<meta name="theme-color" content="#0b2447">
 <meta name="apple-mobile-web-app-title" content="Servi Motors">
 <title>Taller Servi Motors – Panel principal</title>
 <script>
@@ -3050,22 +3050,26 @@ against the dark UI.
 
 <style>
   :root {
-    --azul: #c8812f;
-    --azul-oscuro: #a3651c;
-    --gris: #6b7280;
-    --gris-claro: #f3f4f6;
-    --rojo: #dc2626;
-    --verde: #16a34a;
-    --borde: #d1d5db;
-    --texto: #111827;
-    --fondo: #f3f4f6;
+    /* Paleta "Acero y naranja seguridad": azul acero profundo + naranja.
+       --azul es el color de acento (nombre histórico, ahora es naranja). */
+    --azul: #ff6b00;
+    --azul-oscuro: #e05d00;
+    --azul-texto: #c2410c;
+    --sobre-azul: #0b2447;
+    --gris: #5b6b80;
+    --gris-claro: #e3e9f1;
+    --rojo: #c1121f;
+    --verde: #15803d;
+    --borde: #cbd5e1;
+    --texto: #0f1b2d;
+    --fondo: #eef2f7;
     --tarjeta-bg: #ffffff;
-    --sidebar-bg: #8b8a6f;
+    --sidebar-bg: #0b2447;
     --sidebar-texto: #ffffff;
-    --sidebar-activo-bg: #c8812f;
-    --sidebar-activo-texto: #ffffff;
-    --sidebar-hover: #9d9c82;
-    --sidebar-borde: #9d9c82;
+    --sidebar-activo-bg: #ff6b00;
+    --sidebar-activo-texto: #0b2447;
+    --sidebar-hover: #19376d;
+    --sidebar-borde: #23447f;
   }
   /* Modo oscuro: sigue la preferencia del sistema por defecto. Si la
      persona elige un tema a mano con el botón de la barra lateral, se le
@@ -3075,27 +3079,39 @@ against the dark UI.
      en modo claro porque un tono más suave se lee mejor sobre fondo oscuro. */
   @media (prefers-color-scheme: dark) {
     :root:not(.tema-claro) {
-      --azul: #e0a458;
-      --azul-oscuro: #f0b86e;
+      --azul: #ff8a3d;
+      --azul-oscuro: #ffa05c;
+      --azul-texto: #ff9d5c;
+      --sobre-azul: #0b2447;
       --rojo: #ef4444;
       --verde: #22c55e;
-      --gris-claro: #1e293b;
-      --texto: #e5e7eb;
-      --fondo: #0f172a;
-      --tarjeta-bg: #1e293b;
-      --borde: #334155;
+      --gris: #94a3b8;
+      --gris-claro: #1b2a47;
+      --texto: #e6edf7;
+      --fondo: #08142b;
+      --tarjeta-bg: #12203d;
+      --borde: #2b3b5c;
+      --sidebar-bg: #0a1b38;
+      --sidebar-hover: #19376d;
+      --sidebar-borde: #23447f;
     }
   }
   :root.tema-oscuro {
-    --azul: #e0a458;
-    --azul-oscuro: #f0b86e;
+    --azul: #ff8a3d;
+    --azul-oscuro: #ffa05c;
+    --azul-texto: #ff9d5c;
+    --sobre-azul: #0b2447;
     --rojo: #ef4444;
     --verde: #22c55e;
-    --gris-claro: #1e293b;
-    --texto: #e5e7eb;
-    --fondo: #0f172a;
-    --tarjeta-bg: #1e293b;
-    --borde: #334155;
+    --gris: #94a3b8;
+    --gris-claro: #1b2a47;
+    --texto: #e6edf7;
+    --fondo: #08142b;
+    --tarjeta-bg: #12203d;
+    --borde: #2b3b5c;
+    --sidebar-bg: #0a1b38;
+    --sidebar-hover: #19376d;
+    --sidebar-borde: #23447f;
   }
   * { box-sizing: border-box; }
   body {
@@ -3174,11 +3190,12 @@ against the dark UI.
   textarea { font-family: inherit; resize: vertical; }
   button {
     width: 100%; padding: 10px; font-size: 16px; font-weight: 600;
-    border: none; border-radius: 8px; background: var(--azul); color: white;
+    border: none; border-radius: 8px; background: var(--azul); color: var(--sobre-azul);
     margin-top: 8px; cursor: pointer;
   }
   button:hover { background: var(--azul-oscuro); }
-  button.secundario { background: transparent; color: var(--azul); border: 1px solid var(--azul); }
+  button.secundario { background: transparent; color: var(--azul-texto); border: 1px solid var(--azul); }
+  button.secundario:hover { background: rgba(255,107,0,.14); color: var(--azul-texto); }
   .mensaje-error {
     background: #fef2f2; color: var(--rojo); border: 1px solid #fecaca;
     padding: 10px 12px; border-radius: 8px; font-size: 15px; margin-top: 12px; display: none;
@@ -3514,7 +3531,7 @@ against the dark UI.
   .kanban-tarjeta b { display: block; font-size: 14px; }
   .kanban-vacio { font-size: 13px; color: var(--gris); padding: 4px 2px; }
 
-  .boton-agregar { width: auto; display: inline-block; background: var(--verde); margin: 0 0 8px; padding: 8px 14px; }
+  .boton-agregar { width: auto; display: inline-block; background: var(--verde); color: #fff; margin: 0 0 8px; padding: 8px 14px; }
   .boton-agregar:hover { background: #15803d; }
   .tabla-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
   .tabla-toolbar label { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; margin: 0; }
@@ -3527,7 +3544,7 @@ against the dark UI.
   table.tabla-datos { width: 100%; border-collapse: collapse; font-size: 14px; white-space: nowrap; }
   table.tabla-datos th { text-align: left; padding: 6px 8px; border-bottom: 2px solid var(--borde); color: var(--gris); font-size: 13px; text-transform: uppercase; letter-spacing: .02em; cursor: pointer; user-select: none; }
   table.tabla-datos th:hover { color: var(--texto); }
-  table.tabla-datos th.orden-activo { color: var(--azul); }
+  table.tabla-datos th.orden-activo { color: var(--azul-texto); }
   table.tabla-datos td { padding: 6px 8px; border-bottom: 1px solid var(--borde); }
   table.tabla-datos tbody tr:hover { background: var(--gris-claro); }
   table.tabla-datos td.tabla-vacia { text-align: center; color: var(--gris); white-space: normal; }
@@ -3563,7 +3580,7 @@ against the dark UI.
   .agenda-dia-cabecera { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; margin-bottom: 8px; }
   .agenda-dia-nombre { font-size: 13px; color: var(--gris); text-transform: uppercase; letter-spacing: .02em; line-height: 1.5; }
   .agenda-dia-nombre b { font-size: 15px; color: var(--texto); text-transform: none; letter-spacing: 0; }
-  .agenda-dia-agregar { width: 24px; height: 24px; flex-shrink: 0; border-radius: 50%; background: var(--azul); color: #fff; font-size: 16px; line-height: 1; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; }
+  .agenda-dia-agregar { width: 24px; height: 24px; flex-shrink: 0; border-radius: 50%; background: var(--azul); color: var(--sobre-azul); font-size: 16px; line-height: 1; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; }
   .agenda-dia-turnos { display: flex; flex-direction: column; gap: 6px; min-height: 30px; }
   .agenda-turno { background: var(--tarjeta-bg); border-radius: 8px; border: 1px solid var(--borde); border-left: 3px solid var(--azul); font-size: 13px; overflow: hidden; }
   .agenda-turno-confirmada { border-left-color: var(--verde); }
@@ -12628,7 +12645,7 @@ against the dark UI.
         "<td>" + (f.cliente_nombre || "—") + "</td>" +
         "<td>" + (f.vehiculo_placa || "—") + " " + [f.marca, f.modelo].filter(Boolean).join(" ") + "</td>" +
         "<td class=\"celda-numero\">" + formatoMoneda(f.total) + "</td>" +
-        "<td style=\"color:" + (f.estado_pago === "pagada" ? "var(--verde)" : (f.estado_pago === "credito" ? "var(--azul)" : "#b45309")) + ";font-weight:600;\">" +
+        "<td style=\"color:" + (f.estado_pago === "pagada" ? "var(--verde)" : (f.estado_pago === "credito" ? "var(--azul-texto)" : "#b45309")) + ";font-weight:600;\">" +
         (f.estado_pago === "pagada" ? "Pagada" + (f.forma_pago === "mixto" ? " (dividido)" : "") : (f.estado_pago === "credito" ? "A crédito" : "Pendiente")) + detalleDividido + "</td>";
 
       var tdAcciones = document.createElement("td");
@@ -15328,7 +15345,7 @@ against the dark UI.
     document.querySelectorAll(".checklist-combustible-btn").forEach(function (b) {
       var activo = b.getAttribute("data-valor") === nivelCombustibleActual;
       b.style.background = activo ? "var(--azul)" : "";
-      b.style.color = activo ? "#fff" : "";
+      b.style.color = activo ? "var(--sobre-azul)" : "";
       b.style.borderColor = activo ? "var(--azul)" : "";
     });
   }
