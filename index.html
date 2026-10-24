@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-10-23-4">
+<meta name="app-build" content="2026-10-23-5">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -4724,7 +4724,7 @@ against the dark UI.
     cargarListasVehiculo(); // sugerencias de marca/modelo/color para "Nueva orden" (no bloquea la carga del tablero)
     var query = "select=id_ot,numero_ot,estado,estado_pago,tipo_orden,fecha_apertura,fecha_cierre,veces_devuelta_calidad,vehiculos(placa,marca,modelo,color),clientes(nombre,telefono)," +
       "asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre)" +
-      "&order=fecha_apertura.desc&limit=100";
+      "&estado=neq.cancelada&order=fecha_apertura.desc&limit=100";
     return restRequest("GET", "ordenes_trabajo", { query: query }).then(function (ordenes) {
       ordenes = ordenes || [];
       // Si es una actualización automática y lo recibido es idéntico a lo que
@@ -4739,7 +4739,8 @@ against the dark UI.
       var scrollColumnas = [];
       contenedor.querySelectorAll(".kanban-lista").forEach(function (l) { scrollColumnas.push(l.scrollTop); });
       contenedor.innerHTML = "";
-      ESTADOS_TABLERO.forEach(function (col) {
+      // Las canceladas no se muestran en el tablero (siguen guardadas y en historial).
+      ESTADOS_TABLERO.filter(function (c) { return c.clave !== "cancelada"; }).forEach(function (col) {
         var filas = ordenes.filter(function (o) { return o.estado === col.clave; });
         var divCol = document.createElement("div");
         divCol.className = "kanban-columna";
