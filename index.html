@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-10-23-1">
+<meta name="app-build" content="2026-10-23-2">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -3472,6 +3472,8 @@ against the dark UI.
   .kanban-lista { overflow-y: auto; max-height: min(65vh, 720px); display: flex; flex-direction: column; gap: 6px; }
   .kanban-tarjeta { background: var(--tarjeta-bg); border-radius: 8px; padding: 8px 10px; font-size: 13px; cursor: pointer; border: 1px solid var(--borde); line-height: 1.5; }
   .kanban-tarjeta:hover { border-color: var(--azul); }
+  .kanban-foto { height: 92px; margin: -8px -10px 8px; border-radius: 8px 8px 0 0; background: #e5e7eb; display: flex; align-items: center; justify-content: center; font-size: 30px; overflow: hidden; }
+  .kanban-foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .kanban-tarjeta b { display: block; font-size: 14px; }
   .kanban-vacio { font-size: 13px; color: var(--gris); padding: 4px 2px; }
 
@@ -4595,6 +4597,7 @@ against the dark UI.
           var tarjeta = document.createElement("div");
           tarjeta.className = "kanban-tarjeta";
           tarjeta.innerHTML =
+            "<div class=\"kanban-foto\" data-ot=\"" + o.id_ot + "\">🚗</div>" +
             "<b>" + prefijoOT + o.numero_ot + " · " + (veh.placa || "—") + "</b>" +
             (o.tipo_orden === "garantia" ? ' <span class="etiqueta-garantia">GARANTÍA</span>' : "") +
             (o.veces_devuelta_calidad > 0 && (o.estado === "en_proceso" || o.estado === "control_calidad") ? ' <span class="etiqueta-devuelta">↩ DEVUELTA</span>' : "") + "<br>" +
@@ -4612,6 +4615,98 @@ against the dark UI.
       });
       contenedor.querySelectorAll(".kanban-lista").forEach(function (l, i) {
         if (scrollColumnas[i]) l.scrollTop = scrollColumnas[i];
+      });
+      // Las fotos se piden aparte y sin bloquear el tablero: si fallan o
+      // tardan, las tarjetas se ven igual (con el ícono 🚗).
+      cargarFotosTablero(ordenes).catch(function () {});
+    });
+  }
+
+  // Foto del vehículo en la cabecera de cada tarjeta del tablero: la primera
+  // foto de Recepción de cada orden. Para no sobrecargar celulares viejos:
+  // (1) solo se descarga cuando la tarjeta entra a la pantalla (scroll),
+  // (2) máximo 2 descargas a la vez, y (3) se guarda una miniatura chica
+  // (no la foto completa) en memoria, así los refrescos automáticos no la
+  // vuelven a pedir.
+  var miniaturasTablero = {};      // ruta -> blob URL de la miniatura
+  var rutaFotoPorOrden = {};       // id_ot -> ruta de la primera foto de recepción
+  var colaFotosTablero = [];
+  var fotosTableroEnCurso = 0;
+  var observadorFotosTablero = null;
+
+  function crearMiniaturaDesdeBlobUrl(urlOriginal) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () {
+        var ancho = 280, alto = Math.round(280 * (img.height / img.width)) || 210;
+        var canvas = document.createElement("canvas");
+        canvas.width = ancho; canvas.height = alto;
+        canvas.getContext("2d").drawImage(img, 0, 0, ancho, alto);
+        canvas.toBlob(function (b) {
+          URL.revokeObjectURL(urlOriginal);
+          if (!b) { reject(new Error("sin miniatura")); return; }
+          resolve(URL.createObjectURL(b));
+        }, "image/jpeg", 0.7);
+      };
+      img.onerror = function () { URL.revokeObjectURL(urlOriginal); reject(new Error("imagen inválida")); };
+      img.src = urlOriginal;
+    });
+  }
+
+  function pintarFotoTablero(cont, urlMini) {
+    cont.innerHTML = "";
+    var img = document.createElement("img");
+    img.alt = "";
+    img.src = urlMini;
+    cont.appendChild(img);
+  }
+
+  function procesarColaFotosTablero() {
+    while (fotosTableroEnCurso < 2 && colaFotosTablero.length) {
+      var cont = colaFotosTablero.shift();
+      var ruta = cont.getAttribute("data-ruta");
+      if (!ruta || !document.body.contains(cont)) continue;
+      if (miniaturasTablero[ruta]) { pintarFotoTablero(cont, miniaturasTablero[ruta]); continue; }
+      fotosTableroEnCurso++;
+      (function (c, rt) {
+        obtenerUrlImagenPrivada(rt)
+          .then(crearMiniaturaDesdeBlobUrl)
+          .then(function (urlMini) {
+            miniaturasTablero[rt] = urlMini;
+            if (document.body.contains(c)) pintarFotoTablero(c, urlMini);
+          })
+          .catch(function () { /* se queda el ícono 🚗 */ })
+          .then(function () { fotosTableroEnCurso--; procesarColaFotosTablero(); });
+      })(cont, ruta);
+    }
+  }
+
+  function cargarFotosTablero(ordenes) {
+    var ids = ordenes.map(function (o) { return o.id_ot; });
+    if (!ids.length) return Promise.resolve();
+    return restRequest("GET", "evidencias_ot", {
+      query: "select=id_ot,ruta_imagen&etapa=eq.recepcion&id_ot=in.(" + ids.join(",") + ")&order=creado_en.asc"
+    }).then(function (filas) {
+      (filas || []).forEach(function (f) {
+        if (!rutaFotoPorOrden[f.id_ot]) rutaFotoPorOrden[f.id_ot] = f.ruta_imagen;
+      });
+      if (!observadorFotosTablero && "IntersectionObserver" in window) {
+        observadorFotosTablero = new IntersectionObserver(function (entradas) {
+          entradas.forEach(function (e) {
+            if (!e.isIntersecting) return;
+            observadorFotosTablero.unobserve(e.target);
+            colaFotosTablero.push(e.target);
+          });
+          procesarColaFotosTablero();
+        }, { rootMargin: "150px" });
+      }
+      $("tablero-ordenes").querySelectorAll(".kanban-foto").forEach(function (cont) {
+        var ruta = rutaFotoPorOrden[cont.getAttribute("data-ot")];
+        if (!ruta) return;
+        cont.setAttribute("data-ruta", ruta);
+        if (miniaturasTablero[ruta]) { pintarFotoTablero(cont, miniaturasTablero[ruta]); return; }
+        if (observadorFotosTablero) observadorFotosTablero.observe(cont);
+        else { colaFotosTablero.push(cont); procesarColaFotosTablero(); }
       });
     });
   }
