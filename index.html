@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-10-24-4">
+<meta name="app-build" content="2026-11-03-1">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -2994,7 +2994,7 @@ against the dark UI.
 
       <div class="tarjeta">
         <h2>Avisar vehículo listo</h2>
-        <div class="nota-ayuda">Órdenes cerradas en los últimos 14 días.</div>
+        <div class="nota-ayuda">Vehículos que ya están listos y todavía no se han entregado. En cuanto se entrega y se cierra la orden, el aviso sale solo de esta lista.</div>
         <div id="lista-recordatorios-listos"></div>
       </div>
 
@@ -6095,18 +6095,19 @@ against the dark UI.
       restRequest("GET", "ot_detalle", { query: "select=id_detalle,items(nombre),ordenes_trabajo(numero_ot,clientes(nombre,telefono),vehiculos(placa,marca,modelo))&estado_autorizacion=eq.rechazado&seguimiento_descartado=eq.false&order=creado_en.desc&limit=100" }),
       restRequest("GET", "vista_garantias_activas", { query: "select=*&fecha_limite_garantia=gte." + aFechaISO(ahora) + "&order=fecha_limite_garantia.asc&limit=100" }),
       restRequest("GET", "vista_cuentas_por_cobrar", { query: "select=*&saldo=gt.0&order=fecha_cierre.asc&limit=200" }).catch(function () { return []; }),
+      restRequest("GET", "ordenes_trabajo", { query: "select=id_ot,numero_ot,fecha_apertura,estado,clientes(nombre,telefono),vehiculos(placa,marca,modelo)&estado=eq.listo_entrega&order=fecha_apertura.asc&limit=100" }).catch(function () { return []; }),
       restRequest("GET", "ordenes_trabajo", { query: "select=resena_solicitada_en&estado=eq.cerrada&fecha_cierre=gte." + aFechaISO(primerDiaMes(new Date())) + "T00:00:00-05:00&limit=1000" }).catch(function () { return []; })
     ]).then(function (r) {
       var ordenesCerradasRecientes = r[1] || [];
       renderizarRecordatoriosCitas(r[0] || []);
-      renderizarRecordatoriosListos(ordenesCerradasRecientes);
+      renderizarRecordatoriosListos(r[9] || []);
       poblarSelectorClientesComunicaciones(r[2] || []);
       renderizarRecordatoriosMantenimiento(r[3] || []);
       renderizarRecordatoriosDocumentos(r[5] || []);
       renderizarRecordatoriosRechazados(r[6] || []);
       renderizarGarantiasVigentes(r[7] || []);
       renderizarRecordatoriosCobro(r[8] || []);
-      renderizarContadorResenas(r[9] || []);
+      renderizarContadorResenas(r[10] || []);
       var enlaceResenas = (r[4] && r[4][0] && r[4][0].enlace_resenas) || "";
       var ordenesParaResena = ordenesCerradasRecientes.filter(function (o) {
         return o.fecha_cierre && new Date(o.fecha_cierre) >= hace7dias && !o.resena_solicitada_en;
@@ -6191,17 +6192,17 @@ against the dark UI.
 
   function renderizarRecordatoriosListos(filas) {
     var cont = $("lista-recordatorios-listos");
-    cont.innerHTML = filas.length ? "" : "<p class=\"nota-ayuda\">No hay órdenes cerradas recientes.</p>";
+    cont.innerHTML = filas.length ? "" : "<p class=\"nota-ayuda\">No hay vehículos listos esperando entrega. ✅</p>";
     filas.forEach(function (o) {
       var veh = o.vehiculos;
       var cliente = o.clientes;
-      var fecha = o.fecha_cierre ? new Date(o.fecha_cierre).toLocaleDateString("es-CO", { day: "numeric", month: "short" }) : "—";
+      var fecha = o.fecha_apertura ? new Date(o.fecha_apertura).toLocaleDateString("es-CO", { day: "numeric", month: "short" }) : "—";
       var mensaje = aplicarPlantilla("vehiculo_listo", { cliente: cliente ? cliente.nombre : "", placa: veh ? veh.placa : "" });
       var fila = document.createElement("div");
       fila.className = "fila-renglon";
       fila.innerHTML =
         "<span><b>" + (cliente ? cliente.nombre : "Sin cliente") + "</b> <span class=\"fila-detalle\">OT #" + o.numero_ot + (veh ? " · " + veh.placa : "") + "</span><br>" +
-        "<span class=\"fila-detalle\">Cerrada el " + fecha + "</span></span>";
+        "<span class=\"fila-detalle\">Ingresó el " + fecha + " · listo para entrega</span></span>";
       fila.appendChild(crearBotonWhatsApp(cliente && cliente.telefono, mensaje));
       cont.appendChild(fila);
     });
