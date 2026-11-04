@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-03-1">
+<meta name="app-build" content="2026-11-03-2">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -9711,7 +9711,7 @@ against the dark UI.
 
     var pedidoOrdenes = filtroRol
       ? restRequest("GET", "ordenes_trabajo", {
-          query: "select=id_ot,id_tecnico,ot_detalle(cantidad,precio_aplicado_cliente,costo_interno,pct_descuento,estado_autorizacion,items(tipo))&estado=eq.cerrada&" + filtroRol + "=eq." + (rol === "aprendiz" ? idEmpleado : idUsuario) + "&" + filtroFechaOrdenes
+          query: "select=id_ot,id_tecnico,ot_detalle(cantidad,precio_aplicado_cliente,costo_interno,pct_descuento,estado_autorizacion,items(tipo))&estado=eq.cerrada&tipo_orden=neq.garantia&" + filtroRol + "=eq." + (rol === "aprendiz" ? idEmpleado : idUsuario) + "&" + filtroFechaOrdenes
         })
       : Promise.resolve([]);
 
@@ -9890,7 +9890,7 @@ against the dark UI.
     var tecnicos = Object.keys(horasAprendizPorTecnico).filter(function (k) { return k !== "sin"; });
     return Promise.all(tecnicos.map(function (idTec) {
       return restRequest("GET", "ordenes_trabajo", {
-        query: "select=id_ot,ot_detalle(cantidad,estado_autorizacion,items(tipo))&estado=eq.cerrada&id_tecnico=eq." + idTec +
+        query: "select=id_ot,ot_detalle(cantidad,estado_autorizacion,items(tipo))&estado=eq.cerrada&tipo_orden=neq.garantia&id_tecnico=eq." + idTec +
           "&fecha_cierre=gte." + inicioISO + "&fecha_cierre=lt." + finExclusivoISO
       }).then(function (ots) { return { id: idTec, horas: horasMO(ots) }; });
     })).then(function (totales) {
