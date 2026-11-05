@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-05-12">
+<meta name="app-build" content="2026-11-05-13">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -307,7 +307,7 @@ against the dark UI.
         <label for="filtro-mes-inicio" style="margin:0;font-weight:600;">Mes:</label>
         <select id="filtro-mes-inicio" style="width:auto;margin:0;"></select>
       </div>
-      <div class="nota-ayuda" id="nota-filtro-mes-inicio">El mes filtra cerradas, ingresos, el gráfico mensual y la productividad. Órdenes abiertas, stock y garantías activas muestran siempre el estado de hoy.</div>
+      <div class="nota-ayuda" id="nota-filtro-mes-inicio">El mes filtra cerradas, ingresos, el gráfico mensual y la productividad. Órdenes abiertas y stock muestran siempre el estado de hoy.</div>
 
       <div class="grid-kpis">
         <div class="tarjeta-kpi">
@@ -332,7 +332,7 @@ against the dark UI.
         </div>
         <div class="tarjeta-kpi" id="tarjeta-kpi-garantias">
           <div class="kpi-numero" id="kpi-garantias">—</div>
-          <div class="kpi-etiqueta">Garantías activas</div>
+          <div class="kpi-etiqueta" id="etiqueta-garantias">Garantías del mes</div>
         </div>
       </div>
 
@@ -5059,7 +5059,15 @@ against the dark UI.
       $("kpi-stock-bajo").textContent = stockBajo;
       $("tarjeta-kpi-stock-bajo").className = "tarjeta-kpi" + (stockBajo > 0 ? " tarjeta-kpi-atencion" : "");
 
-      var garantiasActivas = ordenes.filter(function (o) { return o.tipo_orden === "garantia" && o.estado !== "cerrada" && o.estado !== "cancelada"; }).length;
+      // Garantías del mes elegido (por fecha de cierre; si siguen abiertas, por fecha de apertura).
+      // En el mes actual se suman además las que siguen abiertas de meses anteriores.
+      var garantiasActivas = ordenes.filter(function (o) {
+        if (o.tipo_orden !== "garantia" || o.estado === "cancelada") return false;
+        var ref = String(o.fecha_cierre || o.fecha_apertura || "").slice(0, 10);
+        var delMes = ref >= inicioMesStr && ref < finMesExclusivo;
+        return delMes || (esMesActual && o.estado !== "cerrada");
+      }).length;
+      $("etiqueta-garantias").textContent = esMesActual ? "Garantías del mes (y abiertas)" : "Garantías en " + etiquetaMes;
       $("kpi-garantias").textContent = garantiasActivas;
       $("tarjeta-kpi-garantias").className = "tarjeta-kpi" + (garantiasActivas > 0 ? " tarjeta-kpi-atencion" : "");
 
