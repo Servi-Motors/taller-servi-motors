@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-05-13">
+<meta name="app-build" content="2026-11-05-14">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -3726,7 +3726,7 @@ against the dark UI.
   // plantillas_mensajes al iniciar sesión. Estos valores son el respaldo
   // por si todavía no cargaron o falta alguna clave.
   var PLANTILLAS_POR_DEFECTO = {
-    cita_recordatorio: "Hola {cliente}, te recordamos tu cita en Taller Servi Motors el {fecha} para tu vehículo {placa} ({motivo}). ¡Te esperamos!",
+    cita_recordatorio: "Hola {cliente}, te recordamos que tu vehículo {placa} tiene cita en Taller Servi Motors el {fecha} ({motivo}). Responde SÍ para confirmar o escríbenos si necesitas cambiar la fecha. ¡Te esperamos!",
     vehiculo_listo: "Hola {cliente}, tu vehículo {placa} ya está listo en Taller Servi Motors. ¡Puedes pasar a recogerlo cuando gustes!\n\nAh, y si conoces a alguien que necesite un mecánico de confianza, cuéntale de nosotros — al traerlo, ambos reciben $40.000 de descuento o una revisión de viaje gratis en su próximo servicio 🙂",
     resena: "Hola {cliente} 👋 Gracias por confiar en Taller Servi Motors con tu {placa}.\n\n⭐ Tu opinión nos ayuda muchísimo y toma solo 30 segundos: toca el enlace, elige tus estrellas y cuéntanos cómo te fue 👉 {enlace}\n\nSi algo no quedó perfecto, respóndeme este mensaje y lo resolvemos de inmediato. ¡Gracias por ser parte de la familia Servi Motors! 🔧",
     mantenimiento_fecha: "Hola {cliente}, en tu última visita a Taller Servi Motors con el vehículo {placa} te recomendamos un mantenimiento preventivo para el {fecha}. ¿Quieres agendar tu cita?",
@@ -5036,7 +5036,14 @@ against the dark UI.
       );
     }
 
-    return Promise.all(pedidosInicio).then(function (r) {
+    var ahoraCitas = new Date();
+    var pedidoCitas = (rolActual === "administrador" || rolActual === "asesor")
+      ? restRequest("GET", "citas", { query: "select=id_cita,fecha_hora,recordatorio_cliente_enviado_en&estado=in.(agendada,confirmada)&fecha_hora=gte." + ahoraCitas.toISOString() + "&fecha_hora=lte." + new Date(ahoraCitas.getTime() + 7 * 86400000).toISOString() + "&limit=200" }).catch(function () { return []; })
+      : Promise.resolve([]);
+
+    return Promise.all([Promise.all(pedidosInicio), pedidoCitas]).then(function (par) {
+      var r = par[0];
+      var citasProximas = par[1] || [];
       var ordenes = r[0] || [];
       var itemsStock = r[1] || [];
       var estados = r[2] || [];
@@ -5120,6 +5127,7 @@ against the dark UI.
         ordenes: ordenes,
         stockBajo: stockBajo,
         vencimientos: r[4] || [],
+        citas: citasProximas,
         cxc: puedeVerFinanzasHoy ? (r[7] || []) : null
       });
 
@@ -5157,6 +5165,10 @@ against the dark UI.
       if (pctGar !== null && pctGar > 1) {
         items.push({ n: pctGar.toFixed(1) + "%", t: "de garantías este mes (" + garMesInicio + " de " + termMes + " terminadas; meta máx. 1%)", c: "chip-peligro", p: "reportes" });
       }
+    }
+    if (d.citas && d.citas.length) {
+      var sinRecordar = d.citas.filter(function (c) { return !c.recordatorio_cliente_enviado_en; }).length;
+      items.push({ n: d.citas.length, t: "citas en los próximos 7 días" + (sinRecordar ? " (" + sinRecordar + " sin recordar al cliente)" : " (todas recordadas)"), c: sinRecordar ? "chip-alerta" : "chip-ok", p: "comunicaciones" });
     }
     var docs = (d.vencimientos || []).length;
     if (docs) items.push({ n: docs, t: "SOAT / tecnomecánica vencidos o por vencer", c: "chip-alerta", p: "comunicaciones" });
@@ -6195,10 +6207,16 @@ against the dark UI.
       });
       var fila = document.createElement("div");
       fila.className = "fila-renglon";
+      var diasFaltan = Math.ceil((new Date(c.fecha_hora) - new Date()) / 86400000);
+      var enviado = !!c.recordatorio_cliente_enviado_en;
       fila.innerHTML =
-        "<span><b>" + (cliente ? cliente.nombre : "Sin cliente") + "</b> <span class=\"fila-detalle\">" + formatoFechaHoraCita(c.fecha_hora) + (veh ? " · " + veh.placa : "") + "</span><br>" +
-        "<span class=\"fila-detalle\">" + (c.motivo || "—") + "</span></span>";
-      fila.appendChild(crearBotonWhatsApp(cliente && cliente.telefono, mensaje));
+        "<span><b>" + (cliente ? cliente.nombre : "Sin cliente") + "</b> <span class=\"fila-detalle\">" + formatoFechaHoraCita(c.fecha_hora) + (veh ? " · " + veh.placa : "") + " · en " + diasFaltan + " día" + (diasFaltan === 1 ? "" : "s") + "</span><br>" +
+        "<span class=\"fila-detalle\">" + (c.motivo || "—") + (c.regla_clave ? " · cita automática" : "") +
+        (enviado ? " · <b style=\"color:var(--verde);\">✓ Recordatorio enviado</b>" : " · <b style=\"color:#b45309;\">Recordatorio pendiente</b>") + "</span></span>";
+      fila.appendChild(crearBotonWhatsApp(cliente && cliente.telefono, mensaje, function () {
+        restRequest("PATCH", "citas?id_cita=eq." + c.id_cita, { body: { recordatorio_cliente_enviado_en: new Date().toISOString() } })
+          .then(function () { cargarComunicaciones(); }).catch(function (e) { console.error(e); });
+      }));
       cont.appendChild(fila);
     });
   }
