@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-05-9">
+<meta name="app-build" content="2026-11-05-11">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -572,7 +572,7 @@ against the dark UI.
           <option value="garantia">Garantía (sin cobro al cliente)</option>
         </select>
         <div id="grupo-orden-garantia-original" class="oculto">
-          <label for="orden-garantia-original-buscar">¿A qué orden anterior de este vehículo le estás haciendo la garantía? (opcional)</label>
+          <label for="orden-garantia-original-buscar">¿A qué orden anterior de este vehículo le estás haciendo la garantía? (obligatorio — se asigna al técnico que la hizo)</label>
           <input id="orden-garantia-original-buscar" type="text" placeholder="Busca por número de orden..." list="lista-ordenes-garantia" autocomplete="off">
           <datalist id="lista-ordenes-garantia"></datalist>
           <div class="nota-ayuda">Sirve para saber qué se reparó antes. Si no la encuentras, puedes dejarlo en blanco.</div>
@@ -10348,14 +10348,17 @@ against the dark UI.
       restRequest("GET", "vista_facturacion", { query: "select=total,forma_pago&estado_pago=eq.pagada&fecha_pago=gte." + inicioMes + "&fecha_pago=lt." + inicioMesSiguiente }),
       restRequest("GET", "pagos_factura", { query: "select=forma_pago,monto&fecha_pago=gte." + inicioMes + "&fecha_pago=lt." + inicioMesSiguiente }),
       restRequest("GET", "ot_detalle", {
-        query: "select=cantidad,fecha_inicio_real,fecha_fin_real,pausas_avance_ot(hora_inicio,hora_fin),ordenes_trabajo(id_tecnico,tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre))&fecha_fin_real=gte." + inicioMes + "&fecha_fin_real=lt." + inicioMesSiguiente
+        query: "select=cantidad,fecha_inicio_real,fecha_fin_real,pausas_avance_ot(hora_inicio,hora_fin),ordenes_trabajo(tipo_orden,id_tecnico,tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre))&fecha_fin_real=gte." + inicioMes + "&fecha_fin_real=lt." + inicioMesSiguiente
       }),
       restRequest("GET", "pausas_avance_ot", {
         query: "select=motivo,hora_inicio,hora_fin,ot_detalle(items(nombre),ordenes_trabajo(numero_ot,tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre)))&hora_inicio=gte." + inicioMes + "&hora_inicio=lt." + inicioMesSiguiente + "&order=hora_inicio.desc&limit=300"
       }),
       restRequest("GET", "ordenes_trabajo", { query: "select=fecha_cierre,resena_solicitada_en&estado=eq.cerrada&fecha_cierre=gte." + inicioMesAnterior + "&fecha_cierre=lt." + inicioMesSiguiente }),
       // Indicador de garantías: garantías abiertas en el mes vs órdenes (no garantía) terminadas en el mes.
-      restRequest("GET", "ordenes_trabajo", { query: "select=id_ot,tipo_orden,estado,fecha_apertura,fecha_cierre,id_tecnico,tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre),ot_detalle(cantidad,costo_interno,estado_autorizacion)&or=(fecha_cierre.gte." + inicioMesAnterior + ",fecha_apertura.gte." + inicioMesAnterior + ")&limit=3000" }).catch(function () { return []; })
+      restRequest("GET", "ordenes_trabajo", { query: "select=id_ot,tipo_orden,estado,fecha_apertura,fecha_cierre,id_tecnico,tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre),original:ordenes_trabajo!ordenes_trabajo_id_ot_garantia_original_fkey(id_tecnico,tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre)),ot_detalle(cantidad,costo_interno,estado_autorizacion)&or=(fecha_cierre.gte." + inicioMesAnterior + ",fecha_apertura.gte." + inicioMesAnterior + ")&limit=3000" }).catch(function () {
+        // Respaldo: si la consulta con orden original falla, se pide sin ese dato.
+        return restRequest("GET", "ordenes_trabajo", { query: "select=id_ot,tipo_orden,estado,fecha_apertura,fecha_cierre,id_tecnico,tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre),ot_detalle(cantidad,costo_interno,estado_autorizacion)&or=(fecha_cierre.gte." + inicioMesAnterior + ",fecha_apertura.gte." + inicioMesAnterior + ")&limit=3000"  }).catch(function () { return []; });
+      })
     ]).then(function (r) {
       var resultadoMensual = r[0] || [];
       var flujoCaja = r[1] || [];
@@ -10366,7 +10369,8 @@ against the dark UI.
       var movimientos = r[6] || [];
       var facturasPagadasMes = r[7] || [];
       var pagosDivididosMes = r[8] || [];
-      var avanceServiciosMes = r[9] || [];
+      // Las garantías no suman a la producción del técnico.
+      var avanceServiciosMes = (r[9] || []).filter(function (f) { return !(f.ordenes_trabajo && f.ordenes_trabajo.tipo_orden === "garantia"); });
       var pausasMes = r[10] || [];
       var ordenesParaResenaKpi = r[11] || [];
 
@@ -10411,8 +10415,10 @@ against the dark UI.
         var costo = 0;
         var porTec = {};
         function fila(o) {
-          var k = o.id_tecnico || "sin";
-          if (!porTec[k]) porTec[k] = { nombre: o.tecnico ? o.tecnico.nombre : "Sin técnico", terminadas: 0, garantias: 0 };
+          // La garantía se atribuye al técnico que hizo el trabajo ORIGINAL (si se indicó la orden original).
+          var base = (o.tipo_orden === "garantia" && o.original && o.original.id_tecnico) ? o.original : o;
+          var k = base.id_tecnico || "sin";
+          if (!porTec[k]) porTec[k] = { nombre: base.tecnico ? base.tecnico.nombre : "Sin técnico", terminadas: 0, garantias: 0 };
           return porTec[k];
         }
         terminadas.forEach(function (o) { fila(o).terminadas += 1; });
@@ -10474,6 +10480,7 @@ against the dark UI.
           .sort(function (a, b) { return b.garantias - a.garantias; });
         var excede = garMes.pct !== null && garMes.pct > META_GARANTIAS_PCT;
         var html = "<h3>Garantías del mes</h3>" +
+          "<div class=\"nota-ayuda\">Cada garantía se atribuye al técnico que hizo el trabajo original y no suma a su producción.</div>" +
           "<div class=\"nota-ayuda\">" + garMes.garantias + " garantía(s) abiertas contra " + garMes.terminadas + " órdenes terminadas = <b>" +
           (garMes.pct === null ? "—" : garMes.pct.toFixed(1) + "%") + "</b> (meta máxima " + META_GARANTIAS_PCT + "%). Costo interno de las garantías: <b>" + formatoMoneda(garMes.costo) + "</b>" +
           (garMesAnterior.pct !== null ? ". Mes anterior: " + garMesAnterior.pct.toFixed(1) + "% (" + garMesAnterior.garantias + " de " + garMesAnterior.terminadas + ")" : "") + ".</div>";
@@ -11523,7 +11530,7 @@ against the dark UI.
     ordenesGarantiaCache = [];
     if (!vehiculoSeleccionado) return Promise.resolve();
     return restRequest("GET", "ordenes_trabajo", {
-      query: "select=id_ot,numero_ot,fecha_cierre,diagnostico&id_vehiculo=eq." + vehiculoSeleccionado.id_vehiculo + "&estado=eq.cerrada&order=fecha_cierre.desc&limit=20"
+      query: "select=id_ot,numero_ot,fecha_cierre,diagnostico,id_tecnico&id_vehiculo=eq." + vehiculoSeleccionado.id_vehiculo + "&estado=eq.cerrada&order=fecha_cierre.desc&limit=20"
     }).then(function (filas) {
       ordenesGarantiaCache = filas || [];
       var lista = $("lista-ordenes-garantia");
@@ -11773,14 +11780,14 @@ against the dark UI.
     var idOtGarantiaOriginal = null;
     if (tipoOrden === "garantia") {
       var textoBusqueda = $("orden-garantia-original-buscar").value.trim();
-      if (textoBusqueda) {
-        var ordenOriginal = ordenesGarantiaCache.filter(function (o) { return (prefijoOT + o.numero_ot) === textoBusqueda; })[0];
-        if (!ordenOriginal) {
-          mostrarError("orden-error", "No encontramos esa orden en el historial de este vehículo. Elige una de la lista o deja el campo vacío.");
-          return;
-        }
-        idOtGarantiaOriginal = ordenOriginal.id_ot;
+      var ordenOriginal = textoBusqueda ? ordenesGarantiaCache.filter(function (o) { return (prefijoOT + o.numero_ot) === textoBusqueda; })[0] : null;
+      if (!ordenOriginal) {
+        mostrarError("orden-error", "En una garantía debes indicar la orden original de este vehículo (elige una de la lista). La garantía se le asigna al técnico que hizo el trabajo inicial.");
+        return;
       }
+      idOtGarantiaOriginal = ordenOriginal.id_ot;
+      // La garantía queda a cargo de quien hizo el trabajo original, y no suma a su producción.
+      if (ordenOriginal.id_tecnico) id_tecnico = ordenOriginal.id_tecnico;
     }
     var kmIngreso = $("orden-km-ingreso").value ? parseInt($("orden-km-ingreso").value, 10) : null;
 
@@ -14208,6 +14215,7 @@ against the dark UI.
   // nueva antes de darlo por confirmado otra vez. Uno "rechazado" ya no se toca.
   function botonEditarPrecio(f) {
     if (f.estado_autorizacion === "rechazado") return "";
+    if (ordenActual && ordenActual.tipo_orden === "garantia") return ""; // garantía: precio siempre $0
     var esAdminOAsesor = rolActual === "administrador" || rolActual === "asesor";
     if (!esAdminOAsesor) return "";
     var texto = f.estado_autorizacion === "autorizado" ? "Editar precio (pide nueva firma)" : "Editar precio";
