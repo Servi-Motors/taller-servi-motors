@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-03-2">
+<meta name="app-build" content="2026-11-05-8">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -291,6 +291,15 @@ against the dark UI.
       <div class="tarjeta oculto" id="tarjeta-alertas-inicio">
         <h2>Alertas del taller</h2>
         <div id="alertas-inicio" class="alertas-inicio"></div>
+      </div>
+
+      <div class="tarjeta oculto" id="tarjeta-descuentos">
+        <h2>Descuentos</h2>
+        <div class="nota-ayuda" id="descuentos-nota"></div>
+        <div id="lista-descuentos-pendientes"></div>
+        <details style="margin-top:8px;"><summary style="cursor:pointer;font-weight:600;">Historial de descuentos (trazabilidad)</summary>
+          <div id="lista-descuentos-historial" style="overflow-x:auto;"></div>
+        </details>
       </div>
 
       <h2>Visión general de tu taller</h2>
@@ -2886,6 +2895,7 @@ against the dark UI.
         <h2>KPIs del mes actual</h2>
         <div id="reportes-kpis" class="grid-kpis"></div>
         <div id="reportes-nota-comparativa" class="nota-ayuda"></div>
+        <div id="reportes-garantias-detalle"></div>
       </div>
 
       <div class="tarjeta">
@@ -3485,6 +3495,8 @@ against the dark UI.
   .kpi-flecha-arriba { color: var(--verde); }
   .kpi-flecha-abajo { color: var(--rojo); }
   .kpi-flecha-igual { color: var(--gris); }
+  .aviso-margen { display: inline-block; margin-top: 4px; font-size: 11px; font-weight: 700; color: #b91c1c; background: #fee2e2; border-radius: 6px; padding: 2px 6px; }
+  :root.tema-oscuro .aviso-margen { color: #fca5a5; background: rgba(220,38,38,0.22); }
   .etiqueta-garantia { display: inline-block; font-size: 13px; font-weight: 700; color: #7c3aed; background: #ede9fe; border-radius: 6px; padding: 2px 8px; vertical-align: middle; }
   .etiqueta-devuelta { display: inline-block; font-size: 13px; font-weight: 700; color: #b45309; background: #fef3c7; border-radius: 6px; padding: 2px 8px; vertical-align: middle; }
   @media (prefers-color-scheme: dark) {
@@ -4226,11 +4238,17 @@ against the dark UI.
     var esTecnico = rolActual === "tecnico";
     $("bloque-trabajos-externos").classList.toggle("oculto", esTecnico);
     $("btn-saltar-diagnostico").classList.toggle("oculto", esTecnico);
-    $("mo-descuento").disabled = esTecnico;
-    $("pa-descuento").disabled = esTecnico;
-    if (esTecnico) {
+    // Los descuentos solo los autoriza el administrador (también bloqueado en la base de datos).
+    var sinPermisoDescuento = rolActual !== "administrador";
+    $("mo-descuento").disabled = sinPermisoDescuento;
+    $("pa-descuento").disabled = sinPermisoDescuento;
+    $("ex-descuento").disabled = sinPermisoDescuento;
+    if (sinPermisoDescuento) {
       $("mo-descuento").value = "0";
       $("pa-descuento").value = "0";
+      $("ex-descuento").value = "0";
+    }
+    if (esTecnico) {
       $("pa-costo").value = "0";
       $("pa-costo").disabled = true;
       $("pa-costo").placeholder = "Lo define el asesor";
@@ -4960,6 +4978,7 @@ against the dark UI.
   // =====================================================================
   function cargarInicio() {
     ocultarError("inicio-error");
+    cargarSolicitudesDescuento().catch(function (e) { console.error(e); });
     // OJO: no usar new Date() + setDate(1) + toISOString() aquí — eso conserva
     // la HORA actual y, al convertir a UTC, en Colombia (UTC-5) cualquier hora
     // de la tarde/noche del día 1 se corre al día 2 en UTC. primerDiaMes()
@@ -5093,6 +5112,16 @@ against the dark UI.
     var listas = d.ordenes.filter(function (o) { return o.estado === "listo_entrega"; }).length;
     if (listas) items.push({ n: listas, t: "vehículos listos esperando entrega", c: "chip-alerta", p: "app" });
     if (d.stockBajo) items.push({ n: d.stockBajo, t: "productos con stock bajo", c: "chip-alerta", p: "inventario" });
+    if (rolActual === "administrador" || rolActual === "contador") {
+      var mesIni = aFechaISO(primerDiaMes(new Date()));
+      var enEsteMes = function (t) { return t && String(t).slice(0, 10) >= mesIni; };
+      var termMes = d.ordenes.filter(function (o) { return o.estado === "cerrada" && o.tipo_orden !== "garantia" && enEsteMes(o.fecha_cierre); }).length;
+      var garMesInicio = d.ordenes.filter(function (o) { return o.tipo_orden === "garantia" && o.estado !== "cancelada" && enEsteMes(o.fecha_apertura); }).length;
+      var pctGar = termMes ? (garMesInicio / termMes) * 100 : (garMesInicio ? 100 : null);
+      if (pctGar !== null && pctGar > 1) {
+        items.push({ n: pctGar.toFixed(1) + "%", t: "de garantías este mes (" + garMesInicio + " de " + termMes + " terminadas; meta máx. 1%)", c: "chip-peligro", p: "reportes" });
+      }
+    }
     var docs = (d.vencimientos || []).length;
     if (docs) items.push({ n: docs, t: "SOAT / tecnomecánica vencidos o por vencer", c: "chip-alerta", p: "comunicaciones" });
     if (d.cxc) {
@@ -10296,7 +10325,9 @@ against the dark UI.
       restRequest("GET", "pausas_avance_ot", {
         query: "select=motivo,hora_inicio,hora_fin,ot_detalle(items(nombre),ordenes_trabajo(numero_ot,tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre)))&hora_inicio=gte." + inicioMes + "&hora_inicio=lt." + inicioMesSiguiente + "&order=hora_inicio.desc&limit=300"
       }),
-      restRequest("GET", "ordenes_trabajo", { query: "select=fecha_cierre,resena_solicitada_en&estado=eq.cerrada&fecha_cierre=gte." + inicioMesAnterior + "&fecha_cierre=lt." + inicioMesSiguiente })
+      restRequest("GET", "ordenes_trabajo", { query: "select=fecha_cierre,resena_solicitada_en&estado=eq.cerrada&fecha_cierre=gte." + inicioMesAnterior + "&fecha_cierre=lt." + inicioMesSiguiente }),
+      // Indicador de garantías: garantías abiertas en el mes vs órdenes (no garantía) terminadas en el mes.
+      restRequest("GET", "ordenes_trabajo", { query: "select=id_ot,tipo_orden,estado,fecha_apertura,fecha_cierre,id_tecnico,tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre),ot_detalle(cantidad,costo_interno,estado_autorizacion)&or=(fecha_cierre.gte." + inicioMesAnterior + ",fecha_apertura.gte." + inicioMesAnterior + ")&limit=3000" }).catch(function () { return []; })
     ]).then(function (r) {
       var resultadoMensual = r[0] || [];
       var flujoCaja = r[1] || [];
@@ -10342,6 +10373,31 @@ against the dark UI.
       var pctResenaMes = pctResenaPedida(inicioMes, inicioMesSiguiente);
       var pctResenaMesAnterior = pctResenaPedida(inicioMesAnterior, inicioMes);
 
+      // --- Garantías: meta máxima 2% de las órdenes terminadas ---
+      var META_GARANTIAS_PCT = 1;
+      function resumenGarantias(desde, hastaExclusivo) {
+        var ords = r[12] || [];
+        var enMes = function (t) { return t && String(t).slice(0, 10) >= desde && String(t).slice(0, 10) < hastaExclusivo; };
+        var terminadas = ords.filter(function (o) { return o.estado === "cerrada" && o.tipo_orden !== "garantia" && enMes(o.fecha_cierre); });
+        var garantias = ords.filter(function (o) { return o.tipo_orden === "garantia" && o.estado !== "cancelada" && enMes(o.fecha_apertura); });
+        var costo = 0;
+        var porTec = {};
+        function fila(o) {
+          var k = o.id_tecnico || "sin";
+          if (!porTec[k]) porTec[k] = { nombre: o.tecnico ? o.tecnico.nombre : "Sin técnico", terminadas: 0, garantias: 0 };
+          return porTec[k];
+        }
+        terminadas.forEach(function (o) { fila(o).terminadas += 1; });
+        garantias.forEach(function (o) {
+          fila(o).garantias += 1;
+          (o.ot_detalle || []).forEach(function (d) { if (d.estado_autorizacion !== "rechazado") costo += Number(d.cantidad) * Number(d.costo_interno || 0); });
+        });
+        var pct = terminadas.length ? (garantias.length / terminadas.length) * 100 : (garantias.length ? 100 : null);
+        return { terminadas: terminadas.length, garantias: garantias.length, pct: pct, costo: costo, porTec: porTec };
+      }
+      var garMes = resumenGarantias(inicioMes, inicioMesSiguiente);
+      var garMesAnterior = resumenGarantias(inicioMesAnterior, inicioMes);
+
       var utilidadBrutaMes = filaMesActual ? Number(filaMesActual.utilidad_bruta) : null;
       var utilidadNetaMes = filaMesActual ? Number(filaMesActual.utilidad_neta) : null;
       var kpis = [
@@ -10366,6 +10422,10 @@ against the dark UI.
         { etiqueta: "Reseña pedida en entregas (meta: 80%)", valor: pctResenaMes === null ? "—" : pctResenaMes.toFixed(0) + "%",
           flecha: flechaComparativa(pctResenaMes, pctResenaMesAnterior),
           clase: pctResenaMes === null ? "" : (pctResenaMes >= 80 ? "tarjeta-kpi-positiva" : (pctResenaMes >= 50 ? "tarjeta-kpi-atencion" : "tarjeta-kpi-negativa")) },
+        { etiqueta: "Garantías vs órdenes terminadas (meta: máx. " + META_GARANTIAS_PCT + "%) · " + garMes.garantias + " de " + garMes.terminadas,
+          valor: garMes.pct === null ? "—" : garMes.pct.toFixed(1) + "%",
+          flecha: "",
+          clase: garMes.pct === null ? "" : (garMes.pct > META_GARANTIAS_PCT ? "tarjeta-kpi-negativa" : "tarjeta-kpi-positiva") },
         { etiqueta: "Tarifa efectiva de mano de obra", valor: tarifaEfectivaMO === null ? "—" : formatoMoneda(tarifaEfectivaMO) + "/h",
           flecha: flechaComparativa(tarifaEfectivaMO, tarifaEfectivaMOAnterior),
           clase: claseSemaforoTendencia(tarifaEfectivaMO, tarifaEfectivaMOAnterior) }
@@ -10378,6 +10438,29 @@ against the dark UI.
         div.innerHTML = "<div class=\"kpi-numero\">" + k.valor + (k.flecha || "") + "</div><div class=\"kpi-etiqueta\">" + k.etiqueta + "</div>";
         contKpis.appendChild(div);
       });
+      (function () {
+        var cont = $("reportes-garantias-detalle");
+        if (!cont) return;
+        var filasTec = Object.keys(garMes.porTec).map(function (k) { return garMes.porTec[k]; })
+          .filter(function (t) { return t.garantias > 0 || t.terminadas > 0; })
+          .sort(function (a, b) { return b.garantias - a.garantias; });
+        var excede = garMes.pct !== null && garMes.pct > META_GARANTIAS_PCT;
+        var html = "<h3>Garantías del mes</h3>" +
+          "<div class=\"nota-ayuda\">" + garMes.garantias + " garantía(s) abiertas contra " + garMes.terminadas + " órdenes terminadas = <b>" +
+          (garMes.pct === null ? "—" : garMes.pct.toFixed(1) + "%") + "</b> (meta máxima " + META_GARANTIAS_PCT + "%). Costo interno de las garantías: <b>" + formatoMoneda(garMes.costo) + "</b>" +
+          (garMesAnterior.pct !== null ? ". Mes anterior: " + garMesAnterior.pct.toFixed(1) + "% (" + garMesAnterior.garantias + " de " + garMesAnterior.terminadas + ")" : "") + ".</div>";
+        if (excede) html += "<div class=\"alerta-atencion\">⚠ Se superó la meta del " + META_GARANTIAS_PCT + "% de garantías. Revisa las causas y el técnico responsable.</div>";
+        if (filasTec.length) {
+          html += "<table class=\"tabla-datos\"><thead><tr><th>Técnico</th><th>Terminadas</th><th>Garantías</th><th>% garantías</th></tr></thead><tbody>";
+          filasTec.forEach(function (t) {
+            var p = t.terminadas ? (t.garantias / t.terminadas) * 100 : (t.garantias ? 100 : 0);
+            html += "<tr><td>" + textoSeguro(t.nombre) + "</td><td>" + t.terminadas + "</td><td>" + t.garantias + "</td><td style=\"font-weight:700;color:" +
+              (p > META_GARANTIAS_PCT ? "var(--rojo)" : "var(--verde)") + ";\">" + p.toFixed(1) + "%</td></tr>";
+          });
+          html += "</tbody></table>";
+        }
+        cont.innerHTML = html;
+      })();
       var notaComparativa = $("reportes-nota-comparativa");
       if (notaComparativa) {
         notaComparativa.textContent = (filaMesAnterior || horasVendidasMesAnterior)
@@ -14073,6 +14156,16 @@ against the dark UI.
   }
 
   function celdaDescuentoLinea(f) {
+    if (rolActual !== "administrador") {
+      var pend = descuentosPendientesPorLinea[f.id_detalle];
+      var extra = "";
+      if (pend) {
+        extra = '<br><span class="fila-detalle">⏳ Pendiente de aprobación: ' + Number(pend.pct_solicitado) + '%</span>';
+      } else if (rolActual === "asesor" && f.estado_autorizacion !== "rechazado") {
+        extra = '<br><button type="button" class="secundario" style="width:auto;margin:2px 0 0;padding:2px 6px;font-size:11px;" onclick="window.solicitarDescuentoLinea(\'' + f.id_detalle + '\')">Solicitar descuento</button>';
+      }
+      return '<span title="Solo el administrador autoriza descuentos">' + (f.pct_descuento || 0) + '%</span>' + extra;
+    }
     return '<input type="number" min="0" max="100" step="0.01" value="' + (f.pct_descuento || 0) +
       '" onchange="window.guardarDescuentoLinea(\'' + f.id_detalle + '\', this.value)">';
   }
@@ -14091,7 +14184,7 @@ against the dark UI.
     if (!esAdminOAsesor) return "";
     var texto = f.estado_autorizacion === "autorizado" ? "Editar precio (pide nueva firma)" : "Editar precio";
     return ' <button type="button" style="width:auto;margin:4px 0 0;padding:4px 8px;font-size:11px;" onclick="window.editarPrecioLinea(\'' +
-      f.id_detalle + '\', ' + f.precio_aplicado_cliente + ', \'' + f.estado_autorizacion + '\')">' + texto + '</button>';
+      f.id_detalle + '\', ' + f.precio_aplicado_cliente + ', \'' + f.estado_autorizacion + '\', ' + Math.round(precioCalculadoLinea(f)) + ', ' + ((f.items && (f.items.tipo === "repuesto" || f.items.tipo === "insumo")) ? "true" : "false") + ', ' + (Number(f.pct_descuento) || 0) + ')">' + texto + '</button>';
   }
 
   // Editar el costo interno no necesita firma nueva del cliente (no cambia
@@ -14293,11 +14386,59 @@ against the dark UI.
 
   var ETIQUETAS_TIPO_ITEM = { repuesto: "Repuesto", insumo: "Insumo" };
 
+  // Regla de margen para repuestos e insumos: el precio al cliente nunca
+  // debe quedar por debajo del precio con el margen establecido (precio
+  // sugerido) ni pasarse más de un 15% por encima de él. Solo advierte.
+  var TOPE_SOBRE_MARGEN_PCT = 15;
+
+  // Devuelve "" si está dentro del rango, o el texto de la advertencia.
+  // precioLista = precio por unidad antes de descuento; descuentoPct = % de descuento.
+  function textoAdvertenciaMargen(precioSugerido, precioLista, descuentoPct) {
+    var sug = Number(precioSugerido);
+    if (!(sug > 0)) return "";
+    var lista = Number(precioLista) || 0;
+    var neto = lista * (1 - (Number(descuentoPct) || 0) / 100);
+    var maximo = sug * (1 + TOPE_SOBRE_MARGEN_PCT / 100);
+    if (neto < sug - 0.5) {
+      return "Precio por debajo del margen establecido (neto " + formatoMoneda(neto) + " · mínimo " + formatoMoneda(sug) + ")";
+    }
+    if (lista > maximo + 0.5) {
+      return "Precio supera en más de " + TOPE_SOBRE_MARGEN_PCT + "% el margen establecido (" + formatoMoneda(lista) + " · máximo " + formatoMoneda(maximo) + ")";
+    }
+    return "";
+  }
+
+  // Fórmula de referencia (la misma que usa la base de datos al
+  // crear un ítem (trigger calcular_precio_sugerido): costo unitario hasta
+  // $250.000 → costo ÷ 0,70 (30% de utilidad sobre el precio); por encima de
+  // $250.000 → costo ÷ 0,80 (20%). Se calcula con el costo actual de la línea,
+  // así que si se edita el costo, el precio calculado y el tope se recalculan.
+  function precioCalculadoDesdeCosto(costo) {
+    var c = Number(costo);
+    if (!(c > 0)) return 0;
+    return Math.round(c / (c <= 250000 ? 0.70 : 0.80) * 100) / 100;
+  }
+
+  function precioCalculadoLinea(f) {
+    // Base: el precio sugerido de la línea (el calculado al agregar el ítem).
+    // Solo si no lo tiene se recalcula con la fórmula y el costo de la línea.
+    var sug = Number(f.precio_sugerido) || 0;
+    return sug > 0 ? sug : precioCalculadoDesdeCosto(f.costo_interno);
+  }
+
+  function avisoMargenLinea(f) {
+    if (rolActual !== "administrador" && rolActual !== "asesor") return "";
+    if (f.estado_autorizacion === "rechazado") return "";
+    if (ordenActual && ordenActual.tipo_orden === "garantia") return "";
+    var t = textoAdvertenciaMargen(precioCalculadoLinea(f), f.precio_aplicado_cliente, f.pct_descuento);
+    return t ? "<br><span class=\"aviso-margen\">⚠ " + t + "</span>" : "";
+  }
+
   function renderizarTablaPartes(filas) {
     var html = filas.map(function (f) {
       return "<tr><td>" + (f.codigo || "—") + "</td><td>" + (ETIQUETAS_TIPO_ITEM[f.items.tipo] || f.items.tipo) + "</td><td>" + f.cantidad + "</td><td>" + f.items.nombre + "</td><td>—</td>" +
         "<td>" + celdaMonedaTecnico(f.costo_interno) + botonEditarCosto(f) + "</td><td>" + celdaDescuentoLinea(f) + "</td><td class=\"celda-numero\">" + celdaMonedaTecnico(montoDescuentoLinea(f)) + "</td>" +
-        "<td class=\"celda-numero\">" + celdaMonedaTecnico(totalLineaOrden(f)) + botonEditarPrecio(f) + botonEliminarLinea(f) + "</td><td>" + celdaEstadoLinea(f) + celdaGarantiaLinea(f) + "</td></tr>";
+        "<td class=\"celda-numero\">" + celdaMonedaTecnico(totalLineaOrden(f)) + avisoMargenLinea(f) + botonEditarPrecio(f) + botonEliminarLinea(f) + "</td><td>" + celdaEstadoLinea(f) + celdaGarantiaLinea(f) + "</td></tr>";
     }).join("");
     $("cuerpo-partes").innerHTML = html || "<tr><td colspan=\"10\" class=\"tabla-vacia\">Sin repuestos ni insumos todavía.</td></tr>";
   }
@@ -14433,17 +14574,21 @@ against the dark UI.
   function cargarItemsDeOrden() {
     cargarPartesMasUsadas();
     cargarListaMotivosIngreso();
-    var queryItems = "select=id_detalle,id_item,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,fecha_inicio_real,fecha_fin_real,meses_garantia,pausas_avance_ot(id_pausa,motivo,hora_inicio,hora_fin),items(nombre,tipo,costo)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
+    var queryItems = "select=id_detalle,id_item,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,estado_autorizacion,codigo,pct_descuento,fecha_inicio_real,fecha_fin_real,meses_garantia,pausas_avance_ot(id_pausa,motivo,hora_inicio,hora_fin),items(nombre,tipo,costo,precio_sugerido)&id_ot=eq." + ordenActual.id_ot + "&order=creado_en.asc";
     var queryOrden = "select=estado,tipo_orden,token_consulta,fecha_apertura,fecha_cierre,diagnostico,presupuesto_tentativo,hallazgos_diagnostico,motivo_ingreso,veces_devuelta_calidad,motivo_devolucion_calidad,fecha_devolucion_calidad,id_asesor,id_tecnico,id_aprendiz,id_vehiculo,asesor:usuarios!ordenes_trabajo_id_asesor_fkey(nombre),tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre),clientes(nombre,telefono,documento,direccion),vehiculos(placa,marca,modelo,anio,color,tipo_carroceria,transmision,version,vin,kilometraje)&id_ot=eq." + ordenActual.id_ot;
     return Promise.all([
       restRequest("GET", "ot_detalle", { query: queryItems }),
       restRequest("GET", "ordenes_trabajo", { query: queryOrden }),
-      restRequest("GET", "parametros_taller", { query: "select=pct_iva&id=eq.1" })
+      restRequest("GET", "parametros_taller", { query: "select=pct_iva&id=eq.1" }),
+      restRequest("GET", "solicitudes_descuento", { query: "select=id_detalle,pct_solicitado&id_ot=eq." + ordenActual.id_ot + "&estado=eq.pendiente" }).catch(function () { return []; })
     ]).then(function (r) {
+      descuentosPendientesPorLinea = {};
+      (r[3] || []).forEach(function (x) { descuentosPendientesPorLinea[x.id_detalle] = x; });
       var filas = r[0] || [];
       var orden = (r[1] && r[1][0]) || null;
       var tallerCfg = (r[2] && r[2][0]) || {};
       ordenActual.pctIva = tallerCfg.pct_iva || 0;
+      ordenActual.tipo_orden = orden ? orden.tipo_orden : null;
 
       $("items-subtitulo").innerHTML = "Orden " + prefijoOT + ordenActual.numero_ot +
         (orden && orden.tipo_orden === "garantia" ? ' <span class="etiqueta-garantia">GARANTÍA — sin cobro</span>' : "");
@@ -15652,6 +15797,101 @@ against the dark UI.
     });
   }, "checklist-recepcion-error"));
 
+  // ---- Descuentos: solicitud (asesor) → aprobación (administrador) + historial ----
+  var descuentosPendientesPorLinea = {};
+
+  function textoSeguro(t) {
+    return String(t === null || t === undefined ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  window.solicitarDescuentoLinea = function (idDetalle) {
+    var pct = window.prompt("¿Qué % de descuento quieres solicitar para esta línea? (1 a 100)", "");
+    if (pct === null) return;
+    var valor = parseFloat(String(pct).replace(",", "."));
+    if (!(valor > 0 && valor <= 100)) { mostrarError("item-error", "El % de descuento debe estar entre 0 y 100."); return; }
+    var motivo = window.prompt("Motivo del descuento (obligatorio, queda registrado):", "");
+    if (motivo === null) return;
+    if (!motivo.trim()) { mostrarError("item-error", "Debes escribir el motivo del descuento."); return; }
+    ocultarError("item-error");
+    restRequest("POST", "rpc/solicitar_descuento", { body: { p_id_detalle: idDetalle, p_pct: valor, p_motivo: motivo.trim() } })
+      .then(function () {
+        window.alert("Solicitud enviada. El administrador debe aprobarla para que se aplique.");
+        cargarSolicitudesDescuento().catch(function () {});
+        return cargarItemsDeOrden();
+      })
+      .catch(function (err) { mostrarError("item-error", "No se pudo enviar la solicitud: " + err.message); });
+  };
+
+  window.resolverSolicitudDescuento = function (idSolicitud, aprobar) {
+    var nota = "";
+    if (aprobar) {
+      if (!window.confirm("¿Aprobar este descuento? Se aplicará de inmediato a la línea de la orden.")) return;
+    } else {
+      var n = window.prompt("Motivo del rechazo (opcional):", "");
+      if (n === null) return;
+      nota = n;
+    }
+    restRequest("POST", "rpc/resolver_solicitud_descuento", { body: { p_id: idSolicitud, p_aprobar: aprobar, p_nota: nota } })
+      .then(function () { return cargarSolicitudesDescuento(); })
+      .catch(function (err) { window.alert("No se pudo resolver la solicitud: " + err.message); });
+  };
+
+  function cargarSolicitudesDescuento() {
+    var tarjeta = $("tarjeta-descuentos");
+    if (!tarjeta) return Promise.resolve();
+    if (rolActual !== "administrador" && rolActual !== "asesor" && rolActual !== "contador") {
+      tarjeta.classList.add("oculto");
+      return Promise.resolve();
+    }
+    return Promise.all([
+      restRequest("GET", "solicitudes_descuento", { query: "select=*&order=solicitado_en.desc&limit=80" }),
+      restRequest("GET", "usuarios", { query: "select=id_usuario,nombre" }).catch(function () { return []; })
+    ]).then(function (r) {
+      var filas = r[0] || [];
+      var nombres = {};
+      (r[1] || []).forEach(function (u) { nombres[u.id_usuario] = u.nombre; });
+      var quien = function (id) { return id ? (nombres[id] || "—") : "—"; };
+      var fecha = function (t) { return t ? new Date(t).toLocaleString("es-CO", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"; };
+      var pendientes = filas.filter(function (x) { return x.estado === "pendiente"; });
+      var historial = filas.filter(function (x) { return x.estado !== "pendiente"; });
+      tarjeta.classList.toggle("oculto", !filas.length);
+      $("descuentos-nota").textContent = rolActual === "administrador"
+        ? (pendientes.length ? "Tienes " + pendientes.length + " solicitud(es) por resolver." : "No hay solicitudes pendientes.")
+        : (pendientes.length ? "Solicitudes enviadas al administrador, en espera." : "Sin solicitudes pendientes.");
+
+      var cont = $("lista-descuentos-pendientes");
+      cont.innerHTML = "";
+      pendientes.forEach(function (x) {
+        var fila = document.createElement("div");
+        fila.className = "fila-renglon";
+        fila.innerHTML = "<span><b>" + prefijoOT + x.numero_ot + " · " + textoSeguro(x.concepto) + "</b><br>" +
+          "<span class=\"fila-detalle\">" + Number(x.pct_solicitado) + "% (antes " + Number(x.pct_anterior) + "%) = " + formatoMoneda(x.monto_descuento || 0) +
+          " · Motivo: " + textoSeguro(x.motivo) + "<br>Solicitó " + textoSeguro(quien(x.id_usuario_solicita)) + " · " + fecha(x.solicitado_en) + "</span></span>";
+        if (rolActual === "administrador") {
+          var b1 = document.createElement("button");
+          b1.type = "button"; b1.style.width = "auto"; b1.textContent = "Aprobar";
+          b1.addEventListener("click", function () { window.resolverSolicitudDescuento(x.id_solicitud, true); });
+          var b2 = document.createElement("button");
+          b2.type = "button"; b2.className = "secundario"; b2.style.width = "auto"; b2.textContent = "Rechazar";
+          b2.addEventListener("click", function () { window.resolverSolicitudDescuento(x.id_solicitud, false); });
+          fila.appendChild(b1); fila.appendChild(b2);
+        }
+        cont.appendChild(fila);
+      });
+
+      var h = "<table class=\"tabla-datos\"><thead><tr><th>Fecha</th><th>Orden</th><th>Concepto</th><th>%</th><th>Monto</th><th>Motivo</th><th>Solicitó</th><th>Resolvió</th><th>Estado</th></tr></thead><tbody>";
+      historial.forEach(function (x) {
+        h += "<tr><td>" + fecha(x.resuelto_en || x.solicitado_en) + "</td><td>" + prefijoOT + x.numero_ot + "</td><td>" + textoSeguro(x.concepto) +
+          "</td><td>" + Number(x.pct_anterior) + "→" + Number(x.pct_solicitado) + "%</td><td>" + formatoMoneda(x.monto_descuento || 0) +
+          "</td><td>" + textoSeguro(x.motivo) + (x.nota_resolucion ? "<br><i>" + textoSeguro(x.nota_resolucion) + "</i>" : "") +
+          "</td><td>" + textoSeguro(quien(x.id_usuario_solicita)) + "</td><td>" + textoSeguro(quien(x.id_usuario_resuelve)) +
+          "</td><td>" + (x.estado === "aprobado" ? (x.origen === "directo" ? "Aplicado (admin)" : "Aprobado") : "Rechazado") + "</td></tr>";
+      });
+      h += "</tbody></table>";
+      $("lista-descuentos-historial").innerHTML = historial.length ? h : "<p class=\"nota-ayuda\">Aún no hay descuentos en el historial.</p>";
+    });
+  }
+
   window.guardarDescuentoLinea = function (idDetalle, valor) {
     var descuento = parseFloat(valor);
     if (!(descuento >= 0) || descuento > 100) {
@@ -15671,13 +15911,21 @@ against the dark UI.
   // Si el ítem ya estaba autorizado, cambiar el precio lo regresa a
   // "pendiente" — el sistema vuelve a pedir firma del cliente (in situ o por
   // WhatsApp) antes de contarlo como confirmado con el nuevo valor.
-  window.editarPrecioLinea = function (idDetalle, precioActual, estadoActual) {
+  window.editarPrecioLinea = function (idDetalle, precioActual, estadoActual, precioSugerido, esParte, pctDescuento) {
     var nuevo = window.prompt("Nuevo precio para el cliente en esta línea:", precioActual);
     if (nuevo === null) return;
     var nuevoPrecio = parseFloat(nuevo);
     if (!(nuevoPrecio >= 0)) {
       mostrarError("item-error", "El precio debe ser un número válido.");
       return;
+    }
+    if (esParte) {
+      var avisoMargen = textoAdvertenciaMargen(precioSugerido, nuevoPrecio, pctDescuento);
+      if (avisoMargen) {
+        mostrarError("item-error", "No se guardó el precio. " + avisoMargen + ". Ajusta el valor para que quede entre el precio calculado y su +" + TOPE_SOBRE_MARGEN_PCT + "%.");
+        window.alert("⚠ " + avisoMargen + ".\n\nEl precio debe quedar entre el precio calculado y un máximo de +" + TOPE_SOBRE_MARGEN_PCT + "%.");
+        return;
+      }
     }
     if (estadoActual === "autorizado" && !window.confirm("El cliente ya autorizó este ítem con el precio anterior. Al cambiarlo, quedará pendiente de una firma nueva. ¿Continuar?")) {
       return;
@@ -16199,7 +16447,7 @@ against the dark UI.
     ocultarError("item-error");
     var nombre = $("mo-nombre").value.trim();
     var horas = parseFloat($("mo-horas").value);
-    var descuento = rolActual === "tecnico" ? 0 : (parseFloat($("mo-descuento").value) || 0);
+    var descuento = rolActual !== "administrador" ? 0 : (parseFloat($("mo-descuento").value) || 0);
     var codigo = $("mo-codigo").value.trim();
 
     if (precioHoraEquilibrioActual === null) {
@@ -16252,7 +16500,7 @@ against the dark UI.
     var nombre = $("pa-nombre").value.trim();
     var esTecnico = rolActual === "tecnico";
     var costo = esTecnico ? 0 : parseFloat($("pa-costo").value);
-    var descuento = esTecnico ? 0 : (parseFloat($("pa-descuento").value) || 0);
+    var descuento = rolActual !== "administrador" ? 0 : (parseFloat($("pa-descuento").value) || 0);
     var idExistente = $("pa-stock").value || null;
     var itemExistente = idExistente ? itemsStockDisponibles.filter(function (it) { return it.id_item === idExistente; })[0] : null;
     var descontarDeStock = !!(itemExistente && itemExistente.stock_gestionado);
@@ -16285,7 +16533,7 @@ against the dark UI.
     ocultarError("item-error");
     var nombre = $("ex-nombre").value.trim();
     var costo = parseFloat($("ex-costo").value);
-    var descuento = parseFloat($("ex-descuento").value) || 0;
+    var descuento = rolActual !== "administrador" ? 0 : (parseFloat($("ex-descuento").value) || 0);
 
     if (!nombre || !(costo >= 0)) {
       mostrarError("item-error", "Completa la descripción y el costo.");
