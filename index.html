@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-05-11">
+<meta name="app-build" content="2026-11-05-12">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -5144,7 +5144,7 @@ against the dark UI.
       var mesIni = aFechaISO(primerDiaMes(new Date()));
       var enEsteMes = function (t) { return t && String(t).slice(0, 10) >= mesIni; };
       var termMes = d.ordenes.filter(function (o) { return o.estado === "cerrada" && o.tipo_orden !== "garantia" && enEsteMes(o.fecha_cierre); }).length;
-      var garMesInicio = d.ordenes.filter(function (o) { return o.tipo_orden === "garantia" && o.estado !== "cancelada" && enEsteMes(o.fecha_apertura); }).length;
+      var garMesInicio = d.ordenes.filter(function (o) { return o.tipo_orden === "garantia" && o.estado !== "cancelada" && enEsteMes(o.fecha_cierre || o.fecha_apertura); }).length;
       var pctGar = termMes ? (garMesInicio / termMes) * 100 : (garMesInicio ? 100 : null);
       if (pctGar !== null && pctGar > 1) {
         items.push({ n: pctGar.toFixed(1) + "%", t: "de garantías este mes (" + garMesInicio + " de " + termMes + " terminadas; meta máx. 1%)", c: "chip-peligro", p: "reportes" });
@@ -10354,7 +10354,7 @@ against the dark UI.
         query: "select=motivo,hora_inicio,hora_fin,ot_detalle(items(nombre),ordenes_trabajo(numero_ot,tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre)))&hora_inicio=gte." + inicioMes + "&hora_inicio=lt." + inicioMesSiguiente + "&order=hora_inicio.desc&limit=300"
       }),
       restRequest("GET", "ordenes_trabajo", { query: "select=fecha_cierre,resena_solicitada_en&estado=eq.cerrada&fecha_cierre=gte." + inicioMesAnterior + "&fecha_cierre=lt." + inicioMesSiguiente }),
-      // Indicador de garantías: garantías abiertas en el mes vs órdenes (no garantía) terminadas en el mes.
+      // Indicador de garantías: garantías del mes (por fecha de cierre; si siguen abiertas, por fecha de apertura) vs órdenes (no garantía) terminadas en el mes.
       restRequest("GET", "ordenes_trabajo", { query: "select=id_ot,tipo_orden,estado,fecha_apertura,fecha_cierre,id_tecnico,tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre),original:ordenes_trabajo!ordenes_trabajo_id_ot_garantia_original_fkey(id_tecnico,tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre)),ot_detalle(cantidad,costo_interno,estado_autorizacion)&or=(fecha_cierre.gte." + inicioMesAnterior + ",fecha_apertura.gte." + inicioMesAnterior + ")&limit=3000" }).catch(function () {
         // Respaldo: si la consulta con orden original falla, se pide sin ese dato.
         return restRequest("GET", "ordenes_trabajo", { query: "select=id_ot,tipo_orden,estado,fecha_apertura,fecha_cierre,id_tecnico,tecnico:usuarios!ordenes_trabajo_id_tecnico_fkey(nombre),ot_detalle(cantidad,costo_interno,estado_autorizacion)&or=(fecha_cierre.gte." + inicioMesAnterior + ",fecha_apertura.gte." + inicioMesAnterior + ")&limit=3000"  }).catch(function () { return []; });
@@ -10411,7 +10411,7 @@ against the dark UI.
         var ords = r[12] || [];
         var enMes = function (t) { return t && String(t).slice(0, 10) >= desde && String(t).slice(0, 10) < hastaExclusivo; };
         var terminadas = ords.filter(function (o) { return o.estado === "cerrada" && o.tipo_orden !== "garantia" && enMes(o.fecha_cierre); });
-        var garantias = ords.filter(function (o) { return o.tipo_orden === "garantia" && o.estado !== "cancelada" && enMes(o.fecha_apertura); });
+        var garantias = ords.filter(function (o) { return o.tipo_orden === "garantia" && o.estado !== "cancelada" && enMes(o.fecha_cierre || o.fecha_apertura); });
         var costo = 0;
         var porTec = {};
         function fila(o) {
@@ -10481,7 +10481,7 @@ against the dark UI.
         var excede = garMes.pct !== null && garMes.pct > META_GARANTIAS_PCT;
         var html = "<h3>Garantías del mes</h3>" +
           "<div class=\"nota-ayuda\">Cada garantía se atribuye al técnico que hizo el trabajo original y no suma a su producción.</div>" +
-          "<div class=\"nota-ayuda\">" + garMes.garantias + " garantía(s) abiertas contra " + garMes.terminadas + " órdenes terminadas = <b>" +
+          "<div class=\"nota-ayuda\">" + garMes.garantias + " garantía(s) del mes contra " + garMes.terminadas + " órdenes terminadas = <b>" +
           (garMes.pct === null ? "—" : garMes.pct.toFixed(1) + "%") + "</b> (meta máxima " + META_GARANTIAS_PCT + "%). Costo interno de las garantías: <b>" + formatoMoneda(garMes.costo) + "</b>" +
           (garMesAnterior.pct !== null ? ". Mes anterior: " + garMesAnterior.pct.toFixed(1) + "% (" + garMesAnterior.garantias + " de " + garMesAnterior.terminadas + ")" : "") + ".</div>";
         if (excede) html += "<div class=\"alerta-atencion\">⚠ Se superó la meta del " + META_GARANTIAS_PCT + "% de garantías. Revisa las causas y el técnico responsable.</div>";
