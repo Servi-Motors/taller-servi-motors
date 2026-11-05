@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-05-8">
+<meta name="app-build" content="2026-11-05-9">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -302,7 +302,12 @@ against the dark UI.
         </details>
       </div>
 
-      <h2>Visión general de tu taller</h2>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:8px 0;">
+        <h2 style="margin:0;">Visión general de tu taller</h2>
+        <label for="filtro-mes-inicio" style="margin:0;font-weight:600;">Mes:</label>
+        <select id="filtro-mes-inicio" style="width:auto;margin:0;"></select>
+      </div>
+      <div class="nota-ayuda" id="nota-filtro-mes-inicio">El mes filtra cerradas, ingresos, el gráfico mensual y la productividad. Órdenes abiertas, stock y garantías activas muestran siempre el estado de hoy.</div>
 
       <div class="grid-kpis">
         <div class="tarjeta-kpi">
@@ -315,11 +320,11 @@ against the dark UI.
         </div>
         <div class="tarjeta-kpi">
           <div class="kpi-numero" id="kpi-cerradas-mes">—</div>
-          <div class="kpi-etiqueta">Cerradas este mes</div>
+          <div class="kpi-etiqueta" id="etiqueta-cerradas-mes">Cerradas este mes</div>
         </div>
         <div class="tarjeta-kpi oculto" id="tarjeta-kpi-ingresos">
           <div class="kpi-numero" id="kpi-ingresos-mes">—</div>
-          <div class="kpi-etiqueta">Ingresos estimados (mes)</div>
+          <div class="kpi-etiqueta" id="etiqueta-ingresos-mes">Ingresos estimados (mes)</div>
         </div>
         <div class="tarjeta-kpi" id="tarjeta-kpi-stock-bajo">
           <div class="kpi-numero" id="kpi-stock-bajo">—</div>
@@ -332,7 +337,7 @@ against the dark UI.
       </div>
 
       <div class="tarjeta oculto" id="tarjeta-ingresos-por-tipo">
-        <h2>Ingresos del mes por tipo</h2>
+        <h2 id="titulo-ingresos-por-tipo">Ingresos del mes por tipo</h2>
         <div class="grid-kpis">
           <div class="tarjeta-kpi">
             <div class="kpi-numero" id="kpi-ingreso-mano-obra">—</div>
@@ -4983,8 +4988,29 @@ against the dark UI.
     // la HORA actual y, al convertir a UTC, en Colombia (UTC-5) cualquier hora
     // de la tarde/noche del día 1 se corre al día 2 en UTC. primerDiaMes()
     // arma la fecha directo en el día 1 a medianoche, sin ese problema.
-    var inicioMesStr = aFechaISO(primerDiaMes(new Date()));
+    var inicioMesReal = aFechaISO(primerDiaMes(new Date()));
+    // Selector de mes (últimos 12 meses). Se arma una sola vez y se conserva la elección.
+    var selMes = $("filtro-mes-inicio");
+    if (!selMes.options.length) {
+      var baseMes = new Date();
+      for (var i = 0; i < 12; i++) {
+        var dMes = new Date(baseMes.getFullYear(), baseMes.getMonth() - i, 1);
+        var opt = document.createElement("option");
+        opt.value = aFechaISO(dMes);
+        opt.textContent = nombreMes(opt.value) + (i === 0 ? " (actual)" : "");
+        selMes.appendChild(opt);
+      }
+      selMes.addEventListener("change", function () { cargarInicio().catch(function (e) { console.error(e); }); });
+    }
+    var inicioMesStr = selMes.value || inicioMesReal;
     var mesActualEtiqueta = inicioMesStr.slice(0, 7);
+    var esMesActual = inicioMesStr === inicioMesReal;
+    var partesMes = inicioMesStr.split("-");
+    var finMesExclusivo = aFechaISO(new Date(Number(partesMes[0]), Number(partesMes[1]), 1));
+    var etiquetaMes = nombreMes(inicioMesStr);
+    $("etiqueta-cerradas-mes").textContent = esMesActual ? "Cerradas este mes" : "Cerradas en " + etiquetaMes;
+    $("etiqueta-ingresos-mes").textContent = esMesActual ? "Ingresos estimados (mes)" : "Ingresos de " + etiquetaMes;
+    $("titulo-ingresos-por-tipo").textContent = esMesActual ? "Ingresos del mes por tipo" : "Ingresos por tipo — " + etiquetaMes;
 
     var hoyStr = aFechaISO(new Date());
     var mananaDate2 = new Date();
@@ -4996,7 +5022,7 @@ against the dark UI.
       restRequest("GET", "ordenes_trabajo", { query: "select=id_ot,estado,fecha_cierre,fecha_apertura,tipo_orden" }),
       restRequest("GET", "items", { query: "select=id_item,stock_actual,stock_minimo&stock_gestionado=eq.true" }),
       restRequest("GET", "vista_estado_ordenes", { query: "select=*" }),
-      restRequest("GET", "vista_resultado_mensual", { query: "select=periodo,ordenes_cerradas,ingresos&order=periodo.desc&limit=6" })
+      restRequest("GET", "vista_resultado_mensual", { query: "select=periodo,ordenes_cerradas,ingresos&order=periodo.desc&limit=14" })
     ];
     // Posición fija de este pedido: r[4] (antes de los de finanzas)
     pedidosInicio.push(restRequest("GET", "vista_vencimientos_documentos", { query: "select=*&limit=200" }).catch(function () { return []; }));
@@ -5006,7 +5032,7 @@ against the dark UI.
         restRequest("GET", "pagos_factura", { query: "select=forma_pago,monto&fecha_pago=gte." + hoyStr + "&fecha_pago=lt." + mananaStr }),
         restRequest("GET", "vista_cuentas_por_cobrar", { query: "select=saldo,fecha_vencimiento_pago" }),
         restRequest("GET", "vista_cuentas_por_pagar", { query: "select=saldo" }),
-        restRequest("GET", "vista_ingresos_por_tipo_mes", { query: "select=periodo,tipo,monto&order=periodo.desc&limit=12" })
+        restRequest("GET", "vista_ingresos_por_tipo_mes", { query: "select=periodo,tipo,monto&order=periodo.desc&limit=80" })
       );
     }
 
@@ -5018,10 +5044,12 @@ against the dark UI.
       // a orden cronológico ascendente, que es lo que espera la gráfica y la
       // alerta de volumen bajo.
       var resultadoMensual = (r[3] || []).slice().reverse();
+      // El gráfico y la alerta usan los 6 meses que terminan en el mes elegido.
+      resultadoMensual = resultadoMensual.filter(function (f) { return f.periodo.slice(0, 7) <= mesActualEtiqueta; }).slice(-6);
 
       var abiertas = ordenes.filter(function (o) { return o.estado === "recepcion" || o.estado === "diagnostico" || o.estado === "sin_autorizacion"; }).length;
       var enProceso = ordenes.filter(function (o) { return o.estado === "en_proceso" || o.estado === "control_calidad" || o.estado === "listo_entrega"; }).length;
-      var cerradasMes = ordenes.filter(function (o) { return o.estado === "cerrada" && o.fecha_cierre && o.fecha_cierre.slice(0, 10) >= inicioMesStr; }).length;
+      var cerradasMes = ordenes.filter(function (o) { return o.estado === "cerrada" && o.fecha_cierre && o.fecha_cierre.slice(0, 10) >= inicioMesStr && o.fecha_cierre.slice(0, 10) < finMesExclusivo; }).length;
 
       $("kpi-abiertas").textContent = abiertas;
       $("kpi-proceso").textContent = enProceso;
@@ -5042,7 +5070,7 @@ against the dark UI.
         $("kpi-ingresos-mes").textContent = formatoMoneda(filaMesActual ? filaMesActual.ingresos : 0);
       }
 
-      if (puedeVerFinanzas) evaluarAlertaVolumenBajo(resultadoMensual, mesActualEtiqueta, cerradasMes);
+      if (puedeVerFinanzas && esMesActual) evaluarAlertaVolumenBajo(resultadoMensual, mesActualEtiqueta, cerradasMes);
       else $("alerta-volumen-bajo").style.display = "none";
 
       $("tarjeta-resumen-financiero-hoy").classList.toggle("oculto", !puedeVerFinanzasHoy);
@@ -5092,7 +5120,7 @@ against the dark UI.
 
       $("tarjeta-productividad-inicio").classList.toggle("oculto", !puedeVerFinanzasHoy);
       if (puedeVerFinanzasHoy) {
-        return cargarProductividadInicio();
+        return cargarProductividadInicio(inicioMesStr);
       }
     });
   }
@@ -10698,10 +10726,10 @@ against the dark UI.
   }
 
   // Productividad de técnicos y asesores (mes actual vs. mes anterior), en Inicio.
-  function cargarProductividadInicio() {
-    var hoy = new Date();
-    var inicioMes = aFechaISO(primerDiaMes(hoy));
-    var inicioMesAnterior = aFechaISO(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1));
+  function cargarProductividadInicio(inicioMesElegido) {
+    var inicioMes = inicioMesElegido || aFechaISO(primerDiaMes(new Date()));
+    var pm = inicioMes.split("-");
+    var inicioMesAnterior = aFechaISO(new Date(Number(pm[0]), Number(pm[1]) - 2, 1));
     return Promise.all([
       restRequest("GET", "vista_productividad_tecnico", { query: "select=*&periodo=in.(" + inicioMes + "," + inicioMesAnterior + ")" }),
       restRequest("GET", "vista_productividad_asesor", { query: "select=*&periodo=in.(" + inicioMes + "," + inicioMesAnterior + ")" }),
