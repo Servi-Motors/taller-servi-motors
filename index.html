@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-09-4">
+<meta name="app-build" content="2026-11-09-5">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -1700,6 +1700,12 @@ against the dark UI.
         <div id="costo-hora-actual" class="info-vehiculo"></div>
         <div id="precio-hora-actual" class="info-vehiculo"></div>
         <button type="button" id="btn-abrir-precioshora">Editar precios y parámetros</button>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Qué falta por registrar</h2>
+        <div class="nota-ayuda">Revísalo cada lunes: lo que aparezca en rojo es lo que hay que corregir para que las cuentas y la utilidad sean reales.</div>
+        <div id="tablero-pendientes" class="info-vehiculo">Cargando…</div>
       </div>
 
       <div class="tarjeta">
@@ -8661,6 +8667,7 @@ against the dark UI.
       renderizarAnticiposPendientes(r[9] || []);
       renderizarGastosFijosDelMes(costosFijos, r[10] || []);
       cargarHistorialConciliaciones();
+      cargarTableroPendientes();
     });
   }
 
@@ -8671,11 +8678,13 @@ against the dark UI.
   function normalizarTextoFijo(t) {
     return (t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ");
   }
+  var ultimosGastosFijosPendientes = [];
   function renderizarGastosFijosDelMes(costosFijos, egresosMes) {
     var cont = $("estado-gastos-fijos-mes");
     if (!cont) return;
     var textos = (egresosMes || []).map(function (e) { return normalizarTextoFijo((e.concepto || "") + " " + (e.proveedor || "")); });
     var pendientes = [];
+    ultimosGastosFijosPendientes = pendientes;
     (costosFijos || []).filter(function (c) { return c.activo && !/basico|sueldo|nomina|deprecia/.test(normalizarTextoFijo(c.concepto)); }).forEach(function (c) {
       var clave = normalizarTextoFijo(c.concepto).trim().split(" ").filter(function (w) { return w.length > 3; })[0] || normalizarTextoFijo(c.concepto).trim();
       var registrado = textos.some(function (t) { return t.indexOf(clave) >= 0; });
@@ -13763,6 +13772,67 @@ against the dark UI.
       tr.appendChild(tdReal);
       cuerpo.appendChild(tr);
     });
+  }
+
+  // Tablero "Qué falta por registrar": junta en un solo lugar los pendientes de registro y conciliación.
+  function cargarTableroPendientes() {
+    var cont = $("tablero-pendientes");
+    if (!cont) return Promise.resolve();
+    if (rolActual !== "administrador" && rolActual !== "contador") { cont.textContent = "Solo visible para administración."; return Promise.resolve(); }
+    var hace60 = aFechaISO(new Date(Date.now() - 60 * 86400000));
+    return Promise.all([
+      restRequest("GET", "conciliaciones_cuentas", { query: "select=id_cuenta,creado_en&order=creado_en.desc&limit=200" }).catch(function () { return []; }),
+      restRequest("GET", "egresos", { query: "select=fecha,proveedor,concepto,monto,categoria,estado_pago,id_cuenta,numero_soporte&fecha=gte." + hace60 + "&order=fecha.desc&limit=1000" }).catch(function () { return []; }),
+      restRequest("GET", "ordenes_trabajo", { query: "select=numero_ot&estado=eq.cerrada&estado_pago=eq.pagada&id_cuenta=is.null&forma_pago=not.in.(credito,mixto)&fecha_cierre=gte.2026-08-26&limit=200" }).catch(function () { return []; }),
+      restRequest("GET", "activos_taller", { query: "select=*&limit=1" }).catch(function () { return null; }),
+      obtenerCuentasTaller()
+    ]).then(function (r) {
+      var concs = r[0] || [], egr = r[1] || [], sinCuentaOt = r[2] || [], activos = r[3], cuentas = r[4] || [];
+      var hoy = Date.now();
+      var items = [];
+      function item(ok, titulo, detalle) { items.push({ ok: ok, titulo: titulo, detalle: detalle }); }
+
+      // 1. Cuentas sin conciliar hace más de 7 días
+      var ultima = {};
+      concs.forEach(function (c) { if (!ultima[c.id_cuenta]) ultima[c.id_cuenta] = new Date(c.creado_en).getTime(); });
+      var viejas = cuentas.filter(function (c) { return !ultima[c.id_cuenta] || (hoy - ultima[c.id_cuenta]) > 7 * 86400000; })
+        .map(function (c) { return c.nombre + (ultima[c.id_cuenta] ? " (hace " + Math.floor((hoy - ultima[c.id_cuenta]) / 86400000) + " d)" : " (nunca)"); });
+      item(!viejas.length, "Cuentas sin conciliar en los últimos 7 días", viejas.length ? viejas.join(", ") : "Todas conciliadas esta semana.");
+
+      // 2. Gastos fijos del mes
+      var gf = ultimosGastosFijosPendientes || [];
+      item(!gf.length, "Gastos fijos de este mes sin registrar", gf.length ? gf.map(function (c) { return c.concepto; }).join(", ") : "Todos registrados.");
+
+      // 3. Gastos sin soporte (últimos 60 días)
+      var sinSoporte = egr.filter(function (e) { return e.categoria === "gasto" && !(e.numero_soporte || "").trim(); });
+      var sumaSS = sinSoporte.reduce(function (a, e) { return a + Number(e.monto || 0); }, 0);
+      item(!sinSoporte.length, "Gastos sin n.º de soporte (últimos 60 días)", sinSoporte.length ? sinSoporte.length + " gastos por " + formatoMoneda(sumaSS) + ". Agrega el n.º de factura o recibo." : "Todos con soporte.");
+
+      // 4. Egresos pagados sin cuenta
+      var sinCuenta = egr.filter(function (e) { return e.estado_pago === "pagado" && !e.id_cuenta; });
+      item(!sinCuenta.length, "Egresos pagados sin cuenta de salida", sinCuenta.length ? sinCuenta.length + " egresos por " + formatoMoneda(sinCuenta.reduce(function (a, e) { return a + Number(e.monto || 0); }, 0)) + ": no descuentan de ninguna cuenta." : "Todos tienen cuenta.");
+
+      // 5. Cobros sin cuenta
+      item(!sinCuentaOt.length, "Órdenes cobradas sin cuenta de entrada", sinCuentaOt.length ? sinCuentaOt.length + " órdenes: " + sinCuentaOt.slice(0, 8).map(function (o) { return prefijoOT + o.numero_ot; }).join(", ") : "Todas tienen cuenta.");
+
+      // 6. Posibles duplicados (misma fecha, monto y proveedor)
+      var grupos = {};
+      egr.forEach(function (e) {
+        var k = e.fecha + "|" + Number(e.monto) + "|" + normalizarTextoFijo(e.proveedor || e.concepto);
+        (grupos[k] = grupos[k] || []).push(e);
+      });
+      var dups = Object.keys(grupos).filter(function (k) { return grupos[k].length > 1 && Number(grupos[k][0].monto) > 0; });
+      item(!dups.length, "Posibles egresos duplicados", dups.length ? dups.slice(0, 5).map(function (k) { var e = grupos[k][0]; return e.fecha + " · " + (e.proveedor || e.concepto || "").slice(0, 28) + " · " + formatoMoneda(e.monto) + " (×" + grupos[k].length + ")"; }).join("<br>") : "Ninguno detectado.");
+
+      // 7. Equipos y herramientas
+      if (activos !== null) item(activos.length > 0, "Equipos y herramientas registrados", activos.length ? "Hay activos registrados." : "Aún no hay ninguno. Regístralos en la sección de activos (meta: diciembre).");
+
+      var pend = items.filter(function (i) { return !i.ok; }).length;
+      cont.innerHTML = "<div style=\"margin-bottom:6px;\"><b>" + (pend ? "⚠ " + pend + " tema" + (pend === 1 ? "" : "s") + " por revisar" : "✓ Todo al día") + "</b></div>" +
+        items.map(function (i) {
+          return "<div style=\"padding:4px 0;border-top:1px solid #eee;\"><b style=\"color:" + (i.ok ? "var(--verde)" : "var(--rojo)") + ";\">" + (i.ok ? "✓" : "✗") + " " + i.titulo + "</b><br><span class=\"nota-ayuda\">" + i.detalle + "</span></div>";
+        }).join("");
+    }).catch(function () { cont.textContent = "No se pudo cargar el tablero."; });
   }
 
   function cargarHistorialConciliaciones() {
