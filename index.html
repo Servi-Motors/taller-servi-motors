@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-09-1">
+<meta name="app-build" content="2026-11-09-4">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -1714,9 +1714,19 @@ against the dark UI.
                 <th>Saldo inicial</th>
                 <th>Fecha saldo inicial</th>
                 <th></th>
+                <th>Saldo real (banco/caja)</th>
               </tr>
             </thead>
             <tbody id="cuerpo-tabla-saldo-cuentas"></tbody>
+          </table>
+        </div>
+        <div id="conciliacion-error" class="error oculto"></div>
+        <div class="nota-ayuda">Conciliar: escribe el saldo real que ves hoy en tu app del banco (o cuenta la caja) y pulsa "Conciliar". Queda guardada la diferencia con lo que calcula la app. Hazlo al menos una vez por semana.</div>
+        <h3 style="margin-top:12px;">Historial de conciliaciones</h3>
+        <div class="tabla-scroll">
+          <table class="tabla-datos">
+            <thead><tr><th>Fecha</th><th>Cuenta</th><th>Calculado</th><th>Real</th><th>Diferencia</th></tr></thead>
+            <tbody id="cuerpo-historial-conciliaciones"></tbody>
           </table>
         </div>
       </div>
@@ -1743,6 +1753,7 @@ against the dark UI.
 
       <div class="tarjeta">
         <h2>Costos fijos mensuales</h2>
+        <div id="estado-gastos-fijos-mes" class="info-vehiculo"></div>
         <div class="tabla-scroll">
           <table class="tabla-datos" id="tabla-costos-fijos">
             <thead>
@@ -1774,6 +1785,8 @@ against the dark UI.
         <h2>Transferir entre mis cuentas</h2>
         <div class="nota-ayuda">Usa esto cuando muevas plata entre tus propias cuentas (por ejemplo, de Nequi a Bancolombia). No cuenta como ingreso ni como gasto del taller.</div>
         <button type="button" id="btn-abrir-transferencia">+ Nueva transferencia</button>
+        <button type="button" id="btn-consignar" class="secundario">Consignar (efectivo → banco)</button>
+        <button type="button" id="btn-retirar" class="secundario">Retirar (banco → efectivo)</button>
         <h3 style="margin-top:16px;">Últimas transferencias</h3>
         <div class="tabla-scroll">
           <table class="tabla-datos" id="tabla-transferencias">
@@ -5517,6 +5530,19 @@ against the dark UI.
   $("fondo-form-costofijo").addEventListener("click", cerrarFormularioCostofijo);
 
   $("btn-abrir-transferencia").addEventListener("click", conManejoDeErrores(abrirFormularioTransferencia, "transferencia-error"));
+  // Atajos de caja: mueven plata entre la cuenta de efectivo y un banco sin contarla como ingreso ni gasto.
+  function abrirTransferenciaRapida(haciaBanco) {
+    abrirFormularioTransferencia();
+    var cuentas = todasCuentasTaller || [];
+    var efectivo = cuentas.filter(function (c) { return /efectivo|caja/i.test(c.nombre); })[0];
+    var banco = cuentas.filter(function (c) { return !/efectivo|caja/i.test(c.nombre); })[0];
+    if (!efectivo) return;
+    $("transf-origen").value = haciaBanco ? efectivo.id_cuenta : (banco ? banco.id_cuenta : "");
+    $("transf-destino").value = haciaBanco ? (banco ? banco.id_cuenta : "") : efectivo.id_cuenta;
+    $("transf-nota").value = haciaBanco ? "Consignación de efectivo al banco" : "Retiro del banco a efectivo";
+  }
+  $("btn-consignar").addEventListener("click", conManejoDeErrores(function () { abrirTransferenciaRapida(true); }, "transferencia-error"));
+  $("btn-retirar").addEventListener("click", conManejoDeErrores(function () { abrirTransferenciaRapida(false); }, "transferencia-error"));
   $("btn-cancelar-transferencia").addEventListener("click", cerrarFormularioTransferencia);
   $("fondo-form-transferencia").addEventListener("click", cerrarFormularioTransferencia);
 
@@ -8211,6 +8237,25 @@ against the dark UI.
       mostrarError("egreso-error", "El crédito solo aplica a compras a proveedores.");
       return;
     }
+    // Evita duplicar nómina: si es un pago de nómina y el módulo Nómina ya tiene una
+    // liquidación de ese período, registrarlo aquí lo contaría dos veces.
+    var pareceNomina = categoria === "gasto" && /n[oó]mina|quincena/i.test(concepto + " " + proveedor);
+    var fechaMenos6 = aFechaISO(new Date(new Date(fecha + "T00:00:00").getTime() - 6 * 86400000));
+    var verificarNomina = pareceNomina
+      ? restRequest("GET", "liquidaciones", { query: "select=periodo_inicio,periodo_fin&periodo_inicio=lte." + fecha + "&periodo_fin=gte." + fechaMenos6 + "&limit=5" }).catch(function () { return []; })
+      : Promise.resolve([]);
+    return verificarNomina.then(function (liqsCercanas) {
+      if (liqsCercanas && liqsCercanas.length) {
+        var l0 = liqsCercanas[0];
+        if (!window.confirm("⚠ Posible nómina duplicada.\n\nEl módulo Nómina ya tiene liquidaciones del período " + l0.periodo_inicio + " a " + l0.periodo_fin + ", y cada liquidación ya crea su propio egreso.\n\nSi este pago es el mismo, registrarlo aquí contaría la nómina dos veces.\n\n¿Registrarlo de todas formas?")) return;
+      }
+    return (idCuenta && formaPago !== "credito"
+      ? restRequest("GET", "vista_saldo_cuentas", { query: "select=nombre,saldo_calculado&id_cuenta=eq." + idCuenta }).catch(function () { return []; })
+      : Promise.resolve([])).then(function (sc) {
+      var cta = sc && sc[0];
+      if (cta && Number(cta.saldo_calculado) - monto < -0.01) {
+        if (!window.confirm("⚠ Saldo insuficiente en " + cta.nombre + ".\n\nSaldo actual: " + formatoMoneda(cta.saldo_calculado) + "\nEste gasto: " + formatoMoneda(monto) + "\nQuedaría en: " + formatoMoneda(Number(cta.saldo_calculado) - monto) + "\n\nPuede que elegiste la cuenta equivocada. ¿Registrarlo de todas formas?")) return;
+      }
     var btnAgregarEgreso = $("btn-agregar-egreso");
     btnAgregarEgreso.disabled = true;
     btnAgregarEgreso.textContent = "Registrando…";
@@ -8257,6 +8302,8 @@ against the dark UI.
       btnAgregarEgreso.disabled = false;
       btnAgregarEgreso.textContent = "Registrar egreso";
       throw err;
+    });
+    });
     });
   }, "egreso-error"));
 
@@ -8562,7 +8609,8 @@ against the dark UI.
       restRequest("GET", "vista_saldo_cuentas", { query: "select=*" }),
       restRequest("GET", "transferencias_entre_cuentas", { query: "select=fecha,monto,nota,origen:cuentas_taller!transferencias_entre_cuentas_id_cuenta_origen_fkey(nombre),destino:cuentas_taller!transferencias_entre_cuentas_id_cuenta_destino_fkey(nombre)&order=fecha.desc,creado_en.desc&limit=20" }),
       restRequest("GET", "vista_ingresos_ot", { query: "select=monto_ingreso&fecha_cierre=gte." + inicioAnio }),
-      restRequest("GET", "vista_anticipos_pendientes", { query: "select=*&order=primera_fecha.asc" })
+      restRequest("GET", "vista_anticipos_pendientes", { query: "select=*&order=primera_fecha.asc" }),
+      restRequest("GET", "egresos", { query: "select=concepto,proveedor,monto&categoria=eq.gasto&fecha=gte." + aFechaISO(primerDiaMes(new Date())) }).catch(function () { return []; })
     ]).then(function (r) {
       var costoHora = r[0];
       var precioHora = r[1];
@@ -8611,7 +8659,35 @@ against the dark UI.
       }
 
       renderizarAnticiposPendientes(r[9] || []);
+      renderizarGastosFijosDelMes(costosFijos, r[10] || []);
+      cargarHistorialConciliaciones();
     });
+  }
+
+  // Compara los costos fijos configurados contra los egresos del mes y avisa
+  // cuáles todavía no se han registrado (arriendo, servicios, internet…).
+  // Los sueldos/básicos salen de Nómina y la depreciación no es plata que sale,
+  // así que se omiten.
+  function normalizarTextoFijo(t) {
+    return (t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ");
+  }
+  function renderizarGastosFijosDelMes(costosFijos, egresosMes) {
+    var cont = $("estado-gastos-fijos-mes");
+    if (!cont) return;
+    var textos = (egresosMes || []).map(function (e) { return normalizarTextoFijo((e.concepto || "") + " " + (e.proveedor || "")); });
+    var pendientes = [];
+    (costosFijos || []).filter(function (c) { return c.activo && !/basico|sueldo|nomina|deprecia/.test(normalizarTextoFijo(c.concepto)); }).forEach(function (c) {
+      var clave = normalizarTextoFijo(c.concepto).trim().split(" ").filter(function (w) { return w.length > 3; })[0] || normalizarTextoFijo(c.concepto).trim();
+      var registrado = textos.some(function (t) { return t.indexOf(clave) >= 0; });
+      if (!registrado) pendientes.push(c);
+    });
+    if (!pendientes.length) {
+      cont.innerHTML = "<b style=\"color:var(--verde);\">✓ Todos los gastos fijos de este mes ya tienen un egreso registrado.</b>";
+      return;
+    }
+    cont.innerHTML = "<b style=\"color:#b45309;\">⚠ Faltan por registrar este mes (" + pendientes.length + "):</b><br>" +
+      pendientes.map(function (c) { return "• " + c.concepto + " — " + formatoMoneda(c.monto_mensual); }).join("<br>") +
+      "<br><span class=\"nota-ayuda\">Regístralos en Gastos para que la utilidad y el saldo de cada cuenta sean reales.</span>";
   }
 
   // "Anticipos pendientes por entregar": plata que ya recibiste de clientes
@@ -10004,9 +10080,53 @@ against the dark UI.
     $(id).addEventListener("input", actualizarTotalNomina);
   });
 
+  // Antes de registrar una liquidación, busca pagos de nómina ya cargados a mano en Egresos
+  // para ese período: cada liquidación crea su propio egreso, así que se contaría dos veces.
+  function avisarNominaYaRegistrada() {
+    var ini = nominaCalculo.periodo_inicio;
+    var fin = nominaCalculo.periodo_fin;
+    var finMas3 = aFechaISO(new Date(new Date(fin + "T00:00:00").getTime() + 3 * 86400000));
+    return restRequest("GET", "egresos", {
+      query: "select=fecha,concepto,proveedor,monto&categoria=eq.gasto&fecha=gte." + ini + "&fecha=lte." + finMas3 +
+        "&or=(concepto.ilike.*nomina*,concepto.ilike.*nómina*,concepto.ilike.*quincena*)&order=fecha.asc&limit=30"
+    }).catch(function () { return []; }).then(function (filas) {
+      // Se descartan los egresos que ya vienen de una liquidación del módulo ("Nómina — período") y las cargas prestacionales.
+      var manuales = (filas || []).filter(function (e) {
+        return !/^n[oó]mina\s*—/i.test(e.concepto || "") && !/^carga prestacional/i.test(e.concepto || "");
+      });
+      if (!manuales.length) return avisarEmpleadosFaltantes(ini, fin);
+      var lista = manuales.slice(0, 6).map(function (e) { return "• " + e.fecha + " · " + (e.concepto || "").slice(0, 45) + " · " + formatoMoneda(e.monto); }).join("\n");
+      return window.confirm("⚠ Posible nómina duplicada.\n\nYa hay pagos de nómina cargados en Egresos para estas fechas (" + ini + " a " + fin + "):\n\n" + lista +
+        (manuales.length > 6 ? "\n…y " + (manuales.length - 6) + " más" : "") +
+        "\n\nAl registrar esta liquidación se crea otro egreso por su valor. Si esos pagos son los mismos, la nómina quedará contada dos veces (elimina el egreso manual).\n\n¿Registrar la liquidación de todas formas?")
+        ? avisarEmpleadosFaltantes(ini, fin) : false;
+    });
+  }
+
+  // Avisa si hay empleados activos sin liquidación en este período (ej. se pagó a uno y se olvidó a otro).
+  function avisarEmpleadosFaltantes(ini, fin) {
+    var idActual = $("nomina-empleado").value;
+    return restRequest("GET", "liquidaciones", { query: "select=id_empleado&periodo_inicio=lte." + fin + "&periodo_fin=gte." + ini }).catch(function () { return null; }).then(function (liqs) {
+      if (liqs === null) return true;
+      var pagados = {};
+      liqs.forEach(function (l) { pagados[l.id_empleado] = true; });
+      pagados[idActual] = true;
+      var faltan = Array.prototype.slice.call($("nomina-empleado").options).filter(function (o) { return !pagados[o.value]; }).map(function (o) { return o.textContent; });
+      if (!faltan.length) return true;
+      return window.confirm("Aviso: en el período " + ini + " a " + fin + " todavía no hay liquidación para:\n\n• " + faltan.join("\n• ") + "\n\nPuedes registrarla después. ¿Continuar con esta liquidación?");
+    });
+  }
+
   $("btn-registrar-liquidacion").addEventListener("click", conManejoDeErrores(function () {
     ocultarError("nomina-error");
     if (!nominaCalculo) return;
+    return avisarNominaYaRegistrada().then(function (seguir) {
+      if (!seguir) return;
+      return registrarLiquidacionConfirmada();
+    });
+  }, "nomina-error"));
+
+  function registrarLiquidacionConfirmada() {
     var idPrestamo = $("nomina-prestamo").value || null;
     var dedPrestamo = parseFloat($("nomina-deduccion-prestamo").value) || 0;
     if (dedPrestamo > 0 && !idPrestamo) { mostrarError("nomina-error", "Selecciona el préstamo del que quieres descontar."); return; }
@@ -10151,7 +10271,7 @@ against the dark UI.
         btnRegistrar.textContent = "Registrar liquidación";
         throw err;
       });
-  }, "nomina-error"));
+  }
 
   // =====================================================================
   // REPORTES
@@ -12985,11 +13105,32 @@ against the dark UI.
               }
             }).then(function () { return cargarFacturacion(); });
           }
+          if (!selCuentaPago.value) {
+            mostrarError("facturacion-error", "Elige a cuál cuenta entró el pago (efectivo → Efectivo/Caja). Sin cuenta, los saldos no cuadran.");
+            return;
+          }
+          var refPagoSimple = null;
+          if (selFormaPago.value === "transferencia") {
+            refPagoSimple = pedirComprobanteTransferencia();
+            if (!refPagoSimple) {
+              mostrarError("facturacion-error", "El n.º de comprobante es obligatorio en pagos por transferencia.");
+              return;
+            }
+          }
+          var comisionSimple = 0;
+          if (selFormaPago.value === "tarjeta") {
+            var cs = pedirNetoDatafono(montoAPagar);
+            if (cs === null) {
+              mostrarError("facturacion-error", "Escribe el valor neto que depositó el datáfono (no puede ser mayor al cobro).");
+              return;
+            }
+            comisionSimple = cs;
+          }
           var ventanaPendiente = abrirVentanaImpresionPendiente();
           return restRequest("PATCH", "ordenes_trabajo", {
             query: "id_ot=eq." + f.id_ot,
-            body: { estado_pago: "pagada", fecha_pago: new Date().toISOString(), forma_pago: selFormaPago.value, id_cuenta: selCuentaPago.value || null }
-          }).then(function () { return imprimirReciboPagoCliente(f.id_ot, ventanaPendiente); }).then(function () { return cargarFacturacion(); });
+            body: { estado_pago: "pagada", fecha_pago: new Date().toISOString(), forma_pago: selFormaPago.value, id_cuenta: selCuentaPago.value, referencia_pago: refPagoSimple }
+          }).then(function () { return registrarComisionDatafono(selCuentaPago.value, comisionSimple, prefijoOT + f.numero_ot); }).then(function () { return imprimirReciboPagoCliente(f.id_ot, ventanaPendiente); }).then(function () { return cargarFacturacion(); });
         }, "facturacion-error"));
 
         // --- Pago dividido entre varias formas de pago ---
@@ -13069,15 +13210,38 @@ against the dark UI.
             mostrarError("facturacion-error", "La suma de los montos (" + formatoMoneda(suma) + ") debe ser igual a lo que resta por cobrar (" + formatoMoneda(montoAPagar) + ").");
             return;
           }
+          if (partes.some(function (p) { return !p.id_cuenta; })) {
+            mostrarError("facturacion-error", "Elige la cuenta de cada forma de pago del pago dividido.");
+            return;
+          }
+          var partTransf = partes.filter(function (p) { return p.forma_pago === "transferencia"; })[0];
+          var refDividido = null;
+          if (partTransf) {
+            refDividido = pedirComprobanteTransferencia();
+            if (!refDividido) {
+              mostrarError("facturacion-error", "El n.º de comprobante es obligatorio en pagos por transferencia.");
+              return;
+            }
+          }
+          var partTarjeta = partes.filter(function (p) { return p.forma_pago === "tarjeta"; })[0];
+          var comisionDividido = 0;
+          if (partTarjeta) {
+            var cd = pedirNetoDatafono(partTarjeta.monto);
+            if (cd === null) {
+              mostrarError("facturacion-error", "Escribe el valor neto que depositó el datáfono (no puede ser mayor al monto con tarjeta).");
+              return;
+            }
+            comisionDividido = cd;
+          }
           var ventanaPendiente = abrirVentanaImpresionPendiente();
           return restRequest("PATCH", "ordenes_trabajo", {
             query: "id_ot=eq." + f.id_ot,
-            body: { estado_pago: "pagada", fecha_pago: new Date().toISOString(), forma_pago: "mixto" }
+            body: { estado_pago: "pagada", fecha_pago: new Date().toISOString(), forma_pago: "mixto", referencia_pago: refDividido }
           }).then(function () {
             return restRequest("POST", "pagos_factura", {
-              body: partes.map(function (p) { return { id_ot: f.id_ot, forma_pago: p.forma_pago, monto: p.monto, id_usuario_registro: usuarioActualId, id_cuenta: p.id_cuenta }; })
+              body: partes.map(function (p) { return { id_ot: f.id_ot, forma_pago: p.forma_pago, monto: p.monto, id_usuario_registro: usuarioActualId, id_cuenta: p.id_cuenta, referencia: p.forma_pago === "transferencia" ? refDividido : null }; })
             });
-          }).then(function () { return imprimirReciboPagoCliente(f.id_ot, ventanaPendiente); }).then(function () { return cargarFacturacion(); });
+          }).then(function () { return partTarjeta ? registrarComisionDatafono(partTarjeta.id_cuenta, comisionDividido, prefijoOT + f.numero_ot) : null; }).then(function () { return imprimirReciboPagoCliente(f.id_ot, ventanaPendiente); }).then(function () { return cargarFacturacion(); });
         }, "facturacion-error"));
       }
       tr.appendChild(tdAcciones);
@@ -13475,6 +13639,34 @@ against the dark UI.
   // Cuentas, Facturación y Anticipos, en vez de volver a pedirlas en cada una.
   // Pasa forzar=true después de crear/editar/desactivar una cuenta para
   // refrescar el caché.
+  // Pide el n.º de comprobante de una transferencia (obligatorio). Devuelve null si lo dejan vacío.
+  function pedirComprobanteTransferencia() {
+    var ref = window.prompt("Escribe el n.º de comprobante / referencia de la transferencia (obligatorio):");
+    ref = (ref || "").trim();
+    return ref || null;
+  }
+
+  // Pago con tarjeta/datáfono: pregunta cuánto depositó realmente el datáfono (neto).
+  // Devuelve la comisión (>=0) o null si el dato no es válido.
+  function pedirNetoDatafono(monto) {
+    var t = window.prompt("Pago con tarjeta por " + formatoMoneda(monto) + ".\n¿Cuánto depositó realmente el datáfono (valor neto, ya sin comisión)?\nLa diferencia se registra sola como gasto \"Comisión datáfono\".");
+    if (t === null) return null;
+    var neto = parseFloat(String(t).replace(/[^0-9.,]/g, "").replace(",", "."));
+    if (isNaN(neto) || neto < 0 || neto > monto + 0.01) return null;
+    return Math.round((monto - neto) * 100) / 100;
+  }
+
+  function registrarComisionDatafono(idCuenta, comision, etiquetaOT) {
+    if (!(comision > 0)) return Promise.resolve();
+    return restRequest("POST", "egresos", {
+      body: {
+        fecha: aFechaISO(new Date()), proveedor: "Datáfono", concepto: "Comisión datáfono — " + etiquetaOT,
+        categoria: "gasto", monto: comision, forma_pago: "transferencia", estado_pago: "pagado",
+        id_cuenta: idCuenta, id_usuario_registro: usuarioActualId
+      }
+    });
+  }
+
   function obtenerCuentasTaller(forzar) {
     if (!forzar && promesaCuentasTaller) return promesaCuentasTaller;
     promesaCuentasTaller = restRequest("GET", "cuentas_taller", { query: "select=id_cuenta,nombre,tipo,orden&activa=eq.true&order=orden.asc" })
@@ -13501,7 +13693,7 @@ against the dark UI.
     if (!filas.length) {
       var trVacio = document.createElement("tr");
       var tdVacio = document.createElement("td");
-      tdVacio.colSpan = 5;
+      tdVacio.colSpan = 6;
       tdVacio.className = "tabla-vacia";
       tdVacio.textContent = "Agrega tus cuentas para empezar a conciliar.";
       trVacio.appendChild(tdVacio);
@@ -13550,8 +13742,46 @@ against the dark UI.
       tr.appendChild(tdInicial);
       tr.appendChild(tdFecha);
       tr.appendChild(tdAccion);
+      var tdReal = document.createElement("td");
+      if (esAdmin || rolActual === "contador") {
+        var inpReal = document.createElement("input");
+        inpReal.type = "number";
+        inpReal.step = "0.01";
+        inpReal.id = "saldoreal-" + f.id_cuenta;
+        inpReal.placeholder = "Saldo real";
+        inpReal.style.width = "110px";
+        tdReal.appendChild(inpReal);
+        var btnConc = document.createElement("button");
+        btnConc.type = "button";
+        btnConc.className = "secundario btn-conciliar-cuenta";
+        btnConc.dataset.idCuenta = f.id_cuenta;
+        btnConc.dataset.calculado = Number(f.saldo_calculado);
+        btnConc.dataset.nombre = f.nombre;
+        btnConc.textContent = "Conciliar";
+        tdReal.appendChild(btnConc);
+      }
+      tr.appendChild(tdReal);
       cuerpo.appendChild(tr);
     });
+  }
+
+  function cargarHistorialConciliaciones() {
+    if (rolActual !== "administrador" && rolActual !== "contador") return Promise.resolve();
+    return restRequest("GET", "conciliaciones_cuentas", { query: "select=fecha,saldo_calculado,saldo_real,diferencia,cuentas_taller(nombre)&order=creado_en.desc&limit=15" })
+      .then(function (filas) {
+        var cu = $("cuerpo-historial-conciliaciones");
+        if (!filas || !filas.length) {
+          cu.innerHTML = "<tr><td colspan=\"5\" class=\"tabla-vacia\">Aún no has conciliado ninguna cuenta.</td></tr>";
+          return;
+        }
+        cu.innerHTML = filas.map(function (f) {
+          var d = Number(f.diferencia);
+          var color = Math.abs(d) < 1 ? "var(--verde)" : "var(--rojo)";
+          return "<tr><td>" + formatoFechaCorta(new Date(f.fecha + "T00:00:00")) + "</td><td>" + ((f.cuentas_taller && f.cuentas_taller.nombre) || "—") + "</td>" +
+            "<td class=\"celda-numero\">" + formatoMoneda(f.saldo_calculado) + "</td><td class=\"celda-numero\">" + formatoMoneda(f.saldo_real) + "</td>" +
+            "<td class=\"celda-numero\" style=\"color:" + color + ";font-weight:700;\">" + (Math.abs(d) < 1 ? "Cuadra ✓" : formatoMoneda(d)) + "</td></tr>";
+        }).join("");
+      }).catch(function () {});
   }
 
   function renderizarListaTransferencias(filas) {
@@ -13672,6 +13902,10 @@ against the dark UI.
     }
     if (monto > cxcSeleccionada.saldo + 0.01) {
       mostrarError("cuentas-error", "El abono no puede ser mayor al saldo pendiente (" + formatoMoneda(cxcSeleccionada.saldo) + ").");
+      return;
+    }
+    if (!$("cxc-abono-cuenta").value) {
+      mostrarError("cuentas-error", "Elige a cuál cuenta entró el abono.");
       return;
     }
     var idOt = cxcSeleccionada.id_ot;
@@ -13833,6 +14067,27 @@ against the dark UI.
       return refrescarSaldosYTransferencias();
     });
   }, "transferencia-error"));
+
+  $("tabla-saldo-cuentas").addEventListener("click", conManejoDeErrores(function (ev) {
+    var btnC = ev.target.closest(".btn-conciliar-cuenta");
+    if (!btnC) return;
+    ocultarError("conciliacion-error");
+    var idC = btnC.getAttribute("data-id-cuenta");
+    var real = parseFloat($("saldoreal-" + idC).value);
+    if (isNaN(real)) {
+      mostrarError("conciliacion-error", "Escribe el saldo real de " + btnC.dataset.nombre + ".");
+      return;
+    }
+    var calc = Number(btnC.dataset.calculado);
+    var dif = real - calc;
+    if (Math.abs(dif) >= 1 && !window.confirm(btnC.dataset.nombre + ":\nLa app calcula " + formatoMoneda(calc) + " y tú dices " + formatoMoneda(real) + ".\nDiferencia: " + formatoMoneda(dif) + ".\n\nSe guardará la conciliación con esa diferencia (no cambia ningún saldo). ¿Guardar?")) return;
+    btnC.disabled = true;
+    return restRequest("POST", "conciliaciones_cuentas", {
+      body: { id_cuenta: idC, saldo_calculado: calc, saldo_real: real, id_usuario: usuarioActualId }
+    }).then(function () {
+      return Promise.all([refrescarSaldoCuentas(), cargarHistorialConciliaciones()]);
+    }).catch(function (err) { btnC.disabled = false; throw err; });
+  }, "conciliacion-error"));
 
   $("tabla-saldo-cuentas").addEventListener("click", conManejoDeErrores(function (ev) {
     var btn = ev.target.closest(".btn-guardar-saldo-inicial");
@@ -14589,6 +14844,10 @@ against the dark UI.
     }
     var formaPago = $("anticipo-forma-pago").value;
     var idCuenta = $("anticipo-cuenta").value || null;
+    if (!idCuenta) {
+      mostrarError("anticipo-error", "Elige a cuál cuenta entró el anticipo.");
+      return;
+    }
     var btn = $("btn-registrar-anticipo");
     btn.disabled = true;
     btn.textContent = "Registrando…";
