@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-05-14">
+<meta name="app-build" content="2026-11-09-1">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -8602,6 +8602,9 @@ against the dark UI.
           "Costo de ventas: " + formatoMoneda(resultado.costo_ventas) + "<br>" +
           "Utilidad bruta: " + formatoMoneda(resultado.utilidad_bruta) + "<br>" +
           "Egresos operativos: " + formatoMoneda(resultado.egresos_operativos) + "<br>" +
+          (Number(resultado.mano_obra_tecnico_en_costo || 0) > 0
+            ? "<span class=\"fila-detalle\">La mano de obra del técnico (" + formatoMoneda(resultado.mano_obra_tecnico_en_costo) + ") ya está en el costo de ventas; se descuenta de la nómina para no contarla dos veces.</span><br>"
+            : "") +
           "<b>Utilidad neta: " + formatoMoneda(resultado.utilidad_neta) + "</b>";
       } else {
         $("resultado-mensual").innerHTML = "Todavía no hay órdenes cerradas ni egresos este mes.";
