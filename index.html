@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-09-5">
+<meta name="app-build" content="2026-11-09-9">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -2531,7 +2531,7 @@ against the dark UI.
         <div id="cierre-caja-resumen" class="info-vehiculo"></div>
         <div id="cierre-caja-ya-hecho" class="nota-ayuda oculto"></div>
         <div id="cierre-caja-form">
-          <label for="cc-efectivo-inicial">Efectivo inicial (con el que se abrió hoy)</label>
+          <label for="cc-efectivo-inicial">Efectivo inicial (lo calcula la app a partir del saldo de Efectivo; no lo cambies salvo que sepas por qué)</label>
           <input id="cc-efectivo-inicial" type="number" min="0" step="0.01">
           <label>Conteo físico de efectivo (billetes y monedas)</label>
           <div class="nota-ayuda">Cuenta el dinero que hay físicamente en caja ahora mismo y anota cuántos hay de cada denominación. El total se suma solo.</div>
@@ -2575,7 +2575,7 @@ against the dark UI.
         <h2>Historial de cierres</h2>
         <div class="tabla-scroll">
           <table class="tabla-datos" id="tabla-cierres-caja">
-            <thead><tr><th>Fecha</th><th>Inicial</th><th>Ingresos efvo.</th><th>Egresos efvo.</th><th>Esperado</th><th>Contado</th><th>Diferencia</th></tr></thead>
+            <thead><tr><th>Fecha</th><th>Inicial</th><th>Ingresos efvo.</th><th>Egresos efvo.</th><th>Esperado</th><th>Contado</th><th>Diferencia</th><th></th></tr></thead>
             <tbody id="cuerpo-cierres-caja"></tbody>
           </table>
         </div>
@@ -3975,6 +3975,19 @@ against the dark UI.
     return renovacionEnCurso;
   }
 
+  // Defensa en el borde: cualquier texto que llegue del servidor y parezca una
+  // etiqueta HTML (<img…>, <script…>) se desactiva antes de que alguna pantalla
+  // lo pegue con innerHTML. Un "< 5 mm" normal no se toca.
+  var PATRON_ETIQUETA_HTML = /<\/?[a-zA-Z!][^>]*>?/g;
+  function neutralizarHtmlEnDatos(x) {
+    if (typeof x === "string") {
+      return x.indexOf("<") === -1 ? x : x.replace(PATRON_ETIQUETA_HTML, function (m) { return m.replace(/</g, "\u2039").replace(/>/g, "\u203a"); });
+    }
+    if (Array.isArray(x)) { for (var i = 0; i < x.length; i++) x[i] = neutralizarHtmlEnDatos(x[i]); return x; }
+    if (x && typeof x === "object") { for (var k in x) { if (Object.prototype.hasOwnProperty.call(x, k)) x[k] = neutralizarHtmlEnDatos(x[k]); } return x; }
+    return x;
+  }
+
   function restRequest(method, tabla, opts, _yaReintentado) {
     opts = opts || {};
     var url = SUPABASE_URL + "/rest/v1/" + tabla + (opts.query ? "?" + opts.query : "");
@@ -4015,7 +4028,7 @@ against the dark UI.
           registrarErrorApp("api", method + " " + tabla + " → " + res.status + ": " + msg, opts.query || "");
           throw errHttp;
         }
-        return data;
+        return neutralizarHtmlEnDatos(data);
       });
     }).catch(function (err) {
       // Consultas de solo lectura (GET) que fallan por un corte momentáneo
@@ -5047,8 +5060,8 @@ against the dark UI.
     pedidosInicio.push(restRequest("GET", "vista_vencimientos_documentos", { query: "select=*&limit=200" }).catch(function () { return []; }));
     if (puedeVerFinanzasHoy) {
       pedidosInicio.push(
-        restRequest("GET", "vista_facturacion", { query: "select=total,forma_pago&estado_pago=eq.pagada&forma_pago=neq.credito&fecha_pago=gte." + hoyStr + "&fecha_pago=lt." + mananaStr }),
-        restRequest("GET", "pagos_factura", { query: "select=forma_pago,monto&fecha_pago=gte." + hoyStr + "&fecha_pago=lt." + mananaStr }),
+        restRequest("GET", "vista_facturacion", { query: "select=total,forma_pago&estado_pago=eq.pagada&forma_pago=neq.credito&fecha_pago=gte." + hoyStr + "T00:00:00-05:00&fecha_pago=lt." + mananaStr + "T00:00:00-05:00" }),
+        restRequest("GET", "pagos_factura", { query: "select=forma_pago,monto&fecha_pago=gte." + hoyStr + "T00:00:00-05:00&fecha_pago=lt." + mananaStr + "T00:00:00-05:00" }),
         restRequest("GET", "vista_cuentas_por_cobrar", { query: "select=saldo,fecha_vencimiento_pago" }),
         restRequest("GET", "vista_cuentas_por_pagar", { query: "select=saldo" }),
         restRequest("GET", "vista_ingresos_por_tipo_mes", { query: "select=periodo,tipo,monto&order=periodo.desc&limit=80" })
@@ -5060,9 +5073,18 @@ against the dark UI.
       ? restRequest("GET", "citas", { query: "select=id_cita,fecha_hora,recordatorio_cliente_enviado_en&estado=in.(agendada,confirmada)&fecha_hora=gte." + ahoraCitas.toISOString() + "&fecha_hora=lte." + new Date(ahoraCitas.getTime() + 7 * 86400000).toISOString() + "&limit=200" }).catch(function () { return []; })
       : Promise.resolve([]);
 
-    return Promise.all([Promise.all(pedidosInicio), pedidoCitas]).then(function (par) {
+    var pedidoCierres = (rolActual === "administrador" || rolActual === "asesor" || rolActual === "contador")
+      ? restRequest("GET", "cierres_caja", { query: "select=fecha&order=fecha.desc&limit=5" }).catch(function () { return null; })
+      : Promise.resolve(null);
+    var pedidoConc = (rolActual === "administrador" || rolActual === "contador")
+      ? restRequest("GET", "conciliaciones_cuentas", { query: "select=creado_en&order=creado_en.desc&limit=1" }).catch(function () { return null; })
+      : Promise.resolve(null);
+
+    return Promise.all([Promise.all(pedidosInicio), pedidoCitas, pedidoCierres, pedidoConc]).then(function (par) {
       var r = par[0];
       var citasProximas = par[1] || [];
+      var cierresRecientes = par[2];
+      var conciliacionesRecientes = par[3];
       var ordenes = r[0] || [];
       var itemsStock = r[1] || [];
       var estados = r[2] || [];
@@ -5147,6 +5169,8 @@ against the dark UI.
         stockBajo: stockBajo,
         vencimientos: r[4] || [],
         citas: citasProximas,
+        cierres: cierresRecientes,
+        conciliaciones: conciliacionesRecientes,
         cxc: puedeVerFinanzasHoy ? (r[7] || []) : null
       });
 
@@ -5188,6 +5212,30 @@ against the dark UI.
     if (d.citas && d.citas.length) {
       var sinRecordar = d.citas.filter(function (c) { return !c.recordatorio_cliente_enviado_en; }).length;
       items.push({ n: d.citas.length, t: "citas en los próximos 7 días" + (sinRecordar ? " (" + sinRecordar + " sin recordar al cliente)" : " (todas recordadas)"), c: sinRecordar ? "chip-alerta" : "chip-ok", p: "comunicaciones" });
+    }
+    // Cierre de caja: hoy (después de las 5 pm) o el último día hábil si ya se venía haciendo.
+    if (d.cierres) {
+      var fechasCierre = d.cierres.map(function (c) { return c.fecha; });
+      var ahoraC = new Date();
+      if (fechasCierre.indexOf(hoyISO) === -1 && ahoraC.getHours() >= 17) {
+        items.push({ n: "Falta", t: "cerrar la caja de hoy (Caja → Cierre de caja del día)", c: "chip-alerta", p: "caja" });
+      }
+      if (fechasCierre.length) {
+        var ayer = new Date(ahoraC.getTime() - 86400000);
+        if (ayer.getDay() === 0) ayer = new Date(ayer.getTime() - 86400000); // domingo no se exige
+        var ayerISO = aFechaISO(ayer);
+        if (fechasCierre.indexOf(ayerISO) === -1 && ayerISO > fechasCierre[0]) {
+          items.push({ n: "Sin cierre", t: "de caja del " + formatoFechaCorta(ayer) + ": ciérralo o anota por qué no se hizo", c: "chip-peligro", p: "caja" });
+        }
+      }
+    }
+    // Conciliación semanal de cuentas (administración).
+    if (d.conciliaciones !== null && d.conciliaciones !== undefined) {
+      var ultimaConc = d.conciliaciones[0] ? new Date(d.conciliaciones[0].creado_en).getTime() : 0;
+      var diasSinConc = ultimaConc ? Math.floor((Date.now() - ultimaConc) / 86400000) : null;
+      if (diasSinConc === null || diasSinConc >= 7) {
+        items.push({ n: diasSinConc === null ? "Nunca" : diasSinConc + " días", t: "sin conciliar las cuentas con el banco (Contabilidad → Cuentas)", c: "chip-alerta", p: "contabilidad" });
+      }
     }
     var docs = (d.vencimientos || []).length;
     if (docs) items.push({ n: docs, t: "SOAT / tecnomecánica vencidos o por vencer", c: "chip-alerta", p: "comunicaciones" });
@@ -8231,8 +8279,8 @@ against the dark UI.
       mostrarError("egreso-error", "Escribe el proveedor.");
       return;
     }
-    if (!concepto || !(monto >= 0)) {
-      mostrarError("egreso-error", "Escribe el concepto y un monto válido.");
+    if (!concepto || !(monto > 0) || monto > 1000000000) {
+      mostrarError("egreso-error", "Escribe el concepto y un monto válido (mayor a 0).");
       return;
     }
     if (categoria === "compra" && !idOt) {
@@ -8255,12 +8303,15 @@ against the dark UI.
         var l0 = liqsCercanas[0];
         if (!window.confirm("⚠ Posible nómina duplicada.\n\nEl módulo Nómina ya tiene liquidaciones del período " + l0.periodo_inicio + " a " + l0.periodo_fin + ", y cada liquidación ya crea su propio egreso.\n\nSi este pago es el mismo, registrarlo aquí contaría la nómina dos veces.\n\n¿Registrarlo de todas formas?")) return;
       }
+    var btnEgresoGuardia = $("btn-agregar-egreso");
+    if (btnEgresoGuardia.disabled) return;
+    btnEgresoGuardia.disabled = true;
     return (idCuenta && formaPago !== "credito"
       ? restRequest("GET", "vista_saldo_cuentas", { query: "select=nombre,saldo_calculado&id_cuenta=eq." + idCuenta }).catch(function () { return []; })
       : Promise.resolve([])).then(function (sc) {
       var cta = sc && sc[0];
       if (cta && Number(cta.saldo_calculado) - monto < -0.01) {
-        if (!window.confirm("⚠ Saldo insuficiente en " + cta.nombre + ".\n\nSaldo actual: " + formatoMoneda(cta.saldo_calculado) + "\nEste gasto: " + formatoMoneda(monto) + "\nQuedaría en: " + formatoMoneda(Number(cta.saldo_calculado) - monto) + "\n\nPuede que elegiste la cuenta equivocada. ¿Registrarlo de todas formas?")) return;
+        if (!window.confirm("⚠ Saldo insuficiente en " + cta.nombre + ".\n\nSaldo actual: " + formatoMoneda(cta.saldo_calculado) + "\nEste gasto: " + formatoMoneda(monto) + "\nQuedaría en: " + formatoMoneda(Number(cta.saldo_calculado) - monto) + "\n\nPuede que elegiste la cuenta equivocada. ¿Registrarlo de todas formas?")) { btnEgresoGuardia.disabled = false; return; }
       }
     var btnAgregarEgreso = $("btn-agregar-egreso");
     btnAgregarEgreso.disabled = true;
@@ -9408,7 +9459,11 @@ against the dark UI.
 
   function primerDiaMes(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
   function ultimoDiaMes(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 0); }
-  function aFechaISO(d) { return d.toISOString().slice(0, 10); }
+  // Fecha LOCAL (Colombia) en formato AAAA-MM-DD. Antes usaba toISOString() (hora UTC): después de las 7 pm
+  // "hoy" ya era mañana y cierres/gastos quedaban con la fecha del día siguiente.
+  function aFechaISO(d) {
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
 
   // =====================================================================
   // FESTIVOS DE COLOMBIA (Ley Emiliani) — se usan para el pago por día de
@@ -13096,7 +13151,7 @@ against the dark UI.
           btnPagada.textContent = esCredito ? "Vender a crédito" : "Marcar como pagada";
         });
 
-        btnPagada.addEventListener("click", conManejoDeErrores(function () {
+        btnPagada.addEventListener("click", conManejoDeErrores(conBotonOcupado(btnPagada, "Registrando…", function () {
           if (selFormaPago.value === "credito") {
             if (!inputVencimiento.value) {
               mostrarError("facturacion-error", "Elige la fecha límite de pago (máximo 15 días desde el cierre).");
@@ -13140,7 +13195,7 @@ against the dark UI.
             query: "id_ot=eq." + f.id_ot,
             body: { estado_pago: "pagada", fecha_pago: new Date().toISOString(), forma_pago: selFormaPago.value, id_cuenta: selCuentaPago.value, referencia_pago: refPagoSimple }
           }).then(function () { return registrarComisionDatafono(selCuentaPago.value, comisionSimple, prefijoOT + f.numero_ot); }).then(function () { return imprimirReciboPagoCliente(f.id_ot, ventanaPendiente); }).then(function () { return cargarFacturacion(); });
-        }, "facturacion-error"));
+        }), "facturacion-error"));
 
         // --- Pago dividido entre varias formas de pago ---
         var etqDividir = document.createElement("label");
@@ -13204,7 +13259,7 @@ against the dark UI.
           if (chkDividir.checked) { inputVencimiento.classList.add("oculto"); actualizarFalta(); }
         });
 
-        btnConfirmarDividido.addEventListener("click", conManejoDeErrores(function () {
+        btnConfirmarDividido.addEventListener("click", conManejoDeErrores(conBotonOcupado(btnConfirmarDividido, "Registrando…", function () {
           var partes = [
             { forma_pago: "efectivo", monto: parseFloat(inpEfectivo.value) || 0, id_cuenta: selCuentaEfectivo.value || null },
             { forma_pago: "tarjeta", monto: parseFloat(inpTarjeta.value) || 0, id_cuenta: selCuentaTarjeta.value || null },
@@ -13251,7 +13306,7 @@ against the dark UI.
               body: partes.map(function (p) { return { id_ot: f.id_ot, forma_pago: p.forma_pago, monto: p.monto, id_usuario_registro: usuarioActualId, id_cuenta: p.id_cuenta, referencia: p.forma_pago === "transferencia" ? refDividido : null }; })
             });
           }).then(function () { return partTarjeta ? registrarComisionDatafono(partTarjeta.id_cuenta, comisionDividido, prefijoOT + f.numero_ot) : null; }).then(function () { return imprimirReciboPagoCliente(f.id_ot, ventanaPendiente); }).then(function () { return cargarFacturacion(); });
-        }, "facturacion-error"));
+        }), "facturacion-error"));
       }
       tr.appendChild(tdAcciones);
       tbody.appendChild(tr);
@@ -13304,12 +13359,12 @@ against the dark UI.
     return Promise.all([
       restRequest("GET", "parametros_taller", { query: "select=monto_fondo_caja_menor,id_cuenta_excedente_caja_menor&id=eq.1" }),
       restRequest("GET", "caja_menor_movimientos", { query: "select=*,usuarios(nombre)&order=fecha.desc,creado_en.desc&limit=100" }),
-      restRequest("GET", "vista_facturacion", { query: "select=total,forma_pago,fecha_pago&estado_pago=eq.pagada&forma_pago=neq.credito&fecha_pago=gte." + hoy + "&fecha_pago=lt." + manana }),
+      restRequest("GET", "vista_facturacion", { query: "select=total,forma_pago,fecha_pago&estado_pago=eq.pagada&forma_pago=neq.credito&fecha_pago=gte." + hoy + "T00:00:00-05:00&fecha_pago=lt." + manana + "T00:00:00-05:00" }),
       restRequest("GET", "egresos", { query: "select=monto&estado_pago=eq.pagado&forma_pago=eq.efectivo&fecha=eq." + hoy }),
       restRequest("GET", "cierres_caja", { query: "select=*&order=fecha.desc&limit=15" }),
       restRequest("GET", "abonos_cuentas_cobrar", { query: "select=monto,forma_pago&fecha=eq." + hoy }),
       restRequest("GET", "abonos_cuentas_pagar", { query: "select=monto&forma_pago=eq.efectivo&fecha=eq." + hoy }),
-      restRequest("GET", "pagos_factura", { query: "select=forma_pago,monto&fecha_pago=gte." + hoy + "&fecha_pago=lt." + manana }),
+      restRequest("GET", "pagos_factura", { query: "select=forma_pago,monto&fecha_pago=gte." + hoy + "T00:00:00-05:00&fecha_pago=lt." + manana + "T00:00:00-05:00" }),
       obtenerCuentasTaller(),
       restRequest("POST", "rpc/rpc_saldo_caja_menor", { body: {} })
     ]).then(function (resultados) {
@@ -13400,6 +13455,7 @@ against the dark UI.
 
       var resumenCC = $("cierre-caja-resumen");
       resumenCC.innerHTML =
+        "<div><strong>Saldo de Efectivo según la app ahora:</strong> " + formatoMoneda(saldoCajaMenor) + "</div>" +
         "<div><strong>Ingresos efectivo hoy:</strong> " + formatoMoneda(totales.efectivo) +
         (abonosCobradosPorForma.efectivo ? " <span style=\"color:var(--gris);\">(incluye " + formatoMoneda(abonosCobradosPorForma.efectivo) + " en abonos de crédito)</span>" : "") + "</div>" +
         "<div><strong>Ingresos tarjeta hoy:</strong> " + formatoMoneda(totales.tarjeta) + "</div>" +
@@ -13417,20 +13473,22 @@ against the dark UI.
           "La caja de hoy ya fue cerrada.<br>Efectivo esperado: " + formatoMoneda(cierreHoy.efectivo_esperado) +
           " · Contado: " + formatoMoneda(cierreHoy.efectivo_contado) +
           " · Diferencia: " + formatoMoneda(cierreHoy.diferencia) +
-          (cierreHoy.notas ? "<br>Notas: " + cierreHoy.notas : "");
+          (cierreHoy.notas ? "<br>Notas: " + textoSeguro(cierreHoy.notas) : "") +
+          "<br><button type=\"button\" class=\"btn-imprimir-cierre\" data-fecha=\"" + hoy + "\" style=\"margin-top:8px;\">Imprimir cierre de hoy</button>";
       } else {
         $("cierre-caja-form").classList.remove("oculto");
         $("cierre-caja-ya-hecho").classList.add("oculto");
-        // Prefill efectivo inicial con lo contado en el cierre anterior (si existe)
-        if (!$("cc-efectivo-inicial").value && cierres[0]) {
-          $("cc-efectivo-inicial").value = cierres[0].efectivo_contado;
-        }
+        // El efectivo inicial se calcula para que el "esperado" sea exactamente el saldo de la
+        // cuenta Efectivo: así el cierre compara lo CONTADO contra lo que dice la app, incluyendo
+        // consignaciones, reposiciones y gastos de caja menor.
+        var inicialCalculado = Math.round((saldoCajaMenor - cajaTotalesHoy.efectivo + cajaTotalesHoy.egresosEfectivo) * 100) / 100;
+        $("cc-efectivo-inicial").value = inicialCalculado;
         actualizarDiferenciaCierre();
       }
 
       // --- Historial de cierres ---
       var cuerpoCC = $("cuerpo-cierres-caja");
-      cuerpoCC.innerHTML = cierres.length ? "" : "<tr><td colspan=\"7\" class=\"tabla-vacia\">Sin cierres registrados.</td></tr>";
+      cuerpoCC.innerHTML = cierres.length ? "" : "<tr><td colspan=\"8\" class=\"tabla-vacia\">Sin cierres registrados.</td></tr>";
       cierres.forEach(function (c) {
         var tr = document.createElement("tr");
         tr.innerHTML =
@@ -13440,11 +13498,58 @@ against the dark UI.
           "<td class=\"celda-numero\">" + formatoMoneda(c.total_efectivo_egresos) + "</td>" +
           "<td class=\"celda-numero\">" + formatoMoneda(c.efectivo_esperado) + "</td>" +
           "<td class=\"celda-numero\">" + formatoMoneda(c.efectivo_contado) + "</td>" +
-          "<td class=\"celda-numero\" style=\"color:" + (Number(c.diferencia) === 0 ? "var(--verde)" : "var(--rojo)") + ";\">" + formatoMoneda(c.diferencia) + "</td>";
+          "<td class=\"celda-numero\" style=\"color:" + (Number(c.diferencia) === 0 ? "var(--verde)" : "var(--rojo)") + ";\">" + formatoMoneda(c.diferencia) + "</td>" +
+          "<td><button type=\"button\" class=\"secundario btn-imprimir-cierre\" data-fecha=\"" + c.fecha + "\">Imprimir</button></td>";
         cuerpoCC.appendChild(tr);
       });
     });
   }
+
+  // Reporte imprimible / PDF del cierre de caja de un día.
+  function imprimirCierreCaja(fecha) {
+    var ventanaPendiente = abrirVentanaImpresionPendiente();
+    var sig = aFechaISO(new Date(new Date(fecha + "T00:00:00").getTime() + 86400000));
+    return Promise.all([
+      restRequest("GET", "cierres_caja", { query: "select=*,usuarios(nombre)&fecha=eq." + fecha + "&limit=1" }),
+      restRequest("GET", "egresos", { query: "select=concepto,proveedor,numero_soporte,monto,categoria&estado_pago=eq.pagado&forma_pago=eq.efectivo&fecha=eq." + fecha + "&order=creado_en.asc" }),
+      obtenerDatosTaller()
+    ]).then(function (r) {
+      var c = r[0] && r[0][0];
+      if (!c) { if (ventanaPendiente) ventanaPendiente.close(); throw new Error("No hay cierre de caja para el " + fecha + "."); }
+      var gastos = r[1] || [];
+      var dif = Number(c.diferencia || 0);
+      var colorDif = Math.abs(dif) < 1 ? "#15803d" : "#b91c1c";
+      var filasG = gastos.length ? gastos.map(function (g, i) {
+        return "<tr><td>" + (i + 1) + "</td><td>" + textoSeguro(g.concepto) + "</td><td>" + textoSeguro(g.proveedor || "—") + "</td><td>" + textoSeguro(g.numero_soporte || "—") + "</td><td style=\"text-align:right;\">" + formatoMoneda(g.monto) + "</td></tr>";
+      }).join("") : "<tr><td colspan=\"5\">Sin gastos en efectivo este día.</td></tr>";
+      var contenido =
+        "<div class=\"nota-periodo\">Cierre de caja del " + formatoFechaCorta(new Date(fecha + "T00:00:00")) +
+        " · Cerrado por: " + textoSeguro((c.usuarios && c.usuarios.nombre) || "—") + "</div>" +
+        "<table><tbody>" +
+        "<tr><th>Efectivo inicial</th><td style=\"text-align:right;\">" + formatoMoneda(c.efectivo_inicial) + "</td></tr>" +
+        "<tr><th>Ingresos en efectivo</th><td style=\"text-align:right;\">" + formatoMoneda(c.total_efectivo_ingresos) + "</td></tr>" +
+        "<tr><th>Gastos en efectivo</th><td style=\"text-align:right;\">" + formatoMoneda(c.total_efectivo_egresos) + "</td></tr>" +
+        "<tr><th>Efectivo esperado</th><td style=\"text-align:right;\"><b>" + formatoMoneda(c.efectivo_esperado) + "</b></td></tr>" +
+        "<tr><th>Efectivo contado</th><td style=\"text-align:right;\"><b>" + formatoMoneda(c.efectivo_contado) + "</b></td></tr>" +
+        "<tr><th>Diferencia</th><td style=\"text-align:right;color:" + colorDif + ";\"><b>" + (Math.abs(dif) < 1 ? "Cuadra" : formatoMoneda(dif)) + "</b></td></tr>" +
+        "<tr><th>Ingresos por tarjeta (informativo)</th><td style=\"text-align:right;\">" + formatoMoneda(c.total_tarjeta_ingresos) + "</td></tr>" +
+        "<tr><th>Ingresos por transferencia (informativo)</th><td style=\"text-align:right;\">" + formatoMoneda(c.total_transferencia_ingresos) + "</td></tr>" +
+        "</tbody></table>" +
+        (c.notas ? "<h3>Notas</h3><div>" + textoSeguro(c.notas) + "</div>" : "") +
+        "<h3>Gastos en efectivo del día</h3>" +
+        "<table><thead><tr><th>#</th><th>Concepto</th><th>Proveedor</th><th>Soporte</th><th>Monto</th></tr></thead><tbody>" + filasG + "</tbody></table>" +
+        "<div class=\"firma-linea\">Cerrado por: ________________________________ &nbsp;&nbsp;&nbsp; Revisado por: ________________________________</div>";
+      abrirVentanaImpresion("Cierre de caja — " + formatoFechaCorta(new Date(fecha + "T00:00:00")), contenido, r[2] || {}, null, ventanaPendiente, { mostrarFechaImpresion: true });
+    }).catch(function (err) {
+      if (ventanaPendiente && !ventanaPendiente.closed) ventanaPendiente.close();
+      throw err;
+    });
+  }
+  $("pantalla-caja").addEventListener("click", conManejoDeErrores(function (ev) {
+    var b = ev.target.closest(".btn-imprimir-cierre");
+    if (!b) return;
+    return imprimirCierreCaja(b.getAttribute("data-fecha"));
+  }, "caja-error"));
 
   function actualizarDiferenciaCierre() {
     var el = $("cc-diferencia");
@@ -13602,6 +13707,11 @@ against the dark UI.
       mostrarError("caja-error", "Escribe el efectivo inicial y cuenta el efectivo por denominación.");
       return;
     }
+    var difCierre = contado - (inicial + cajaTotalesHoy.efectivo - cajaTotalesHoy.egresosEfectivo);
+    if (Math.abs(difCierre) >= 1 && !notas) {
+      mostrarError("caja-error", "Hay una diferencia de " + formatoMoneda(difCierre) + " entre lo contado y lo que dice la app. Explica en Notas qué pasó (ej. \"vueltas mal dadas\", \"gasto sin registrar\"). Si no sabes, escribe \"sin explicar\".");
+      return;
+    }
     var btnCerrarCaja = $("btn-cerrar-caja");
     btnCerrarCaja.disabled = true;
     btnCerrarCaja.textContent = "Cerrando…";
@@ -13667,13 +13777,16 @@ against the dark UI.
 
   function registrarComisionDatafono(idCuenta, comision, etiquetaOT) {
     if (!(comision > 0)) return Promise.resolve();
+    function falloComision(err) {
+      throw new Error("El cobro SÍ quedó registrado, pero la comisión del datáfono (" + formatoMoneda(comision) + ") no se pudo guardar. Regístrala a mano en Gastos como \"Comisión datáfono — " + etiquetaOT + "\". Detalle: " + (err && err.message ? err.message : err));
+    }
     return restRequest("POST", "egresos", {
       body: {
         fecha: aFechaISO(new Date()), proveedor: "Datáfono", concepto: "Comisión datáfono — " + etiquetaOT,
         categoria: "gasto", monto: comision, forma_pago: "transferencia", estado_pago: "pagado",
         id_cuenta: idCuenta, id_usuario_registro: usuarioActualId
       }
-    });
+    }).catch(falloComision);
   }
 
   function obtenerCuentasTaller(forzar) {
@@ -13781,16 +13894,18 @@ against the dark UI.
     if (rolActual !== "administrador" && rolActual !== "contador") { cont.textContent = "Solo visible para administración."; return Promise.resolve(); }
     var hace60 = aFechaISO(new Date(Date.now() - 60 * 86400000));
     return Promise.all([
-      restRequest("GET", "conciliaciones_cuentas", { query: "select=id_cuenta,creado_en&order=creado_en.desc&limit=200" }).catch(function () { return []; }),
-      restRequest("GET", "egresos", { query: "select=fecha,proveedor,concepto,monto,categoria,estado_pago,id_cuenta,numero_soporte&fecha=gte." + hace60 + "&order=fecha.desc&limit=1000" }).catch(function () { return []; }),
-      restRequest("GET", "ordenes_trabajo", { query: "select=numero_ot&estado=eq.cerrada&estado_pago=eq.pagada&id_cuenta=is.null&forma_pago=not.in.(credito,mixto)&fecha_cierre=gte.2026-08-26&limit=200" }).catch(function () { return []; }),
+      restRequest("GET", "conciliaciones_cuentas", { query: "select=id_cuenta,creado_en&order=creado_en.desc&limit=200" }).catch(function () { return null; }),
+      restRequest("GET", "egresos", { query: "select=fecha,proveedor,concepto,monto,categoria,estado_pago,id_cuenta,numero_soporte&fecha=gte." + hace60 + "&order=fecha.desc&limit=1000" }).catch(function () { return null; }),
+      restRequest("GET", "ordenes_trabajo", { query: "select=numero_ot&estado=eq.cerrada&estado_pago=eq.pagada&id_cuenta=is.null&forma_pago=not.in.(credito,mixto)&fecha_cierre=gte.2026-08-26&limit=200" }).catch(function () { return null; }),
       restRequest("GET", "activos_taller", { query: "select=*&limit=1" }).catch(function () { return null; }),
       obtenerCuentasTaller()
     ]).then(function (r) {
+      var fallaron = (r[0] === null || r[1] === null || r[2] === null);
       var concs = r[0] || [], egr = r[1] || [], sinCuentaOt = r[2] || [], activos = r[3], cuentas = r[4] || [];
       var hoy = Date.now();
       var items = [];
       function item(ok, titulo, detalle) { items.push({ ok: ok, titulo: titulo, detalle: detalle }); }
+      if (fallaron) item(false, "No se pudieron revisar todos los puntos", "Falló una consulta (¿conexión?). Recarga la pantalla antes de confiar en este tablero.");
 
       // 1. Cuentas sin conciliar hace más de 7 días
       var ultima = {};
