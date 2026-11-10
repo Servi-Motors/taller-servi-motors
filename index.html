@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-09-9">
+<meta name="app-build" content="2026-11-09-10">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -13505,6 +13505,23 @@ against the dark UI.
     });
   }
 
+  function tablaDenominacionesCierre(den, totalContado) {
+    if (!den || typeof den !== "object" || !Object.keys(den).length) {
+      return "<div>Este cierre se registró sin el detalle por denominación.</div>";
+    }
+    var valores = Object.keys(den).map(Number).sort(function (a, b) { return b - a; });
+    var suma = 0, piezas = 0;
+    var filas = valores.map(function (v) {
+      var cant = Number(den[String(v)]) || 0;
+      suma += v * cant; piezas += cant;
+      return "<tr><td>" + (v >= 2000 ? "Billete" : "Moneda") + " " + formatoMoneda(v) + "</td><td style=\"text-align:right;\">" + cant + "</td><td style=\"text-align:right;\">" + formatoMoneda(v * cant) + "</td></tr>";
+    }).join("");
+    var cuadra = Math.abs(suma - Number(totalContado || 0)) < 1;
+    return "<table><thead><tr><th>Denominación</th><th>Cantidad</th><th>Subtotal</th></tr></thead><tbody>" + filas +
+      "<tr style=\"font-weight:700;background:#f3f4f6;\"><td>TOTAL</td><td style=\"text-align:right;\">" + piezas + "</td><td style=\"text-align:right;\">" + formatoMoneda(suma) + "</td></tr></tbody></table>" +
+      (cuadra ? "" : "<div style=\"color:#b91c1c;\">El conteo por denominación (" + formatoMoneda(suma) + ") no coincide con el total contado (" + formatoMoneda(totalContado) + ").</div>");
+  }
+
   // Reporte imprimible / PDF del cierre de caja de un día.
   function imprimirCierreCaja(fecha) {
     var ventanaPendiente = abrirVentanaImpresionPendiente();
@@ -13536,6 +13553,7 @@ against the dark UI.
         "<tr><th>Ingresos por transferencia (informativo)</th><td style=\"text-align:right;\">" + formatoMoneda(c.total_transferencia_ingresos) + "</td></tr>" +
         "</tbody></table>" +
         (c.notas ? "<h3>Notas</h3><div>" + textoSeguro(c.notas) + "</div>" : "") +
+        "<h3>Conteo de efectivo por denominación</h3>" + tablaDenominacionesCierre(c.denominaciones, c.efectivo_contado) +
         "<h3>Gastos en efectivo del día</h3>" +
         "<table><thead><tr><th>#</th><th>Concepto</th><th>Proveedor</th><th>Soporte</th><th>Monto</th></tr></thead><tbody>" + filasG + "</tbody></table>" +
         "<div class=\"firma-linea\">Cerrado por: ________________________________ &nbsp;&nbsp;&nbsp; Revisado por: ________________________________</div>";
@@ -13715,8 +13733,14 @@ against the dark UI.
     var btnCerrarCaja = $("btn-cerrar-caja");
     btnCerrarCaja.disabled = true;
     btnCerrarCaja.textContent = "Cerrando…";
+    var denominacionesContadas = {};
+    Array.prototype.forEach.call(document.querySelectorAll("#tabla-denominaciones .cc-denom-cantidad"), function (inp) {
+      var cant = parseInt(inp.value, 10) || 0;
+      if (cant > 0) denominacionesContadas[inp.getAttribute("data-valor")] = cant;
+    });
     return restRequest("POST", "cierres_caja", {
       body: {
+        denominaciones: denominacionesContadas,
         fecha: aFechaISO(new Date()),
         efectivo_inicial: inicial,
         total_efectivo_ingresos: cajaTotalesHoy.efectivo,
