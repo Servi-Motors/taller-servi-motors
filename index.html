@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-10-4">
+<meta name="app-build" content="2026-11-10-5">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -2629,6 +2629,25 @@ against the dark UI.
             <label for="cot-item-buscar">Servicio, repuesto o insumo (escribe y toca el resultado que aparece debajo)</label>
             <input id="cot-item-buscar" type="text" autocomplete="off" placeholder="Escribe 2 o 3 letras: amortig, aceite, pastillas…">
             <div id="cot-item-resultados" class="cot-resultados oculto"></div>
+            <div id="cot-nuevo-item" class="oculto tarjeta" style="margin:6px 0;">
+              <h3>Crear ítem nuevo y agregarlo</h3>
+              <div class="nota-ayuda">Queda guardado en el catálogo para usarlo en otras cotizaciones y órdenes. Se agrega con la cantidad que escribas más abajo.</div>
+              <label for="cot-nuevo-tipo">Tipo</label>
+              <select id="cot-nuevo-tipo">
+                <option value="repuesto">Repuesto</option>
+                <option value="insumo">Insumo</option>
+                <option value="trabajo_externo">Trabajo externo</option>
+                <option value="mano_obra">Mano de obra (servicio)</option>
+              </select>
+              <label for="cot-nuevo-nombre">Nombre</label>
+              <input id="cot-nuevo-nombre" type="text" maxlength="120">
+              <div id="cot-nuevo-costo-grupo">
+                <label for="cot-nuevo-costo">Costo de UNA unidad (lo que te cuesta a ti, sin ganancia)</label>
+                <input id="cot-nuevo-costo" type="number" min="0" step="1">
+              </div>
+              <button type="button" id="btn-cot-crear-item">Crear y agregar a la cotización</button>
+              <button type="button" class="secundario" id="btn-cot-cancelar-nuevo">Cancelar</button>
+            </div>
             <div id="cot-item-vista-previa" class="nota-ayuda"></div>
             <label for="cot-item-costo">Costo de UNA unidad del repuesto o insumo (opcional: si lo dejas vacío se usa el del catálogo). Si te cuesta $330.000 el par, escribe 165000 y cantidad 2.</label>
             <input id="cot-item-costo" type="number" min="0" step="1" placeholder="Lo que te cuesta a ti, sin ganancia">
@@ -13975,6 +13994,7 @@ against the dark UI.
     $("cot-item-buscar").value = "";
     $("cot-item-costo").value = "";
     $("cot-item-resultados").classList.add("oculto");
+    $("cot-nuevo-item").classList.add("oculto");
     $("cot-vista-editor").classList.add("oculto");
     $("cot-vista-lista").classList.remove("oculto");
   }
@@ -14136,7 +14156,8 @@ against the dark UI.
         var detalle = (ETIQUETAS_TIPO_LINEA_COT[it.tipo] || it.tipo) + " · " + (it.tipo === "mano_obra" ? "hora " : "precio ") + formatoMoneda(it.precio_sugerido) +
           (it.tipo !== "mano_obra" && Number(it.costo) > 0 ? " · costo " + formatoMoneda(it.costo) : "");
         return "<button type=\"button\" class=\"cot-resultado\" data-id=\"" + it.id_item + "\">" + textoSeguro(it.nombre) + "<small>" + textoSeguro(detalle) + "</small></button>";
-      }).join("") : "<div class=\"cot-resultado\">Sin resultados. Prueba con otra palabra (ej. solo \"amortig\").</div>";
+      }).join("") : "<div class=\"cot-resultado\">Sin resultados. Prueba con otra palabra o crea el ítem nuevo.</div>";
+      cont.innerHTML += "<button type=\"button\" class=\"cot-resultado cot-resultado-nuevo\" style=\"font-weight:700;\">➕ ¿No está? Crear «" + textoSeguro(texto.trim()) + "» como ítem nuevo</button>";
       cont.classList.remove("oculto");
     }).catch(function (err) { console.error(err); });
   }
@@ -14148,6 +14169,16 @@ against the dark UI.
   });
   $("cot-item-buscar").addEventListener("focus", mostrarResultadosItemCotizacion);
   $("cot-item-resultados").addEventListener("click", function (ev) {
+    if (ev.target.closest(".cot-resultado-nuevo")) {
+      var t = $("cot-item-buscar").value.trim();
+      $("cot-nuevo-nombre").value = t.charAt(0).toUpperCase() + t.slice(1);
+      $("cot-nuevo-costo").value = "";
+      $("cot-nuevo-tipo").value = "repuesto";
+      $("cot-nuevo-costo-grupo").classList.remove("oculto");
+      $("cot-item-resultados").classList.add("oculto");
+      $("cot-nuevo-item").classList.remove("oculto");
+      return;
+    }
     var b = ev.target.closest(".cot-resultado[data-id]");
     if (!b) return;
     var it = catalogoCotizacion.filter(function (x) { return x.id_item === b.getAttribute("data-id"); })[0];
@@ -14157,6 +14188,48 @@ against the dark UI.
     $("cot-item-resultados").classList.add("oculto");
     actualizarVistaPreviaItemCotizacion();
   });
+
+  $("cot-nuevo-tipo").addEventListener("change", function () {
+    $("cot-nuevo-costo-grupo").classList.toggle("oculto", $("cot-nuevo-tipo").value === "mano_obra");
+  });
+  $("btn-cot-cancelar-nuevo").addEventListener("click", function () { $("cot-nuevo-item").classList.add("oculto"); });
+
+  $("btn-cot-crear-item").addEventListener("click", conManejoDeErrores(conBotonOcupado($("btn-cot-crear-item"), "Creando…", function () {
+    ocultarError("cotizaciones-error");
+    var tipo = $("cot-nuevo-tipo").value;
+    var nombre = $("cot-nuevo-nombre").value.trim().replace(/\s+/g, " ");
+    var cant = parseFloat($("cot-item-cantidad").value);
+    if (nombre.length < 3) { mostrarError("cotizaciones-error", "Escribe el nombre del ítem (mínimo 3 letras)."); return; }
+    if (!(cant > 0)) { mostrarError("cotizaciones-error", "Escribe primero una cantidad válida (campo Cantidad, más abajo)."); return; }
+    var costo = parseFloat($("cot-nuevo-costo").value);
+    if (tipo !== "mano_obra" && !(costo > 0)) { mostrarError("cotizaciones-error", "Escribe el costo de una unidad (mayor a 0) para calcular el precio."); return; }
+    // Evita duplicados: si ya existe uno igual (mismo nombre y tipo) se usa ese.
+    var clave = normalizarTextoFijo(nombre);
+    var existente = catalogoCotizacion.filter(function (it) { return it.tipo === tipo && normalizarTextoFijo(it.nombre) === clave; })[0];
+    var pedidoItem;
+    if (existente) {
+      pedidoItem = Promise.resolve(existente);
+    } else {
+      var pedidoCosto = tipo === "mano_obra"
+        ? restRequest("GET", "parametros_taller", { query: "select=tarifa_hora_tecnico_base&id=eq.1" }).then(function (f) { return Number(f && f[0] && f[0].tarifa_hora_tecnico_base) || 0; })
+        : Promise.resolve(costo);
+      pedidoItem = pedidoCosto.then(function (costoItem) {
+        return restRequest("POST", "items", { body: { tipo: tipo, nombre: nombre, costo: costoItem } });
+      }).then(function (filas) {
+        var it = filas[0];
+        it._busqueda = normalizarTextoFijo(it.nombre + " " + (ETIQUETAS_TIPO_LINEA_COT[it.tipo] || it.tipo));
+        catalogoCotizacion.push(it);
+        return it;
+      });
+    }
+    return pedidoItem.then(function (it) {
+      cotItemElegido = it;
+      $("cot-item-buscar").value = it.nombre;
+      $("cot-item-costo").value = tipo === "mano_obra" ? "" : String(costo);
+      $("cot-nuevo-item").classList.add("oculto");
+      $("btn-cot-agregar-linea").click(); // agrega la línea con el costo escrito
+    });
+  }), "cotizaciones-error"));
 
   $("btn-cot-agregar-linea").addEventListener("click", conManejoDeErrores(conBotonOcupado($("btn-cot-agregar-linea"), "Agregando…", function () {
     ocultarError("cotizaciones-error");
