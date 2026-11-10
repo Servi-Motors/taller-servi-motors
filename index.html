@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-10-3">
+<meta name="app-build" content="2026-11-10-4">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -2630,7 +2630,7 @@ against the dark UI.
             <input id="cot-item-buscar" type="text" autocomplete="off" placeholder="Escribe 2 o 3 letras: amortig, aceite, pastillas…">
             <div id="cot-item-resultados" class="cot-resultados oculto"></div>
             <div id="cot-item-vista-previa" class="nota-ayuda"></div>
-            <label for="cot-item-costo">Costo unitario del repuesto o insumo (opcional: si lo dejas vacío se usa el del catálogo)</label>
+            <label for="cot-item-costo">Costo de UNA unidad del repuesto o insumo (opcional: si lo dejas vacío se usa el del catálogo). Si te cuesta $330.000 el par, escribe 165000 y cantidad 2.</label>
             <input id="cot-item-costo" type="number" min="0" step="1" placeholder="Lo que te cuesta a ti, sin ganancia">
             <label for="cot-item-cantidad">Cantidad (en mano de obra, horas: 1.5 = 1 h 30 min)</label>
             <input id="cot-item-cantidad" type="number" min="0.01" step="0.01" value="1">
@@ -13881,6 +13881,16 @@ against the dark UI.
   var ETIQUETAS_ESTADO_COTIZACION = { borrador: "Borrador", enviada: "Enviada al cliente", aceptada: "Aceptada", rechazada: "Rechazada", convertida: "Convertida en orden", vencida: "Vencida" };
   var ETIQUETAS_TIPO_LINEA_COT = { mano_obra: "Mano de obra", repuesto: "Repuesto", insumo: "Insumo", trabajo_externo: "Trabajo externo" };
 
+  // Precio unitario al cliente en una COTIZACIÓN: el margen depende del costo TOTAL de la línea
+  // (costo unitario × cantidad): hasta $250.000 se divide por 0,70 (30% de utilidad); por encima, por 0,80 (20%).
+  // Ej.: amortiguadores a $165.000 c/u × 2 = $330.000 → 20% de margen → $206.250 c/u.
+  function precioUnitarioCotizacion(costoUnitario, cantidad) {
+    var c = Number(costoUnitario) || 0;
+    if (!(c > 0)) return 0;
+    var totalCosto = c * (Number(cantidad) || 1);
+    return Math.round(c / (totalCosto <= 250000 ? 0.70 : 0.80) * 100) / 100;
+  }
+
   function numeroCotizacionTexto(n) { return "COT-" + String(n).padStart(3, "0"); }
 
   function estadoVisibleCotizacion(c) {
@@ -14098,7 +14108,7 @@ against the dark UI.
     el.textContent = item.tipo === "mano_obra"
       ? "Valor hora: " + formatoMoneda(item.precio_sugerido)
       : (Number(item.costo) > 0
-          ? "Costo en catálogo: " + formatoMoneda(item.costo) + " → precio calculado al cliente: " + formatoMoneda(item.precio_sugerido) + ". Si el costo real es otro, escríbelo abajo."
+          ? "Costo en catálogo: " + formatoMoneda(item.costo) + " c/u. El precio se calcula con tu margen según el costo total de la línea (costo × cantidad): hasta $250.000 → 30%; más de $250.000 → 20%. Si el costo real es otro, escríbelo abajo."
           : "Este ítem no tiene costo en el catálogo: escribe abajo el costo unitario para calcular el precio.");
   }
 
@@ -14161,13 +14171,14 @@ against the dark UI.
     var id = cotizacionActual.id_cotizacion;
     var precio = Number(item.precio_sugerido) || 0;
     var costo = Number(item.costo) || 0;
+    if (item.tipo !== "mano_obra" && costo > 0) precio = precioUnitarioCotizacion(costo, cant);
     var costoTexto = $("cot-item-costo").value;
     if (costoTexto !== "") {
       if (item.tipo === "mano_obra") { mostrarError("cotizaciones-error", "El valor de la mano de obra lo define Configuración; no se edita el costo aquí."); return; }
       var costoDigitado = parseFloat(costoTexto);
       if (!(costoDigitado >= 0)) { mostrarError("cotizaciones-error", "El costo debe ser un número válido."); return; }
       costo = costoDigitado;
-      precio = precioCalculadoDesdeCosto(costo); // mismo cálculo de la base de datos al crear un ítem
+      precio = precioUnitarioCotizacion(costo, cant);
     }
     if (item.tipo !== "mano_obra" && !(precio > 0)) {
       mostrarError("cotizaciones-error", "Este ítem no tiene costo ni precio en el catálogo. Escribe el costo unitario para calcular el precio.");
@@ -14203,14 +14214,21 @@ against the dark UI.
       if (t === null) return;
       var nueva = parseFloat(String(t).replace(",", "."));
       if (!(nueva > 0) || nueva > 100000) { mostrarError("cotizaciones-error", "Cantidad no válida."); return; }
-      return restRequest("PATCH", "cotizacion_detalle", { query: "id_detalle=eq." + linea.id_detalle, body: { cantidad: nueva } }).then(function () { return abrirEditorCotizacion(id); });
+      var cuerpoCant = { cantidad: nueva };
+      if (tipo !== "mano_obra" && Number(linea.costo_interno) > 0) {
+        var sugNuevo = precioUnitarioCotizacion(linea.costo_interno, nueva);
+        var eraCalculado = Math.abs(Number(linea.precio_aplicado_cliente) - Number(linea.precio_sugerido)) < 0.5;
+        cuerpoCant.precio_sugerido = sugNuevo;
+        if (eraCalculado) cuerpoCant.precio_aplicado_cliente = sugNuevo; // si el asesor ajustó el precio a mano, se respeta
+      }
+      return restRequest("PATCH", "cotizacion_detalle", { query: "id_detalle=eq." + linea.id_detalle, body: cuerpoCant }).then(function () { return abrirEditorCotizacion(id); });
     }
     if (accion === "costo") {
       var tc = window.prompt("Nuevo costo unitario de \"" + (linea.items ? linea.items.nombre : "") + "\" (lo que te cuesta a ti). El precio al cliente se recalcula solo con tu margen:", String(Number(linea.costo_interno)));
       if (tc === null) return;
       var nuevoCosto = parseFloat(String(tc).replace(/[^0-9.]/g, ""));
       if (!(nuevoCosto >= 0)) { mostrarError("cotizaciones-error", "El costo debe ser un número válido."); return; }
-      var precioNuevo = precioCalculadoDesdeCosto(nuevoCosto);
+      var precioNuevo = precioUnitarioCotizacion(nuevoCosto, linea.cantidad);
       return restRequest("PATCH", "cotizacion_detalle", { query: "id_detalle=eq." + linea.id_detalle, body: { costo_interno: nuevoCosto, precio_sugerido: precioNuevo, precio_aplicado_cliente: precioNuevo } }).then(function () { return abrirEditorCotizacion(id); });
     }
     if (accion === "precio") {
