@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-10-2">
+<meta name="app-build" content="2026-11-10-3">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -2626,9 +2626,9 @@ against the dark UI.
 
           <div id="cot-form-agregar">
             <h3>Agregar línea</h3>
-            <label for="cot-item-buscar">Servicio, repuesto o insumo (escribe y elige de la lista)</label>
-            <input id="cot-item-buscar" type="text" list="lista-items-cotizacion" autocomplete="off" placeholder="Ej. Cambio de aceite, Pastillas de freno…">
-            <datalist id="lista-items-cotizacion"></datalist>
+            <label for="cot-item-buscar">Servicio, repuesto o insumo (escribe y toca el resultado que aparece debajo)</label>
+            <input id="cot-item-buscar" type="text" autocomplete="off" placeholder="Escribe 2 o 3 letras: amortig, aceite, pastillas…">
+            <div id="cot-item-resultados" class="cot-resultados oculto"></div>
             <div id="cot-item-vista-previa" class="nota-ayuda"></div>
             <label for="cot-item-costo">Costo unitario del repuesto o insumo (opcional: si lo dejas vacío se usa el del catálogo)</label>
             <input id="cot-item-costo" type="number" min="0" step="1" placeholder="Lo que te cuesta a ti, sin ganancia">
@@ -3584,6 +3584,10 @@ against the dark UI.
     .kpi-numero { font-size: 26px; }
     #pantalla-inicio .grid-graficos { grid-template-columns: 1fr 1fr; }
   }
+  .cot-resultados { max-height: 260px; overflow-y: auto; border: 1px solid #9ca3af; border-radius: 8px; background: var(--tarjeta-bg, #fff); margin: 2px 0 10px; -webkit-overflow-scrolling: touch; }
+  .cot-resultado { display: block; width: 100%; text-align: left; background: transparent; color: inherit; border: none; border-bottom: 1px solid #e5e7eb; border-radius: 0; padding: 10px 12px; font-size: 14px; cursor: pointer; margin: 0; }
+  .cot-resultado small { display: block; opacity: 0.75; font-size: 12px; }
+  .cot-resultado:active { background: rgba(37, 99, 235, 0.15); }
   .alertas-inicio { display: flex; flex-wrap: wrap; gap: 8px; }
   .alertas-inicio .chip-resumen { cursor: pointer; }
   .tarjeta-kpi { background: var(--tarjeta-bg); border-radius: 12px; padding: 11px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 4px solid transparent; transition: border-color 0.15s; }
@@ -13957,6 +13961,10 @@ against the dark UI.
 
   function cerrarEditorCotizacion() {
     cotizacionActual = null;
+    cotItemElegido = null;
+    $("cot-item-buscar").value = "";
+    $("cot-item-costo").value = "";
+    $("cot-item-resultados").classList.add("oculto");
     $("cot-vista-editor").classList.add("oculto");
     $("cot-vista-lista").classList.remove("oculto");
   }
@@ -13968,16 +13976,7 @@ against the dark UI.
       catalogoCotizacion = (filas || []).filter(function (it) {
         return !/control maestro|sin detalle|ajuste de clasificaci/i.test(it.nombre || "");
       });
-      catalogoCotizacionPorTexto = {};
-      var lista = $("lista-items-cotizacion");
-      lista.innerHTML = "";
-      catalogoCotizacion.forEach(function (it) {
-        var texto = it.nombre + " · " + (ETIQUETAS_TIPO_LINEA_COT[it.tipo] || it.tipo);
-        catalogoCotizacionPorTexto[texto] = it;
-        var opt = document.createElement("option");
-        opt.value = texto;
-        lista.appendChild(opt);
-      });
+      catalogoCotizacion.forEach(function (it) { it._busqueda = normalizarTextoFijo(it.nombre + " " + (ETIQUETAS_TIPO_LINEA_COT[it.tipo] || it.tipo)); });
     });
   }
 
@@ -13997,10 +13996,11 @@ against the dark UI.
       cotizacionActual = cot;
       var sel = $("cot-convertir-tecnico");
       sel.innerHTML = (r[3] || []).map(function (u) { return "<option value=\"" + u.id_usuario + "\">" + textoSeguro(u.nombre) + "</option>"; }).join("");
+      var yaEstabaAbierto = !$("cot-vista-editor").classList.contains("oculto");
       $("cot-vista-lista").classList.add("oculto");
       $("cot-vista-editor").classList.remove("oculto");
       renderizarEditorCotizacion();
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      if (!yaEstabaAbierto) window.scrollTo({ top: 0, behavior: "smooth" }); // al refrescar tras agregar/editar una línea no se salta al inicio
     });
   }
 
@@ -14025,7 +14025,7 @@ against the dark UI.
         : "";
       return "<tr><td>" + (ETIQUETAS_TIPO_LINEA_COT[tipo] || tipo) + "</td><td>" + textoSeguro(l.items ? l.items.nombre : "—") +
         (aviso ? "<br><span class=\"aviso-margen\">⚠ " + aviso + "</span>" : "") + "</td>" +
-        "<td>" + Number(l.cantidad) + "</td><td class=\"celda-numero\">" + (tipo === "mano_obra" ? "—" : formatoMoneda(l.costo_interno)) + "</td><td class=\"celda-numero\">" + formatoMoneda(l.precio_aplicado_cliente) + "</td>" +
+        "<td>" + Number(l.cantidad) + "</td><td class=\"celda-numero\">" + ((tipo === "mano_obra" || l.costo_interno === null) ? "—" : formatoMoneda(l.costo_interno)) + "</td><td class=\"celda-numero\">" + formatoMoneda(l.precio_aplicado_cliente) + "</td>" +
         "<td class=\"celda-numero\">" + formatoMoneda(Number(l.cantidad) * Number(l.precio_aplicado_cliente)) + "</td><td>" + acciones + "</td></tr>";
     }).join("") : "<tr><td colspan=\"7\" class=\"tabla-vacia\">Todavía no hay líneas. Agrega servicios, repuestos o insumos.</td></tr>";
 
@@ -14088,21 +14088,75 @@ against the dark UI.
       .then(function () { return abrirEditorCotizacion(id); });
   }, "cotizaciones-error"));
 
+  // Buscador propio (el <datalist> del navegador no funciona bien en las tablets del taller).
+  var cotItemElegido = null;
+
   function actualizarVistaPreviaItemCotizacion() {
-    var item = catalogoCotizacionPorTexto[$("cot-item-buscar").value];
+    var item = cotItemElegido;
     var el = $("cot-item-vista-previa");
     if (!item) { el.textContent = ""; return; }
     el.textContent = item.tipo === "mano_obra"
       ? "Valor hora: " + formatoMoneda(item.precio_sugerido)
-      : "Costo en catálogo: " + formatoMoneda(item.costo) + " → precio calculado al cliente: " + formatoMoneda(item.precio_sugerido) + ". Si el costo real es otro, escríbelo abajo.";
+      : (Number(item.costo) > 0
+          ? "Costo en catálogo: " + formatoMoneda(item.costo) + " → precio calculado al cliente: " + formatoMoneda(item.precio_sugerido) + ". Si el costo real es otro, escríbelo abajo."
+          : "Este ítem no tiene costo en el catálogo: escribe abajo el costo unitario para calcular el precio.");
   }
-  $("cot-item-buscar").addEventListener("input", actualizarVistaPreviaItemCotizacion);
+
+  function buscarItemsCotizacion(texto, max) {
+    var palabras = normalizarTextoFijo(texto).split(" ").filter(Boolean);
+    if (!palabras.length) return [];
+    var res = [];
+    for (var i = 0; i < catalogoCotizacion.length && res.length < max; i++) {
+      var it = catalogoCotizacion[i];
+      var ok = true;
+      for (var j = 0; j < palabras.length; j++) { if (it._busqueda.indexOf(palabras[j]) === -1) { ok = false; break; } }
+      if (ok) res.push(it);
+    }
+    return res;
+  }
+
+  function mostrarResultadosItemCotizacion() {
+    var cont = $("cot-item-resultados");
+    var texto = $("cot-item-buscar").value;
+    if (!texto.trim()) { cont.classList.add("oculto"); cont.innerHTML = ""; return; }
+    cargarCatalogoCotizacion().then(function () {
+      if ($("cot-item-buscar").value !== texto) return;
+      var res = buscarItemsCotizacion(texto, 40);
+      cont.innerHTML = res.length ? res.map(function (it) {
+        var detalle = (ETIQUETAS_TIPO_LINEA_COT[it.tipo] || it.tipo) + " · " + (it.tipo === "mano_obra" ? "hora " : "precio ") + formatoMoneda(it.precio_sugerido) +
+          (it.tipo !== "mano_obra" && Number(it.costo) > 0 ? " · costo " + formatoMoneda(it.costo) : "");
+        return "<button type=\"button\" class=\"cot-resultado\" data-id=\"" + it.id_item + "\">" + textoSeguro(it.nombre) + "<small>" + textoSeguro(detalle) + "</small></button>";
+      }).join("") : "<div class=\"cot-resultado\">Sin resultados. Prueba con otra palabra (ej. solo \"amortig\").</div>";
+      cont.classList.remove("oculto");
+    }).catch(function (err) { console.error(err); });
+  }
+
+  $("cot-item-buscar").addEventListener("input", function () {
+    cotItemElegido = null; // lo escrito cambió: hay que volver a elegir
+    actualizarVistaPreviaItemCotizacion();
+    mostrarResultadosItemCotizacion();
+  });
+  $("cot-item-buscar").addEventListener("focus", mostrarResultadosItemCotizacion);
+  $("cot-item-resultados").addEventListener("click", function (ev) {
+    var b = ev.target.closest(".cot-resultado[data-id]");
+    if (!b) return;
+    var it = catalogoCotizacion.filter(function (x) { return x.id_item === b.getAttribute("data-id"); })[0];
+    if (!it) return;
+    cotItemElegido = it;
+    $("cot-item-buscar").value = it.nombre;
+    $("cot-item-resultados").classList.add("oculto");
+    actualizarVistaPreviaItemCotizacion();
+  });
 
   $("btn-cot-agregar-linea").addEventListener("click", conManejoDeErrores(conBotonOcupado($("btn-cot-agregar-linea"), "Agregando…", function () {
     ocultarError("cotizaciones-error");
-    var item = catalogoCotizacionPorTexto[$("cot-item-buscar").value];
+    var item = cotItemElegido;
+    if (!item) {
+      var coincidencias = buscarItemsCotizacion($("cot-item-buscar").value, 2);
+      if (coincidencias.length === 1) item = coincidencias[0];
+    }
     var cant = parseFloat($("cot-item-cantidad").value);
-    if (!item) { mostrarError("cotizaciones-error", "Elige el servicio o repuesto de la lista (escribe y selecciona una opción)."); return; }
+    if (!item) { mostrarError("cotizaciones-error", "Escribe unas letras y toca el resultado que aparece debajo del campo para elegir el servicio o repuesto."); return; }
     if (!(cant > 0) || cant > 100000) { mostrarError("cotizaciones-error", "Escribe una cantidad válida mayor a 0."); return; }
     var id = cotizacionActual.id_cotizacion;
     var precio = Number(item.precio_sugerido) || 0;
@@ -14115,10 +14169,16 @@ against the dark UI.
       costo = costoDigitado;
       precio = precioCalculadoDesdeCosto(costo); // mismo cálculo de la base de datos al crear un ítem
     }
+    if (item.tipo !== "mano_obra" && !(precio > 0)) {
+      mostrarError("cotizaciones-error", "Este ítem no tiene costo ni precio en el catálogo. Escribe el costo unitario para calcular el precio.");
+      return;
+    }
     return restRequest("POST", "cotizacion_detalle", {
       body: { id_cotizacion: id, id_item: item.id_item, cantidad: cant, costo_interno: costo, precio_sugerido: precio, precio_aplicado_cliente: precio }
     }).then(function () {
       $("cot-item-buscar").value = "";
+      cotItemElegido = null;
+      $("cot-item-resultados").classList.add("oculto");
       $("cot-item-costo").value = "";
       $("cot-item-vista-previa").textContent = "";
       $("cot-item-cantidad").value = "1";
