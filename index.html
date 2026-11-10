@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-09-10">
+<meta name="app-build" content="2026-11-10-1">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -240,6 +240,7 @@ against the dark UI.
 
     <div class="nav-seccion">Gestión</div>
     <a href="#" class="nav-link" data-pagina="app">🧾 Órdenes</a>
+    <a href="#" class="nav-link oculto" id="nav-cotizaciones" data-pagina="cotizaciones">📝 Cotizaciones</a>
     <a href="#" class="nav-link oculto" id="nav-agenda" data-pagina="agenda">📅 Agenda</a>
     <a href="#" class="nav-link oculto" id="nav-clientes" data-pagina="clientes">🙍 Clientes</a>
     <a href="#" class="nav-link oculto" id="nav-vehiculos" data-pagina="vehiculos">🚗 Vehículos</a>
@@ -410,6 +411,7 @@ against the dark UI.
 
       <h1>Órdenes</h1>
       <button type="button" class="boton-agregar" id="btn-nueva-orden">+ Nueva orden</button>
+      <button type="button" class="boton-agregar secundario oculto" id="btn-nueva-cotizacion">+ Nueva cotización (sin ingreso al taller)</button>
       <div id="tablero-error" class="mensaje-error"></div>
       <div id="tarjeta-tablero-ordenes" class="tarjeta">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
@@ -2582,6 +2584,84 @@ against the dark UI.
       </div>
     </section>
 
+    <section id="pantalla-cotizaciones" class="pagina pagina-ancha oculto">
+      <h1>Cotizaciones</h1>
+      <div class="nota-ayuda">Cotiza sin que el vehículo entre al taller: no genera orden de trabajo, no gasta número de OT, no aparece en el tablero ni descuenta inventario. Cuando el cliente acepta, la conviertes en orden con un botón.</div>
+      <div id="cotizaciones-error" class="mensaje-error"></div>
+
+      <div id="cot-vista-lista">
+        <div class="tarjeta">
+          <button type="button" id="btn-cot-nueva">+ Nueva cotización</button>
+          <label for="cot-filtro-estado">Mostrar</label>
+          <select id="cot-filtro-estado">
+            <option value="activas">Activas (borrador, enviadas y aceptadas)</option>
+            <option value="todas">Todas</option>
+            <option value="vencida">Vencidas</option>
+            <option value="rechazada">Rechazadas</option>
+            <option value="convertida">Convertidas en orden</option>
+          </select>
+          <div class="tabla-scroll">
+            <table class="tabla-datos" id="tabla-cotizaciones">
+              <thead><tr><th>N.º</th><th>Fecha</th><th>Cliente</th><th>Vehículo</th><th>Total</th><th>Vence</th><th>Estado</th><th></th></tr></thead>
+              <tbody id="cuerpo-cotizaciones"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="cot-vista-editor" class="oculto">
+        <div class="tarjeta">
+          <button type="button" class="secundario" id="btn-cot-volver" style="width:auto;">← Volver a la lista</button>
+          <h2 id="cot-titulo"></h2>
+          <div id="cot-info" class="info-vehiculo"></div>
+
+          <h3>Líneas de la cotización</h3>
+          <div class="tabla-scroll">
+            <table class="tabla-datos" id="tabla-cot-lineas">
+              <thead><tr><th>Tipo</th><th>Descripción</th><th>Cant.</th><th>Valor unitario</th><th>Total</th><th></th></tr></thead>
+              <tbody id="cuerpo-cot-lineas"></tbody>
+            </table>
+          </div>
+          <div id="cot-totales" class="info-vehiculo" style="text-align:right;"></div>
+
+          <div id="cot-form-agregar">
+            <h3>Agregar línea</h3>
+            <label for="cot-item-buscar">Servicio, repuesto o insumo (escribe y elige de la lista)</label>
+            <input id="cot-item-buscar" type="text" list="lista-items-cotizacion" autocomplete="off" placeholder="Ej. Cambio de aceite, Pastillas de freno…">
+            <datalist id="lista-items-cotizacion"></datalist>
+            <label for="cot-item-cantidad">Cantidad (en mano de obra, horas: 1.5 = 1 h 30 min)</label>
+            <input id="cot-item-cantidad" type="number" min="0.01" step="0.01" value="1">
+            <button type="button" id="btn-cot-agregar-linea">Agregar a la cotización</button>
+          </div>
+
+          <h3>Datos de la cotización</h3>
+          <div class="fila-2col">
+            <div>
+              <label for="cot-vigencia">Válida hasta</label>
+              <input id="cot-vigencia" type="date">
+            </div>
+            <div>
+              <label for="cot-notas">Notas para el cliente (opcional)</label>
+              <input id="cot-notas" type="text" maxlength="500" placeholder="Ej. Incluye revisión de frenos">
+            </div>
+          </div>
+          <button type="button" class="secundario" id="btn-cot-guardar-datos">Guardar datos</button>
+
+          <div id="cot-acciones" class="agenda-controles" style="margin-top:12px;"></div>
+
+          <div id="cot-bloque-convertir" class="oculto" style="margin-top:12px;">
+            <h3>El cliente acepta y trae el vehículo</h3>
+            <label for="cot-convertir-tecnico">Técnico responsable</label>
+            <select id="cot-convertir-tecnico"></select>
+            <label for="cot-convertir-km">Kilometraje al ingresar (opcional)</label>
+            <input id="cot-convertir-km" type="number" min="0">
+            <button type="button" id="btn-cot-convertir">Convertir en orden de trabajo</button>
+            <div class="nota-ayuda">Crea la orden con estas mismas líneas. Los precios quedan pendientes de autorización del cliente, como en cualquier orden.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section id="pantalla-cuentas" class="pagina pagina-ancha oculto">
       <h1>Cuentas por cobrar y por pagar</h1>
       <div class="nota-ayuda">Aquí aparecen las facturas vendidas a crédito y las compras a proveedores hechas a crédito. Puedes ir abonando de a poco hasta saldarlas.</div>
@@ -4321,6 +4401,8 @@ against the dark UI.
         $("nav-proveedores").classList.toggle("oculto", !puedeVerInventario);
         $("nav-ordenes-compra").classList.toggle("oculto", !puedeVerInventario);
         $("nav-comunicaciones").classList.toggle("oculto", !puedeVerInventario);
+        $("nav-cotizaciones").classList.toggle("oculto", !puedeVerInventario);
+        $("btn-nueva-cotizacion").classList.toggle("oculto", rolActual !== "administrador" && rolActual !== "asesor");
         $("nav-personal").classList.toggle("oculto", rolActual !== "administrador");
         aplicarRestriccionesTecnicoItems();
         return restRequest("GET", "parametros_taller", { query: "select=prefijo_ot,prefijo_factura,enlace_resenas&limit=1" });
@@ -4356,9 +4438,9 @@ against the dark UI.
   // =====================================================================
   // NAVEGACIÓN (menú lateral)
   // =====================================================================
-  var PAGINAS = ["inicio", "app", "agenda", "clientes", "vehiculos", "historial", "proveedores", "ordenescompra", "personal", "inventario", "activos", "servicios", "combos", "contabilidad", "facturacion", "caja", "cuentas", "egreso", "configuracion", "nomina", "reportes", "comunicaciones"];
-  var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", agenda: "Agenda", clientes: "Clientes", vehiculos: "Vehículos", historial: "Historial del vehículo", proveedores: "Proveedores", personal: "Personal", inventario: "Inventario", activos: "Activos y herramientas", servicios: "Servicios", combos: "Combos de servicio", contabilidad: "Contabilidad", facturacion: "Facturación", caja: "Caja", cuentas: "Cuentas por cobrar/pagar", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes", comunicaciones: "Comunicaciones" };
-  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", agenda: "agenda-error", clientes: "clientes-error", vehiculos: "vehiculos-error", historial: "historial-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", activos: "activos-error", servicios: "servicios-error", combos: "combos-error", contabilidad: "contab-horas-error", facturacion: "facturacion-error", caja: "caja-error", cuentas: "cuentas-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error", comunicaciones: "comunicaciones-error", ordenescompra: "ordenescompra-error" };
+  var PAGINAS = ["inicio", "app", "agenda", "clientes", "vehiculos", "historial", "proveedores", "ordenescompra", "personal", "inventario", "activos", "servicios", "combos", "contabilidad", "facturacion", "caja", "cuentas", "egreso", "configuracion", "nomina", "reportes", "comunicaciones", "cotizaciones"];
+  var TITULOS_PAGINA = { inicio: "Inicio", app: "Órdenes", agenda: "Agenda", clientes: "Clientes", vehiculos: "Vehículos", historial: "Historial del vehículo", proveedores: "Proveedores", personal: "Personal", inventario: "Inventario", activos: "Activos y herramientas", servicios: "Servicios", combos: "Combos de servicio", contabilidad: "Contabilidad", facturacion: "Facturación", caja: "Caja", cuentas: "Cuentas por cobrar/pagar", egreso: "Registrar gasto", configuracion: "Configuración del taller", nomina: "Nómina", reportes: "Reportes", comunicaciones: "Comunicaciones", cotizaciones: "Cotizaciones" };
+  var ERROR_POR_PAGINA = { inicio: "inicio-error", app: "tablero-error", agenda: "agenda-error", clientes: "clientes-error", vehiculos: "vehiculos-error", historial: "historial-error", proveedores: "proveedores-error", personal: "personal-error", inventario: "stock-error", activos: "activos-error", servicios: "servicios-error", combos: "combos-error", contabilidad: "contab-horas-error", facturacion: "facturacion-error", caja: "caja-error", cuentas: "cuentas-error", egreso: "egreso-error", configuracion: "config-error", nomina: "nomina-error", reportes: "reportes-error", comunicaciones: "comunicaciones-error", ordenescompra: "ordenescompra-error", cotizaciones: "cotizaciones-error" };
 
   function mostrarPagina(nombre) {
     if (PAGINAS.indexOf(nombre) === -1) nombre = "inicio";
@@ -4440,6 +4522,7 @@ against the dark UI.
     else if (nombre === "nomina") promesa = cargarNomina();
     else if (nombre === "reportes") promesa = cargarReportes();
     else if (nombre === "comunicaciones") promesa = cargarComunicaciones();
+    else if (nombre === "cotizaciones") promesa = cargarCotizaciones();
     else if (nombre === "egreso") {
       ocultarError("egreso-error");
       $("egreso-exito").classList.add("oculto");
@@ -4736,7 +4819,10 @@ against the dark UI.
     if (temporizadorAlertaFlotante) clearTimeout(temporizadorAlertaFlotante);
   });
 
+  var modoCotizacion = false; // true cuando el asistente de "Nueva orden" se usa para crear una cotización
   function reiniciarFlujoOrden() {
+    modoCotizacion = false;
+    $("tarjeta-buscar").querySelector("h2").textContent = "Abrir nueva orden";
     vehiculoSeleccionado = null;
     ordenActual = null;
     datosRuntVehiculoActual = null;
@@ -4755,6 +4841,7 @@ against the dark UI.
   // de Órdenes. Cerrar en cualquier paso (clic afuera o Cancelar) solo
   // oculta el asistente; no borra órdenes ya creadas.
   function cerrarWizardNuevaOrden() {
+    modoCotizacion = false;
     ["tarjeta-buscar", "tarjeta-encontrado", "tarjeta-nuevo", "tarjeta-asignar", "tarjeta-exito"].forEach(function (id) {
       $(id).classList.add("oculto");
     });
@@ -11758,6 +11845,14 @@ against the dark UI.
   }
 
   function prepararPasoAsignar() {
+    if (modoCotizacion) {
+      $("tarjeta-asignar").classList.add("oculto");
+      crearCotizacionDesdeSeleccion().catch(function (err) {
+        console.error(err);
+        mostrarError("tablero-error", "No se pudo crear la cotización: " + err.message);
+      });
+      return;
+    }
     $("select-tipo-orden").value = "nueva";
     $("grupo-orden-garantia-original").classList.add("oculto");
     $("orden-km-ingreso").value = (vehiculoSeleccionado && vehiculoSeleccionado.kilometraje) ? vehiculoSeleccionado.kilometraje : "";
@@ -13767,6 +13862,330 @@ against the dark UI.
       throw err;
     });
   }, "caja-error"));
+
+  // =====================================================================
+  // COTIZACIONES (sin ingreso al taller)
+  // =====================================================================
+  var cotizacionesCache = [];
+  var cotizacionActual = null;       // cotización abierta en el editor (con lineas, cliente, vehiculo)
+  var tallerCotizacion = {};
+  var catalogoCotizacion = [];
+  var catalogoCotizacionPorTexto = {};
+  var ETIQUETAS_ESTADO_COTIZACION = { borrador: "Borrador", enviada: "Enviada al cliente", aceptada: "Aceptada", rechazada: "Rechazada", convertida: "Convertida en orden", vencida: "Vencida" };
+  var ETIQUETAS_TIPO_LINEA_COT = { mano_obra: "Mano de obra", repuesto: "Repuesto", insumo: "Insumo", trabajo_externo: "Trabajo externo" };
+
+  function numeroCotizacionTexto(n) { return "COT-" + String(n).padStart(3, "0"); }
+
+  function estadoVisibleCotizacion(c) {
+    if ((c.estado === "borrador" || c.estado === "enviada") && c.vigencia_hasta && c.vigencia_hasta < aFechaISO(new Date())) return "vencida";
+    return c.estado;
+  }
+
+  function totalLineasCotizacion(lineas) {
+    return (lineas || []).reduce(function (a, l) { return a + Number(l.cantidad || 0) * Number(l.precio_aplicado_cliente || 0); }, 0);
+  }
+
+  function iniciarWizardCotizacion() {
+    reiniciarFlujoOrden();
+    modoCotizacion = true;
+    $("tarjeta-buscar").querySelector("h2").textContent = "Nueva cotización (sin ingreso al taller)";
+  }
+
+  // Al terminar el asistente (vehículo existente o recién registrado) se crea la cotización en vez de la orden.
+  function crearCotizacionDesdeSeleccion() {
+    if (!vehiculoSeleccionado) return Promise.resolve();
+    return restRequest("POST", "cotizaciones", {
+      body: { id_cliente: vehiculoSeleccionado.id_cliente, id_vehiculo: vehiculoSeleccionado.id_vehiculo, id_asesor: usuarioActualId }
+    }).then(function (filas) {
+      var cot = filas[0];
+      modoCotizacion = false;
+      cerrarWizardNuevaOrden();
+      mostrarPagina("cotizaciones");
+      return abrirEditorCotizacion(cot.id_cotizacion);
+    });
+  }
+
+  $("btn-nueva-cotizacion").addEventListener("click", iniciarWizardCotizacion);
+  $("btn-cot-nueva").addEventListener("click", function () { mostrarPagina("app"); iniciarWizardCotizacion(); });
+
+  function cargarCotizaciones() {
+    ocultarError("cotizaciones-error");
+    cerrarEditorCotizacion();
+    return restRequest("GET", "cotizaciones", {
+      query: "select=id_cotizacion,numero,estado,vigencia_hasta,creado_en,id_ot,clientes(nombre),vehiculos(placa,marca,modelo),cotizacion_detalle(cantidad,precio_aplicado_cliente)&order=numero.desc&limit=300"
+    }).then(function (filas) {
+      cotizacionesCache = filas || [];
+      renderizarListaCotizaciones();
+    });
+  }
+
+  function renderizarListaCotizaciones() {
+    var filtro = $("cot-filtro-estado").value;
+    var cuerpo = $("cuerpo-cotizaciones");
+    var filas = cotizacionesCache.filter(function (c) {
+      var e = estadoVisibleCotizacion(c);
+      if (filtro === "todas") return true;
+      if (filtro === "activas") return e === "borrador" || e === "enviada" || e === "aceptada";
+      return e === filtro;
+    });
+    if (!filas.length) {
+      cuerpo.innerHTML = "<tr><td colspan=\"8\" class=\"tabla-vacia\">No hay cotizaciones en esta vista.</td></tr>";
+      return;
+    }
+    cuerpo.innerHTML = filas.map(function (c) {
+      var e = estadoVisibleCotizacion(c);
+      var v = c.vehiculos || {};
+      return "<tr><td>" + numeroCotizacionTexto(c.numero) + "</td>" +
+        "<td>" + formatoFechaCorta(new Date(c.creado_en)) + "</td>" +
+        "<td>" + textoSeguro((c.clientes && c.clientes.nombre) || "—") + "</td>" +
+        "<td>" + textoSeguro((v.placa || "—") + (v.marca ? " · " + v.marca + " " + (v.modelo || "") : "")) + "</td>" +
+        "<td class=\"celda-numero\">" + formatoMoneda(totalLineasCotizacion(c.cotizacion_detalle)) + "</td>" +
+        "<td>" + (c.vigencia_hasta ? formatoFechaCorta(new Date(c.vigencia_hasta + "T00:00:00")) : "—") + "</td>" +
+        "<td>" + ETIQUETAS_ESTADO_COTIZACION[e] + "</td>" +
+        "<td><button type=\"button\" class=\"secundario btn-cot-abrir\" data-id=\"" + c.id_cotizacion + "\">Abrir</button></td></tr>";
+    }).join("");
+  }
+  $("cot-filtro-estado").addEventListener("change", renderizarListaCotizaciones);
+  $("cuerpo-cotizaciones").addEventListener("click", conManejoDeErrores(function (ev) {
+    var b = ev.target.closest(".btn-cot-abrir");
+    if (!b) return;
+    return abrirEditorCotizacion(b.getAttribute("data-id"));
+  }, "cotizaciones-error"));
+
+  function cerrarEditorCotizacion() {
+    cotizacionActual = null;
+    $("cot-vista-editor").classList.add("oculto");
+    $("cot-vista-lista").classList.remove("oculto");
+  }
+  $("btn-cot-volver").addEventListener("click", conManejoDeErrores(function () { return cargarCotizaciones(); }, "cotizaciones-error"));
+
+  function cargarCatalogoCotizacion() {
+    if (catalogoCotizacion.length) return Promise.resolve();
+    return restRequest("GET", "items", { query: "select=id_item,tipo,nombre,precio_sugerido&order=nombre.asc&limit=3000" }).then(function (filas) {
+      catalogoCotizacion = (filas || []).filter(function (it) {
+        return !/control maestro|sin detalle|ajuste de clasificaci/i.test(it.nombre || "");
+      });
+      catalogoCotizacionPorTexto = {};
+      var lista = $("lista-items-cotizacion");
+      lista.innerHTML = "";
+      catalogoCotizacion.forEach(function (it) {
+        var texto = it.nombre + " · " + (ETIQUETAS_TIPO_LINEA_COT[it.tipo] || it.tipo);
+        catalogoCotizacionPorTexto[texto] = it;
+        var opt = document.createElement("option");
+        opt.value = texto;
+        lista.appendChild(opt);
+      });
+    });
+  }
+
+  function abrirEditorCotizacion(id) {
+    ocultarError("cotizaciones-error");
+    return Promise.all([
+      restRequest("GET", "cotizaciones", { query: "select=*,clientes(nombre,documento,telefono,correo,direccion),vehiculos(placa,marca,modelo,anio,color,kilometraje),ordenes_trabajo(numero_ot)&id_cotizacion=eq." + id }),
+      restRequest("GET", "cotizacion_detalle", { query: "select=id_detalle,id_item,cantidad,precio_sugerido,precio_aplicado_cliente,items(nombre,tipo)&id_cotizacion=eq." + id + "&order=creado_en.asc" }),
+      cargarCatalogoCotizacion(),
+      restRequest("GET", "usuarios", { query: "select=id_usuario,nombre&rol=eq.tecnico&estado=eq.activo&order=nombre.asc" }),
+      obtenerDatosTaller()
+    ]).then(function (r) {
+      var cot = r[0] && r[0][0];
+      if (!cot) throw new Error("No se encontró la cotización.");
+      cot.lineas = r[1] || [];
+      tallerCotizacion = r[4] || {};
+      cotizacionActual = cot;
+      var sel = $("cot-convertir-tecnico");
+      sel.innerHTML = (r[3] || []).map(function (u) { return "<option value=\"" + u.id_usuario + "\">" + textoSeguro(u.nombre) + "</option>"; }).join("");
+      $("cot-vista-lista").classList.add("oculto");
+      $("cot-vista-editor").classList.remove("oculto");
+      renderizarEditorCotizacion();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }
+
+  function renderizarEditorCotizacion() {
+    var c = cotizacionActual;
+    var editable = c.estado !== "convertida";
+    var estadoVis = estadoVisibleCotizacion(c);
+    var cli = c.clientes || {}, veh = c.vehiculos || {};
+    $("cot-titulo").textContent = numeroCotizacionTexto(c.numero) + " — " + ETIQUETAS_ESTADO_COTIZACION[estadoVis];
+    $("cot-info").innerHTML =
+      "<b>" + textoSeguro(cli.nombre || "—") + "</b> · Tel. " + textoSeguro(cli.telefono || "—") + "<br>" +
+      textoSeguro((veh.placa || "—") + " · " + [veh.marca, veh.modelo, veh.anio].filter(Boolean).join(" "));
+
+    var cuerpo = $("cuerpo-cot-lineas");
+    cuerpo.innerHTML = c.lineas.length ? c.lineas.map(function (l) {
+      var tipo = l.items ? l.items.tipo : "";
+      var aviso = (tipo === "repuesto" || tipo === "insumo") ? textoAdvertenciaMargen(l.precio_sugerido, l.precio_aplicado_cliente, 0) : "";
+      var acciones = editable
+        ? "<button type=\"button\" class=\"secundario btn-cot-linea\" data-accion=\"cantidad\" data-id=\"" + l.id_detalle + "\">Cant.</button> " +
+          (tipo === "mano_obra" ? "" : "<button type=\"button\" class=\"secundario btn-cot-linea\" data-accion=\"precio\" data-id=\"" + l.id_detalle + "\">Precio</button> ") +
+          "<button type=\"button\" class=\"secundario btn-cot-linea\" data-accion=\"quitar\" data-id=\"" + l.id_detalle + "\">Quitar</button>"
+        : "";
+      return "<tr><td>" + (ETIQUETAS_TIPO_LINEA_COT[tipo] || tipo) + "</td><td>" + textoSeguro(l.items ? l.items.nombre : "—") +
+        (aviso ? "<br><span class=\"aviso-margen\">⚠ " + aviso + "</span>" : "") + "</td>" +
+        "<td>" + Number(l.cantidad) + "</td><td class=\"celda-numero\">" + formatoMoneda(l.precio_aplicado_cliente) + "</td>" +
+        "<td class=\"celda-numero\">" + formatoMoneda(Number(l.cantidad) * Number(l.precio_aplicado_cliente)) + "</td><td>" + acciones + "</td></tr>";
+    }).join("") : "<tr><td colspan=\"6\" class=\"tabla-vacia\">Todavía no hay líneas. Agrega servicios, repuestos o insumos.</td></tr>";
+
+    var subtotal = totalLineasCotizacion(c.lineas);
+    var pctIva = Number(tallerCotizacion.pct_iva) || 0;
+    var iva = subtotal * pctIva / 100;
+    $("cot-totales").innerHTML = "Subtotal: " + formatoMoneda(subtotal) + (pctIva > 0 ? "<br>IVA (" + pctIva + "%): " + formatoMoneda(iva) : "") +
+      "<br><strong>Total: " + formatoMoneda(subtotal + iva) + "</strong>";
+
+    $("cot-form-agregar").classList.toggle("oculto", !editable);
+    $("cot-vigencia").value = c.vigencia_hasta || "";
+    $("cot-notas").value = c.notas || "";
+    $("cot-vigencia").disabled = !editable;
+    $("cot-notas").disabled = !editable;
+    $("btn-cot-guardar-datos").classList.toggle("oculto", !editable);
+
+    var cont = $("cot-acciones");
+    cont.innerHTML = "";
+    function boton(texto, fn, secundario) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = secundario === false ? "" : "secundario";
+      b.textContent = texto;
+      b.addEventListener("click", conManejoDeErrores(fn, "cotizaciones-error"));
+      cont.appendChild(b);
+    }
+    boton("Imprimir / PDF", imprimirCotizacion, false);
+    boton("Enviar por WhatsApp", enviarCotizacionPorWhatsApp);
+    if (c.estado === "borrador") boton("Marcar como enviada", function () { return cambiarEstadoCotizacion("enviada"); });
+    if (c.estado === "borrador" || c.estado === "enviada") {
+      boton("El cliente aceptó", function () { return cambiarEstadoCotizacion("aceptada"); });
+      boton("El cliente rechazó", function () { return cambiarEstadoCotizacion("rechazada"); });
+    }
+    if (c.estado === "aceptada" || c.estado === "rechazada") boton("Volver a borrador", function () { return cambiarEstadoCotizacion("borrador"); });
+    if (c.estado === "convertida" && c.id_ot) {
+      var numOt = c.ordenes_trabajo && c.ordenes_trabajo.numero_ot;
+      boton("Abrir la orden " + (numOt ? prefijoOT + numOt : ""), function () { mostrarPagina("app"); abrirOrdenExistente(c.id_ot, numOt); }, false);
+    }
+    if (c.estado !== "convertida") boton("Eliminar cotización", eliminarCotizacionActual);
+    $("cot-bloque-convertir").classList.toggle("oculto", c.estado === "convertida" || c.estado === "rechazada");
+  }
+
+  function cambiarEstadoCotizacion(nuevo) {
+    var id = cotizacionActual.id_cotizacion;
+    return restRequest("PATCH", "cotizaciones", { query: "id_cotizacion=eq." + id, body: { estado: nuevo, actualizado_en: new Date().toISOString() } })
+      .then(function () { return abrirEditorCotizacion(id); });
+  }
+
+  function eliminarCotizacionActual() {
+    if (!window.confirm("¿Eliminar la cotización " + numeroCotizacionTexto(cotizacionActual.numero) + " y todas sus líneas? No se puede deshacer.")) return;
+    return restRequest("DELETE", "cotizaciones", { query: "id_cotizacion=eq." + cotizacionActual.id_cotizacion }).then(function () { return cargarCotizaciones(); });
+  }
+
+  $("btn-cot-guardar-datos").addEventListener("click", conManejoDeErrores(function () {
+    ocultarError("cotizaciones-error");
+    var vig = $("cot-vigencia").value;
+    if (!vig) { mostrarError("cotizaciones-error", "Elige hasta qué fecha es válida la cotización."); return; }
+    var id = cotizacionActual.id_cotizacion;
+    return restRequest("PATCH", "cotizaciones", { query: "id_cotizacion=eq." + id, body: { vigencia_hasta: vig, notas: $("cot-notas").value.trim() || null, actualizado_en: new Date().toISOString() } })
+      .then(function () { return abrirEditorCotizacion(id); });
+  }, "cotizaciones-error"));
+
+  $("btn-cot-agregar-linea").addEventListener("click", conManejoDeErrores(conBotonOcupado($("btn-cot-agregar-linea"), "Agregando…", function () {
+    ocultarError("cotizaciones-error");
+    var item = catalogoCotizacionPorTexto[$("cot-item-buscar").value];
+    var cant = parseFloat($("cot-item-cantidad").value);
+    if (!item) { mostrarError("cotizaciones-error", "Elige el servicio o repuesto de la lista (escribe y selecciona una opción)."); return; }
+    if (!(cant > 0) || cant > 100000) { mostrarError("cotizaciones-error", "Escribe una cantidad válida mayor a 0."); return; }
+    var id = cotizacionActual.id_cotizacion;
+    var precio = Number(item.precio_sugerido) || 0;
+    return restRequest("POST", "cotizacion_detalle", {
+      body: { id_cotizacion: id, id_item: item.id_item, cantidad: cant, precio_sugerido: precio, precio_aplicado_cliente: precio }
+    }).then(function () {
+      $("cot-item-buscar").value = "";
+      $("cot-item-cantidad").value = "1";
+      return abrirEditorCotizacion(id);
+    });
+  }), "cotizaciones-error"));
+
+  $("cuerpo-cot-lineas").addEventListener("click", conManejoDeErrores(function (ev) {
+    var b = ev.target.closest(".btn-cot-linea");
+    if (!b || !cotizacionActual) return;
+    ocultarError("cotizaciones-error");
+    var linea = cotizacionActual.lineas.filter(function (l) { return l.id_detalle === b.getAttribute("data-id"); })[0];
+    if (!linea) return;
+    var accion = b.getAttribute("data-accion");
+    var id = cotizacionActual.id_cotizacion;
+    var tipo = linea.items ? linea.items.tipo : "";
+    if (accion === "quitar") {
+      return restRequest("DELETE", "cotizacion_detalle", { query: "id_detalle=eq." + linea.id_detalle }).then(function () { return abrirEditorCotizacion(id); });
+    }
+    if (accion === "cantidad") {
+      var t = window.prompt("Nueva cantidad para \"" + (linea.items ? linea.items.nombre : "") + "\":", String(Number(linea.cantidad)));
+      if (t === null) return;
+      var nueva = parseFloat(String(t).replace(",", "."));
+      if (!(nueva > 0) || nueva > 100000) { mostrarError("cotizaciones-error", "Cantidad no válida."); return; }
+      return restRequest("PATCH", "cotizacion_detalle", { query: "id_detalle=eq." + linea.id_detalle, body: { cantidad: nueva } }).then(function () { return abrirEditorCotizacion(id); });
+    }
+    if (accion === "precio") {
+      var tp = window.prompt("Nuevo valor unitario para \"" + (linea.items ? linea.items.nombre : "") + "\" (calculado: " + formatoMoneda(linea.precio_sugerido) + "):", String(Number(linea.precio_aplicado_cliente)));
+      if (tp === null) return;
+      var nuevoPrecio = parseFloat(String(tp).replace(/[^0-9.]/g, ""));
+      if (!(nuevoPrecio >= 0)) { mostrarError("cotizaciones-error", "Precio no válido."); return; }
+      if (tipo === "repuesto" || tipo === "insumo") {
+        var adv = textoAdvertenciaMargen(linea.precio_sugerido, nuevoPrecio, 0);
+        if (adv) { mostrarError("cotizaciones-error", adv + ". El precio debe quedar entre el calculado y +" + TOPE_SOBRE_MARGEN_PCT + "%."); return; }
+      }
+      return restRequest("PATCH", "cotizacion_detalle", { query: "id_detalle=eq." + linea.id_detalle, body: { precio_aplicado_cliente: nuevoPrecio } }).then(function () { return abrirEditorCotizacion(id); });
+    }
+  }, "cotizaciones-error"));
+
+  function imprimirCotizacion() {
+    var c = cotizacionActual;
+    if (!c.lineas.length) { mostrarError("cotizaciones-error", "Agrega al menos una línea antes de imprimir."); return; }
+    var ventana = abrirVentanaImpresionPendiente();
+    var cli = c.clientes || {}, veh = c.vehiculos || {};
+    var items = c.lineas.map(function (l) { return { cantidad: Number(l.cantidad), precio_aplicado_cliente: Number(l.precio_aplicado_cliente), pct_descuento: 0 }; });
+    var filas = c.lineas.map(function (l, i) {
+      return "<tr><td>" + (i + 1) + "</td><td>" + textoSeguro(l.items ? l.items.nombre : "—") + "</td><td>" + (ETIQUETAS_TIPO_LINEA_COT[l.items ? l.items.tipo : ""] || "") + "</td>" +
+        "<td>" + Number(l.cantidad) + "</td><td style=\"text-align:right;\">" + formatoMoneda(l.precio_aplicado_cliente) + "</td><td style=\"text-align:right;\">" + formatoMoneda(Number(l.cantidad) * Number(l.precio_aplicado_cliente)) + "</td></tr>";
+    }).join("");
+    var contenido =
+      "<div class=\"datos-doc\">" +
+      "<div class=\"bloque\"><b>Cliente</b>" + textoSeguro(cli.nombre || "—") + "<br>" + textoSeguro(cli.documento ? "Cédula/NIT: " + cli.documento : "") + "<br>Tel. " + textoSeguro(cli.telefono || "—") + "</div>" +
+      "<div class=\"bloque\"><b>Vehículo</b>" + textoSeguro(veh.placa || "—") + "<br>" + textoSeguro([veh.marca, veh.modelo, veh.anio, veh.color].filter(Boolean).join(" · ")) + "</div>" +
+      "<div class=\"bloque\"><b>Cotización</b>" + numeroCotizacionTexto(c.numero) + "<br>Fecha: " + formatoFechaCorta(new Date(c.creado_en)) +
+      "<br>Válida hasta: " + (c.vigencia_hasta ? formatoFechaCorta(new Date(c.vigencia_hasta + "T00:00:00")) : "—") + "</div></div>" +
+      "<table><thead><tr><th>#</th><th>Descripción</th><th>Tipo</th><th>Cant.</th><th>Valor unitario</th><th>Total</th></tr></thead><tbody>" + filas + "</tbody></table>" +
+      construirTotalesFinalesImpresion(items, tallerCotizacion.pct_iva) +
+      (c.notas ? "<h3>Notas</h3><div>" + textoSeguro(c.notas) + "</div>" : "") +
+      "<div class=\"texto-legal\">Esta es una cotización y no constituye una orden de trabajo. El valor puede variar si al revisar el vehículo se encuentran daños adicionales, caso en el cual se le informará y se pedirá su autorización antes de realizarlos. Los precios son válidos hasta la fecha indicada y sujetos a disponibilidad de repuestos.</div>";
+    abrirVentanaImpresion("Cotización " + numeroCotizacionTexto(c.numero), contenido, tallerCotizacion, null, ventana, {});
+  }
+
+  function enviarCotizacionPorWhatsApp() {
+    var c = cotizacionActual;
+    var cli = c.clientes || {}, veh = c.vehiculos || {};
+    var numero = telefonoWhatsApp(cli.telefono);
+    if (!numero) { mostrarError("cotizaciones-error", "El cliente no tiene teléfono registrado."); return; }
+    var subtotal = totalLineasCotizacion(c.lineas);
+    var total = subtotal + subtotal * (Number(tallerCotizacion.pct_iva) || 0) / 100;
+    var mensaje = "Hola " + (cli.nombre || "") + ", te compartimos la cotización " + numeroCotizacionTexto(c.numero) + " de " + (tallerCotizacion.nombre_taller || "Servi Motors") +
+      " para tu vehículo " + (veh.placa || "") + " por " + formatoMoneda(total) + ", válida hasta el " + (c.vigencia_hasta ? formatoFechaCorta(new Date(c.vigencia_hasta + "T00:00:00")) : "—") + ". Te enviamos el detalle en PDF. Quedamos atentos.";
+    window.open("https://wa.me/" + numero + "?text=" + encodeURIComponent(mensaje), "_blank");
+    if (c.estado === "borrador") return cambiarEstadoCotizacion("enviada");
+  }
+
+  $("btn-cot-convertir").addEventListener("click", conManejoDeErrores(conBotonOcupado($("btn-cot-convertir"), "Convirtiendo…", function () {
+    ocultarError("cotizaciones-error");
+    var c = cotizacionActual;
+    var tec = $("cot-convertir-tecnico").value;
+    if (!tec) { mostrarError("cotizaciones-error", "Elige el técnico responsable."); return; }
+    if (!c.lineas.length) { mostrarError("cotizaciones-error", "La cotización no tiene líneas."); return; }
+    if (!window.confirm("Se creará una orden de trabajo con las " + c.lineas.length + " línea(s) de " + numeroCotizacionTexto(c.numero) + " y el vehículo entra al taller. ¿Continuar?")) return;
+    var km = $("cot-convertir-km").value ? parseInt($("cot-convertir-km").value, 10) : null;
+    return restRequest("POST", "rpc/convertir_cotizacion_en_orden", { body: { p_id_cotizacion: c.id_cotizacion, p_id_tecnico: tec, p_km: km } }).then(function (idOt) {
+      return restRequest("GET", "ordenes_trabajo", { query: "select=id_ot,numero_ot&id_ot=eq." + idOt }).then(function (f) {
+        var ot = f && f[0];
+        mostrarPagina("app");
+        if (ot) abrirOrdenExistente(ot.id_ot, ot.numero_ot);
+      });
+    });
+  }), "cotizaciones-error"));
 
   // =====================================================================
   // CUENTAS POR COBRAR Y POR PAGAR
