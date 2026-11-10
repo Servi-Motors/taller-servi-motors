@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-10-1">
+<meta name="app-build" content="2026-11-10-2">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -2618,7 +2618,7 @@ against the dark UI.
           <h3>Líneas de la cotización</h3>
           <div class="tabla-scroll">
             <table class="tabla-datos" id="tabla-cot-lineas">
-              <thead><tr><th>Tipo</th><th>Descripción</th><th>Cant.</th><th>Valor unitario</th><th>Total</th><th></th></tr></thead>
+              <thead><tr><th>Tipo</th><th>Descripción</th><th>Cant.</th><th>Costo unit.</th><th>Valor unitario</th><th>Total</th><th></th></tr></thead>
               <tbody id="cuerpo-cot-lineas"></tbody>
             </table>
           </div>
@@ -2629,6 +2629,9 @@ against the dark UI.
             <label for="cot-item-buscar">Servicio, repuesto o insumo (escribe y elige de la lista)</label>
             <input id="cot-item-buscar" type="text" list="lista-items-cotizacion" autocomplete="off" placeholder="Ej. Cambio de aceite, Pastillas de freno…">
             <datalist id="lista-items-cotizacion"></datalist>
+            <div id="cot-item-vista-previa" class="nota-ayuda"></div>
+            <label for="cot-item-costo">Costo unitario del repuesto o insumo (opcional: si lo dejas vacío se usa el del catálogo)</label>
+            <input id="cot-item-costo" type="number" min="0" step="1" placeholder="Lo que te cuesta a ti, sin ganancia">
             <label for="cot-item-cantidad">Cantidad (en mano de obra, horas: 1.5 = 1 h 30 min)</label>
             <input id="cot-item-cantidad" type="number" min="0.01" step="0.01" value="1">
             <button type="button" id="btn-cot-agregar-linea">Agregar a la cotización</button>
@@ -13961,7 +13964,7 @@ against the dark UI.
 
   function cargarCatalogoCotizacion() {
     if (catalogoCotizacion.length) return Promise.resolve();
-    return restRequest("GET", "items", { query: "select=id_item,tipo,nombre,precio_sugerido&order=nombre.asc&limit=3000" }).then(function (filas) {
+    return restRequest("GET", "items", { query: "select=id_item,tipo,nombre,costo,precio_sugerido&order=nombre.asc&limit=3000" }).then(function (filas) {
       catalogoCotizacion = (filas || []).filter(function (it) {
         return !/control maestro|sin detalle|ajuste de clasificaci/i.test(it.nombre || "");
       });
@@ -13982,7 +13985,7 @@ against the dark UI.
     ocultarError("cotizaciones-error");
     return Promise.all([
       restRequest("GET", "cotizaciones", { query: "select=*,clientes(nombre,documento,telefono,correo,direccion),vehiculos(placa,marca,modelo,anio,color,kilometraje),ordenes_trabajo(numero_ot)&id_cotizacion=eq." + id }),
-      restRequest("GET", "cotizacion_detalle", { query: "select=id_detalle,id_item,cantidad,precio_sugerido,precio_aplicado_cliente,items(nombre,tipo)&id_cotizacion=eq." + id + "&order=creado_en.asc" }),
+      restRequest("GET", "cotizacion_detalle", { query: "select=id_detalle,id_item,cantidad,costo_interno,precio_sugerido,precio_aplicado_cliente,items(nombre,tipo)&id_cotizacion=eq." + id + "&order=creado_en.asc" }),
       cargarCatalogoCotizacion(),
       restRequest("GET", "usuarios", { query: "select=id_usuario,nombre&rol=eq.tecnico&estado=eq.activo&order=nombre.asc" }),
       obtenerDatosTaller()
@@ -14017,14 +14020,14 @@ against the dark UI.
       var aviso = (tipo === "repuesto" || tipo === "insumo") ? textoAdvertenciaMargen(l.precio_sugerido, l.precio_aplicado_cliente, 0) : "";
       var acciones = editable
         ? "<button type=\"button\" class=\"secundario btn-cot-linea\" data-accion=\"cantidad\" data-id=\"" + l.id_detalle + "\">Cant.</button> " +
-          (tipo === "mano_obra" ? "" : "<button type=\"button\" class=\"secundario btn-cot-linea\" data-accion=\"precio\" data-id=\"" + l.id_detalle + "\">Precio</button> ") +
+          (tipo === "mano_obra" ? "" : "<button type=\"button\" class=\"secundario btn-cot-linea\" data-accion=\"costo\" data-id=\"" + l.id_detalle + "\">Costo</button> <button type=\"button\" class=\"secundario btn-cot-linea\" data-accion=\"precio\" data-id=\"" + l.id_detalle + "\">Precio</button> ") +
           "<button type=\"button\" class=\"secundario btn-cot-linea\" data-accion=\"quitar\" data-id=\"" + l.id_detalle + "\">Quitar</button>"
         : "";
       return "<tr><td>" + (ETIQUETAS_TIPO_LINEA_COT[tipo] || tipo) + "</td><td>" + textoSeguro(l.items ? l.items.nombre : "—") +
         (aviso ? "<br><span class=\"aviso-margen\">⚠ " + aviso + "</span>" : "") + "</td>" +
-        "<td>" + Number(l.cantidad) + "</td><td class=\"celda-numero\">" + formatoMoneda(l.precio_aplicado_cliente) + "</td>" +
+        "<td>" + Number(l.cantidad) + "</td><td class=\"celda-numero\">" + (tipo === "mano_obra" ? "—" : formatoMoneda(l.costo_interno)) + "</td><td class=\"celda-numero\">" + formatoMoneda(l.precio_aplicado_cliente) + "</td>" +
         "<td class=\"celda-numero\">" + formatoMoneda(Number(l.cantidad) * Number(l.precio_aplicado_cliente)) + "</td><td>" + acciones + "</td></tr>";
-    }).join("") : "<tr><td colspan=\"6\" class=\"tabla-vacia\">Todavía no hay líneas. Agrega servicios, repuestos o insumos.</td></tr>";
+    }).join("") : "<tr><td colspan=\"7\" class=\"tabla-vacia\">Todavía no hay líneas. Agrega servicios, repuestos o insumos.</td></tr>";
 
     var subtotal = totalLineasCotizacion(c.lineas);
     var pctIva = Number(tallerCotizacion.pct_iva) || 0;
@@ -14085,6 +14088,16 @@ against the dark UI.
       .then(function () { return abrirEditorCotizacion(id); });
   }, "cotizaciones-error"));
 
+  function actualizarVistaPreviaItemCotizacion() {
+    var item = catalogoCotizacionPorTexto[$("cot-item-buscar").value];
+    var el = $("cot-item-vista-previa");
+    if (!item) { el.textContent = ""; return; }
+    el.textContent = item.tipo === "mano_obra"
+      ? "Valor hora: " + formatoMoneda(item.precio_sugerido)
+      : "Costo en catálogo: " + formatoMoneda(item.costo) + " → precio calculado al cliente: " + formatoMoneda(item.precio_sugerido) + ". Si el costo real es otro, escríbelo abajo.";
+  }
+  $("cot-item-buscar").addEventListener("input", actualizarVistaPreviaItemCotizacion);
+
   $("btn-cot-agregar-linea").addEventListener("click", conManejoDeErrores(conBotonOcupado($("btn-cot-agregar-linea"), "Agregando…", function () {
     ocultarError("cotizaciones-error");
     var item = catalogoCotizacionPorTexto[$("cot-item-buscar").value];
@@ -14093,10 +14106,21 @@ against the dark UI.
     if (!(cant > 0) || cant > 100000) { mostrarError("cotizaciones-error", "Escribe una cantidad válida mayor a 0."); return; }
     var id = cotizacionActual.id_cotizacion;
     var precio = Number(item.precio_sugerido) || 0;
+    var costo = Number(item.costo) || 0;
+    var costoTexto = $("cot-item-costo").value;
+    if (costoTexto !== "") {
+      if (item.tipo === "mano_obra") { mostrarError("cotizaciones-error", "El valor de la mano de obra lo define Configuración; no se edita el costo aquí."); return; }
+      var costoDigitado = parseFloat(costoTexto);
+      if (!(costoDigitado >= 0)) { mostrarError("cotizaciones-error", "El costo debe ser un número válido."); return; }
+      costo = costoDigitado;
+      precio = precioCalculadoDesdeCosto(costo); // mismo cálculo de la base de datos al crear un ítem
+    }
     return restRequest("POST", "cotizacion_detalle", {
-      body: { id_cotizacion: id, id_item: item.id_item, cantidad: cant, precio_sugerido: precio, precio_aplicado_cliente: precio }
+      body: { id_cotizacion: id, id_item: item.id_item, cantidad: cant, costo_interno: costo, precio_sugerido: precio, precio_aplicado_cliente: precio }
     }).then(function () {
       $("cot-item-buscar").value = "";
+      $("cot-item-costo").value = "";
+      $("cot-item-vista-previa").textContent = "";
       $("cot-item-cantidad").value = "1";
       return abrirEditorCotizacion(id);
     });
@@ -14120,6 +14144,14 @@ against the dark UI.
       var nueva = parseFloat(String(t).replace(",", "."));
       if (!(nueva > 0) || nueva > 100000) { mostrarError("cotizaciones-error", "Cantidad no válida."); return; }
       return restRequest("PATCH", "cotizacion_detalle", { query: "id_detalle=eq." + linea.id_detalle, body: { cantidad: nueva } }).then(function () { return abrirEditorCotizacion(id); });
+    }
+    if (accion === "costo") {
+      var tc = window.prompt("Nuevo costo unitario de \"" + (linea.items ? linea.items.nombre : "") + "\" (lo que te cuesta a ti). El precio al cliente se recalcula solo con tu margen:", String(Number(linea.costo_interno)));
+      if (tc === null) return;
+      var nuevoCosto = parseFloat(String(tc).replace(/[^0-9.]/g, ""));
+      if (!(nuevoCosto >= 0)) { mostrarError("cotizaciones-error", "El costo debe ser un número válido."); return; }
+      var precioNuevo = precioCalculadoDesdeCosto(nuevoCosto);
+      return restRequest("PATCH", "cotizacion_detalle", { query: "id_detalle=eq." + linea.id_detalle, body: { costo_interno: nuevoCosto, precio_sugerido: precioNuevo, precio_aplicado_cliente: precioNuevo } }).then(function () { return abrirEditorCotizacion(id); });
     }
     if (accion === "precio") {
       var tp = window.prompt("Nuevo valor unitario para \"" + (linea.items ? linea.items.nombre : "") + "\" (calculado: " + formatoMoneda(linea.precio_sugerido) + "):", String(Number(linea.precio_aplicado_cliente)));
