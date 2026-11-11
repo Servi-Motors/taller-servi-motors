@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-11-15">
+<meta name="app-build" content="2026-11-11-16">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -379,8 +379,12 @@ against the dark UI.
             <div class="kpi-etiqueta">Ventas de hoy</div>
           </div>
           <div class="tarjeta-kpi">
+            <div class="kpi-numero" id="kpi-anticipos-hoy">—</div>
+            <div class="kpi-etiqueta">Anticipos recibidos hoy</div>
+          </div>
+          <div class="tarjeta-kpi">
             <div class="kpi-numero" id="kpi-efectivo-hoy">—</div>
-            <div class="kpi-etiqueta">Efectivo en caja hoy</div>
+            <div class="kpi-etiqueta">Efectivo neto del día (entró − salió)</div>
           </div>
           <div class="tarjeta-kpi">
             <div class="kpi-numero" id="kpi-cxc-pendiente">—</div>
@@ -5241,7 +5245,12 @@ against the dark UI.
         restRequest("GET", "pagos_factura", { query: "select=forma_pago,monto&fecha_pago=gte." + hoyStr + "T00:00:00-05:00&fecha_pago=lt." + mananaStr + "T00:00:00-05:00" }),
         restRequest("GET", "vista_cuentas_por_cobrar", { query: "select=saldo,fecha_vencimiento_pago" }),
         restRequest("GET", "vista_cuentas_por_pagar", { query: "select=saldo" }),
-        restRequest("GET", "vista_ingresos_por_tipo_mes", { query: "select=periodo,tipo,monto&order=periodo.desc&limit=80" })
+        restRequest("GET", "vista_ingresos_por_tipo_mes", { query: "select=periodo,tipo,monto&order=periodo.desc&limit=80" }),
+        // r[10..13]: movimientos de efectivo del día que no son facturas (anticipos, gastos, abonos de crédito)
+        restRequest("GET", "anticipos_ot", { query: "select=monto,forma_pago&fecha=eq." + hoyStr }).catch(function () { return []; }),
+        restRequest("GET", "egresos", { query: "select=monto&estado_pago=eq.pagado&forma_pago=eq.efectivo&fecha=eq." + hoyStr }).catch(function () { return []; }),
+        restRequest("GET", "abonos_cuentas_cobrar", { query: "select=monto&forma_pago=eq.efectivo&fecha=eq." + hoyStr }).catch(function () { return []; }),
+        restRequest("GET", "abonos_cuentas_pagar", { query: "select=monto&forma_pago=eq.efectivo&fecha=eq." + hoyStr }).catch(function () { return []; })
       );
     }
 
@@ -5325,8 +5334,15 @@ against the dark UI.
         var cxcPendiente = cxcFilas.reduce(function (a, f) { return a + Number(f.saldo || 0); }, 0);
         var cxpPendiente = cxpFilas.reduce(function (a, f) { return a + Number(f.saldo || 0); }, 0);
 
+        // Efectivo del día = lo que entró en efectivo (facturas, anticipos, abonos de crédito) menos lo que salió (gastos y pagos a crédito).
+        var suma = function (filas) { return (filas || []).reduce(function (a, f) { return a + Number(f.monto || 0); }, 0); };
+        var anticiposHoyFilas = r[10] || [];
+        var anticiposHoy = suma(anticiposHoyFilas);
+        var anticiposEfectivoHoy = suma(anticiposHoyFilas.filter(function (f) { return f.forma_pago === "efectivo"; }));
+        var efectivoNetoHoy = efectivoHoy + anticiposEfectivoHoy + suma(r[12]) - suma(r[11]) - suma(r[13]);
         $("kpi-ventas-hoy").textContent = formatoMoneda(ventasHoy);
-        $("kpi-efectivo-hoy").textContent = formatoMoneda(efectivoHoy);
+        $("kpi-anticipos-hoy").textContent = formatoMoneda(anticiposHoy);
+        $("kpi-efectivo-hoy").textContent = formatoMoneda(efectivoNetoHoy);
         $("kpi-cxc-pendiente").textContent = formatoMoneda(cxcPendiente);
         $("kpi-cxp-pendiente").textContent = formatoMoneda(cxpPendiente);
 
