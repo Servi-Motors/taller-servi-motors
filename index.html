@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-11-8">
+<meta name="app-build" content="2026-11-11-11">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -69,6 +69,7 @@ against the dark UI.
 </div>
 
 <div id="timer-flotante" class="timer-flotante oculto" role="status">
+  <button type="button" id="timer-flotante-min" class="timer-flotante-min" aria-label="Minimizar o ampliar el contador" title="Minimizar / ampliar">–</button>
   <div class="timer-flotante-titulo" id="timer-flotante-titulo">Tarea en curso</div>
   <div class="timer-flotante-nombre" id="timer-flotante-nombre"></div>
   <div class="timer-flotante-reloj" id="timer-flotante-reloj">00:00:00</div>
@@ -3417,6 +3418,11 @@ against the dark UI.
     box-shadow: 0 8px 28px rgba(0,0,0,0.28); max-width: 94vw; width: 360px;
   }
   .timer-flotante.timer-flotante-pausado { border-color: #b45309; }
+  .timer-flotante-min { position: absolute; top: 4px; right: 6px; width: 30px !important; height: 30px; padding: 0 !important; margin: 0 !important; font-size: 20px; line-height: 1; border-radius: 50%; background: #e5e7eb; color: #111; border: none; }
+  .timer-flotante { position: fixed; }
+  .timer-flotante.timer-min { padding: 4px 42px 4px 12px; width: auto !important; min-width: 0; }
+  .timer-flotante.timer-min .timer-flotante-titulo, .timer-flotante.timer-min .timer-flotante-nombre, .timer-flotante.timer-min .timer-flotante-botones { display: none; }
+  .timer-flotante.timer-min .timer-flotante-reloj { font-size: 18px; }
   .timer-flotante-titulo { font-size: 13px; color: var(--gris); margin-bottom: 2px; }
   .timer-flotante-nombre { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
   .timer-flotante-reloj { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--verde); }
@@ -14300,7 +14306,7 @@ against the dark UI.
       var esMO = area.clave === "mano_obra";
       var filas = lineasArea.length ? lineasArea.map(function (l) {
         var tipo = l.items ? l.items.tipo : "";
-        var aviso = (tipo === "repuesto" || tipo === "insumo") ? textoAdvertenciaMargen(l.precio_sugerido, l.precio_aplicado_cliente, 0) : "";
+        var aviso = (tipo === "repuesto" || tipo === "insumo") ? textoPrecioBajoCosto(l.costo_interno, l.precio_aplicado_cliente, 0) : "";
         var acciones = editable
           ? "<button type=\"button\" class=\"secundario btn-cot-linea\" data-accion=\"cantidad\" data-id=\"" + l.id_detalle + "\">" + (esMO ? "Horas" : "Cant.") + "</button> " +
             (esMO ? "" : "<button type=\"button\" class=\"secundario btn-cot-linea\" data-accion=\"costo\" data-id=\"" + l.id_detalle + "\">Costo</button> <button type=\"button\" class=\"secundario btn-cot-linea\" data-accion=\"precio\" data-id=\"" + l.id_detalle + "\">Precio</button> ") +
@@ -14566,7 +14572,7 @@ against the dark UI.
     if (accion === "costo") {
       var tc = window.prompt("Nuevo costo unitario de \"" + (linea.items ? linea.items.nombre : "") + "\" (lo que te cuesta a ti). El precio al cliente se recalcula solo con tu margen:", String(Number(linea.costo_interno)));
       if (tc === null) return;
-      var nuevoCosto = parseFloat(String(tc).replace(/[^0-9.]/g, ""));
+      var nuevoCosto = numeroDesdeTexto(tc);
       if (!(nuevoCosto >= 0)) { mostrarError("cotizaciones-error", "El costo debe ser un número válido."); return; }
       var precioNuevo = precioUnitarioCotizacion(nuevoCosto, linea.cantidad);
       return restRequest("PATCH", "cotizacion_detalle", { query: "id_detalle=eq." + linea.id_detalle, body: { costo_interno: nuevoCosto, precio_sugerido: precioNuevo, precio_aplicado_cliente: precioNuevo } }).then(function () { return abrirEditorCotizacion(id); });
@@ -14574,11 +14580,11 @@ against the dark UI.
     if (accion === "precio") {
       var tp = window.prompt("Nuevo valor unitario para \"" + (linea.items ? linea.items.nombre : "") + "\" (calculado: " + formatoMoneda(linea.precio_sugerido) + "):", String(Number(linea.precio_aplicado_cliente)));
       if (tp === null) return;
-      var nuevoPrecio = parseFloat(String(tp).replace(/[^0-9.]/g, ""));
+      var nuevoPrecio = numeroDesdeTexto(tp);
       if (!(nuevoPrecio >= 0)) { mostrarError("cotizaciones-error", "Precio no válido."); return; }
       if (tipo === "repuesto" || tipo === "insumo") {
-        var adv = textoAdvertenciaMargen(linea.precio_sugerido, nuevoPrecio, 0);
-        if (adv) { mostrarError("cotizaciones-error", adv + ". El precio no puede quedar por debajo de " + formatoMoneda(linea.precio_sugerido) + "."); return; }
+        var adv = textoPrecioBajoCosto(linea.costo_interno, nuevoPrecio, 0);
+        if (adv) { mostrarError("cotizaciones-error", adv + "."); return; }
       }
       return restRequest("PATCH", "cotizacion_detalle", { query: "id_detalle=eq." + linea.id_detalle, body: { precio_aplicado_cliente: nuevoPrecio } }).then(function () { return abrirEditorCotizacion(id); });
     }
@@ -15591,7 +15597,7 @@ against the dark UI.
     if (!esAdminOAsesor) return "";
     var texto = f.estado_autorizacion === "autorizado" ? "Editar precio (pide nueva firma)" : "Editar precio";
     return ' <button type="button" style="width:auto;margin:4px 0 0;padding:4px 8px;font-size:11px;" onclick="window.editarPrecioLinea(\'' +
-      f.id_detalle + '\', ' + f.precio_aplicado_cliente + ', \'' + f.estado_autorizacion + '\', ' + Math.round(precioCalculadoLinea(f)) + ', ' + ((f.items && (f.items.tipo === "repuesto" || f.items.tipo === "insumo")) ? "true" : "false") + ', ' + (Number(f.pct_descuento) || 0) + ')">' + texto + '</button>';
+      f.id_detalle + '\', ' + f.precio_aplicado_cliente + ', \'' + f.estado_autorizacion + '\', ' + Math.round(precioCalculadoLinea(f)) + ', ' + ((f.items && (f.items.tipo === "repuesto" || f.items.tipo === "insumo")) ? "true" : "false") + ', ' + (Number(f.pct_descuento) || 0) + ', ' + (Number(f.costo_interno) || 0) + ')">' + texto + '</button>';
   }
 
   // Editar el costo interno no necesita firma nueva del cliente (no cambia
@@ -15798,6 +15804,36 @@ against the dark UI.
   // sugerido) ni pasarse más de un 25% por encima de él. Solo advierte.
   var TOPE_SOBRE_MARGEN_PCT = 25;
 
+  // Convierte lo que escribe la persona a número entendiendo el formato colombiano:
+  // "15.000" = 15000, "15.000,50" = 15000.5, "15,5" = 15.5, "$ 1.250.000" = 1250000.
+  function numeroDesdeTexto(t) {
+    var x = String(t === null || t === undefined ? "" : t).trim().replace(/[^\d.,-]/g, "");
+    if (!x) return NaN;
+    var tienePunto = x.indexOf(".") !== -1, tieneComa = x.indexOf(",") !== -1;
+    if (tienePunto && tieneComa) {
+      if (x.lastIndexOf(",") > x.lastIndexOf(".")) x = x.replace(/\./g, "").replace(",", ".");
+      else x = x.replace(/,/g, "");
+    } else if (tienePunto) {
+      if (/^-?\d{1,3}(\.\d{3})+$/.test(x)) x = x.replace(/\./g, "");
+    } else if (tieneComa) {
+      if (/^-?\d{1,3}(,\d{3})+$/.test(x)) x = x.replace(/,/g, "");
+      else x = x.replace(",", ".");
+    }
+    return parseFloat(x);
+  }
+
+  // Regla de oro: el precio al cliente NUNCA puede quedar por debajo del costo.
+  // Devuelve "" si está bien, o el texto del problema. precioLista = por unidad antes de descuento.
+  function textoPrecioBajoCosto(costoUnitario, precioLista, descuentoPct) {
+    var costo = Number(costoUnitario);
+    if (!(costo > 0)) return "";
+    var neto = (Number(precioLista) || 0) * (1 - (Number(descuentoPct) || 0) / 100);
+    if (neto < costo - 0.5) {
+      return "El precio (" + formatoMoneda(neto) + ") no puede ser menor que el costo (" + formatoMoneda(costo) + ")";
+    }
+    return "";
+  }
+
   // Devuelve "" si está dentro del rango, o el texto de la advertencia.
   // precioLista = precio por unidad antes de descuento; descuentoPct = % de descuento.
   function textoAdvertenciaMargen(precioSugerido, precioLista, descuentoPct) {
@@ -15834,7 +15870,7 @@ against the dark UI.
     if (rolActual !== "administrador" && rolActual !== "asesor") return "";
     if (f.estado_autorizacion === "rechazado") return "";
     if (ordenActual && ordenActual.tipo_orden === "garantia") return "";
-    var t = textoAdvertenciaMargen(precioCalculadoLinea(f), f.precio_aplicado_cliente, f.pct_descuento);
+    var t = textoPrecioBajoCosto(f.costo_interno, f.precio_aplicado_cliente, f.pct_descuento);
     return t ? "<br><span class=\"aviso-margen\">⚠ " + t + "</span>" : "";
   }
 
@@ -17319,19 +17355,19 @@ against the dark UI.
   // Si el ítem ya estaba autorizado, cambiar el precio lo regresa a
   // "pendiente" — el sistema vuelve a pedir firma del cliente (in situ o por
   // WhatsApp) antes de contarlo como confirmado con el nuevo valor.
-  window.editarPrecioLinea = function (idDetalle, precioActual, estadoActual, precioSugerido, esParte, pctDescuento) {
+  window.editarPrecioLinea = function (idDetalle, precioActual, estadoActual, precioSugerido, esParte, pctDescuento, costoUnit) {
     var nuevo = window.prompt("Nuevo precio para el cliente en esta línea:", precioActual);
     if (nuevo === null) return;
-    var nuevoPrecio = parseFloat(nuevo);
+    var nuevoPrecio = numeroDesdeTexto(nuevo);
     if (!(nuevoPrecio >= 0)) {
       mostrarError("item-error", "El precio debe ser un número válido.");
       return;
     }
     if (esParte) {
-      var avisoMargen = textoAdvertenciaMargen(precioSugerido, nuevoPrecio, pctDescuento);
-      if (avisoMargen) {
-        mostrarError("item-error", "No se guardó el precio. " + avisoMargen + ". Ajusta el valor para que no quede por debajo del precio calculado.");
-        window.alert("⚠ " + avisoMargen + ".\n\nEl precio no puede quedar por debajo del precio calculado.");
+      var avisoCosto = textoPrecioBajoCosto(costoUnit, nuevoPrecio, pctDescuento);
+      if (avisoCosto) {
+        mostrarError("item-error", "No se guardó. " + avisoCosto + ".");
+        window.alert("⚠ " + avisoCosto + ".\n\nEl precio siempre debe ser igual o mayor al costo.");
         return;
       }
     }
@@ -17356,7 +17392,7 @@ against the dark UI.
   window.editarCostoLinea = function (idDetalle, costoActual) {
     var nuevo = window.prompt("Nuevo costo interno de esta línea (lo que le cuesta al taller):", costoActual);
     if (nuevo === null) return;
-    var nuevoCosto = parseFloat(nuevo);
+    var nuevoCosto = numeroDesdeTexto(nuevo);
     if (!(nuevoCosto >= 0)) {
       mostrarError("item-error", "El costo debe ser un número válido.");
       return;
@@ -18847,6 +18883,20 @@ against the dark UI.
     visor.addEventListener("click", cerrarVisor);
     cerrar.addEventListener("click", function (ev) { ev.stopPropagation(); cerrarVisor(); });
     document.addEventListener("keydown", function (ev) { if (ev.key === "Escape" && visor.style.display !== "none") cerrarVisor(); });
+  })();
+
+  // Contador flotante: se puede minimizar (queda solo el reloj) para no tapar la pantalla.
+  (function iniciarMinimizarTimer() {
+    var caja = $("timer-flotante"), btn = $("timer-flotante-min");
+    function aplicar(min) {
+      caja.classList.toggle("timer-min", min);
+      btn.textContent = min ? "+" : "–";
+      try { localStorage.setItem("timer_min", min ? "1" : "0"); } catch (e) {}
+    }
+    var guardado = false;
+    try { guardado = localStorage.getItem("timer_min") === "1"; } catch (e) {}
+    aplicar(guardado);
+    btn.addEventListener("click", function () { aplicar(!caja.classList.contains("timer-min")); });
   })();
 
   var parametrosUrl = new URLSearchParams(location.search);
