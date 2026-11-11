@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-11-3">
+<meta name="app-build" content="2026-11-11-4">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -14474,7 +14474,7 @@ against the dark UI.
       if (!(nuevoPrecio >= 0)) { mostrarError("cotizaciones-error", "Precio no válido."); return; }
       if (tipo === "repuesto" || tipo === "insumo") {
         var adv = textoAdvertenciaMargen(linea.precio_sugerido, nuevoPrecio, 0);
-        if (adv) { mostrarError("cotizaciones-error", adv + ". El precio debe quedar entre el calculado y +" + TOPE_SOBRE_MARGEN_PCT + "%."); return; }
+        if (adv) { mostrarError("cotizaciones-error", adv + ". Debe quedar entre " + formatoMoneda(linea.precio_sugerido) + " y " + formatoMoneda(Number(linea.precio_sugerido) * (1 + TOPE_SOBRE_MARGEN_PCT / 100)) + " (calculado +" + TOPE_SOBRE_MARGEN_PCT + "%)."); return; }
       }
       return restRequest("PATCH", "cotizacion_detalle", { query: "id_detalle=eq." + linea.id_detalle, body: { precio_aplicado_cliente: nuevoPrecio } }).then(function () { return abrirEditorCotizacion(id); });
     }
@@ -15691,8 +15691,8 @@ against the dark UI.
 
   // Regla de margen para repuestos e insumos: el precio al cliente nunca
   // debe quedar por debajo del precio con el margen establecido (precio
-  // sugerido) ni pasarse más de un 15% por encima de él. Solo advierte.
-  var TOPE_SOBRE_MARGEN_PCT = 15;
+  // sugerido) ni pasarse más de un 25% por encima de él. Solo advierte.
+  var TOPE_SOBRE_MARGEN_PCT = 25;
 
   // Devuelve "" si está dentro del rango, o el texto de la advertencia.
   // precioLista = precio por unidad antes de descuento; descuentoPct = % de descuento.
