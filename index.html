@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-11-2">
+<meta name="app-build" content="2026-11-11-3">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -153,6 +153,21 @@ against the dark UI.
       <p id="cp-vehiculo" class="info-vehiculo"></p>
       <div id="cp-linea-tiempo"></div>
       <p id="cp-fecha-entrega" class="nota-ayuda"></p>
+    </div>
+  </section>
+</div>
+
+<div id="pantalla-documento-publico" class="oculto">
+  <section class="tarjeta">
+    <div id="dp-cargando"><p>Abriendo el documento…</p></div>
+    <div id="dp-invalido" class="oculto">
+      <h2>Enlace no válido o vencido</h2>
+      <p>No encontramos este documento. Comuníquese con el taller para que le envíen uno nuevo.</p>
+    </div>
+    <div id="dp-contenido" class="oculto">
+      <p class="nota-ayuda">Documento emitido por <b id="dp-taller">Taller Servi Motors</b>. Esta página solo muestra el documento: no pide datos personales ni pagos.</p>
+      <button type="button" id="dp-imprimir">Imprimir / Guardar PDF</button>
+      <iframe id="dp-marco" sandbox="allow-same-origin allow-modals" title="Documento" style="width:100%;height:75vh;border:1px solid #d1d5db;border-radius:6px;margin-top:10px;background:#fff;"></iframe>
     </div>
   </section>
 </div>
@@ -3304,6 +3319,7 @@ against the dark UI.
   .auditoria-item-controles select { width: auto; padding: 4px 6px; }
   .auditoria-item-nota { width: 100%; margin-top: 6px; padding: 6px; font-size: 14px; }
   #pantalla-consulta-publica { max-width: 480px; margin: 0 auto; padding: 12px; }
+  #pantalla-documento-publico { max-width: 900px; margin: 0 auto; padding: 12px; }
   #pantalla-agendar-publico { max-width: 480px; margin: 0 auto; padding: 12px; }
   .tarjeta {
     background: var(--tarjeta-bg);
@@ -12324,19 +12340,49 @@ against the dark UI.
   // Arma el enlace wa.me para compartir cualquier documento impreso. El
   // teléfono sale de opciones.telefono o, si no, del "Tel:" que aparezca en el
   // propio documento; si no hay ninguno, WhatsApp deja elegir el contacto.
-  function urlWhatsAppDocumento(titulo, nombreTaller, urlConsulta, contenidoHtml, telefono) {
+  function mensajeConfianzaDocumento(nombreCliente, titulo, nombreTaller, telTaller, urlEnlace) {
+    var tituloPlano = String(titulo || "").replace(/<[^>]*>/g, "");
+    return "Hola" + (nombreCliente ? " " + String(nombreCliente).split(" ")[0] : "") + ", le saluda " + nombreTaller + ".\n" +
+      "Le compartimos su documento: " + tituloPlano + ".\n" +
+      (urlEnlace
+        ? "Puede verlo y guardarlo en este enlace de nuestro taller (solo muestra el documento; nunca le pediremos claves, datos bancarios ni pagos por este medio):\n" + urlEnlace + "\n"
+        : "") +
+      "Si tiene alguna duda, escríbanos" + (telTaller ? " o llámenos al " + telTaller : "") + ". Gracias por confiar en nosotros.";
+  }
+
+  function urlWhatsAppDocumento(titulo, nombreTaller, urlConsulta, contenidoHtml, telefono, nombreCliente, telTaller) {
     var tel = telefono;
     if (!tel) {
       var m = /Tel\.?:?\s*([+\d][\d\s()+-]{6,})/.exec(String(contenidoHtml || "").replace(/<[^>]*>/g, " "));
       tel = m ? m[1] : "";
     }
-    var tituloPlano = String(titulo || "").replace(/<[^>]*>/g, "");
-    var msg = "Hola, le compartimos desde " + nombreTaller + ": " + tituloPlano + "." +
-      (urlConsulta ? "\nPuede consultarlo en línea aquí: " + urlConsulta : "") +
-      "\nQuedamos atentos a cualquier inquietud. Gracias por confiar en nosotros.";
     var numero = telefonoWhatsApp(tel);
-    return "https://wa.me/" + (numero || "") + "?text=" + encodeURIComponent(msg);
+    return "https://wa.me/" + (numero || "") + "?text=" + encodeURIComponent(mensajeConfianzaDocumento(nombreCliente, titulo, nombreTaller, telTaller, urlConsulta));
   }
+
+  var URL_BASE_APP = "https://servi-motors.github.io/taller-servi-motors/";
+  window.__docsCompartir = [];
+
+  // Lo llama el botón «Enviar enlace por WhatsApp» de la ventana de impresión:
+  // guarda una copia del documento en el servidor (enlace que vence a los 90
+  // días) y abre WhatsApp con un mensaje que incluye ese enlace.
+  window.compartirDocumentoEnlace = function (idx, ventanaHija) {
+    var d = window.__docsCompartir[idx];
+    if (!d) return;
+    var w = ventanaHija.open("", "_blank");
+    if (w) w.document.write("<p style=\"font-family:Arial;padding:30px\">Preparando el enlace…</p>");
+    restRequest("POST", "rpc/crear_documento_publico", { body: { p_titulo: String(d.titulo).replace(/<[^>]*>/g, ""), p_html: d.htmlPublico } })
+      .then(function (token) {
+        var url = URL_BASE_APP + "?doc=" + token;
+        var tel = telefonoWhatsApp(d.telefono);
+        var wa = "https://wa.me/" + (tel || "") + "?text=" + encodeURIComponent(mensajeConfianzaDocumento(d.nombreCliente, d.titulo, d.nombreTaller, d.telTaller, url));
+        if (w) w.location.href = wa; else ventanaHija.location.href = wa;
+      })
+      .catch(function (err) {
+        if (w) w.close();
+        ventanaHija.alert("No se pudo crear el enlace: " + (err && err.message ? err.message : err));
+      });
+  };
 
   function abrirVentanaImpresion(titulo, contenidoHtml, datosTaller, urlConsultaQr, ventanaExistente, opciones) {
     opciones = opciones || {};
@@ -12363,6 +12409,30 @@ against the dark UI.
         ":" + String(ahoraImpresion.getSeconds()).padStart(2, "0") + "</div>";
     }
 
+    var nombreArchivo = String(titulo).replace(/<[^>]*>/g, "").replace(/[^\w\-áéíóúñÁÉÍÓÚÑ ]+/g, "").trim().replace(/\s+/g, "_") + ".pdf";
+    var botonesHtml = "<button class=\"btn-imprimir\" onclick=\"window.print()\">Imprimir / Guardar PDF</button>";
+    var scriptPdf = "";
+    if (opciones.compartirEnlace) {
+      var idxDoc = window.__docsCompartir.length;
+      window.__docsCompartir.push({ titulo: titulo, htmlPublico: "", telefono: opciones.telefono, nombreCliente: opciones.nombreCliente, nombreTaller: nombreTaller, telTaller: t.telefono || "" });
+      botonesHtml += "<button class=\"btn-whatsapp\" onclick=\"window.opener.compartirDocumentoEnlace(" + idxDoc + ", window)\">Enviar enlace por WhatsApp</button>";
+    } else {
+      botonesHtml += "<button class=\"btn-whatsapp\" onclick=\"window.open(" + JSON.stringify(urlWhatsAppDocumento(titulo, nombreTaller, urlConsultaQr, contenidoHtml, opciones.telefono, opciones.nombreCliente, t.telefono || "")).replace(/</g, "\\u003c").replace(/\"/g, "&quot;") + ",'_blank')\">Compartir por WhatsApp</button>";
+    }
+    botonesHtml += "<button id=\"btn-pdf\" class=\"btn-whatsapp btn-pdf\" style=\"background:#2563eb\" onclick=\"compartirPdf()\">Compartir PDF</button>";
+    var msgPdf = mensajeConfianzaDocumento(opciones.nombreCliente, titulo, nombreTaller, t.telefono || "", null);
+    scriptPdf = "<script src=\"https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js\"><\/script><script>" +
+      "if(!(navigator.canShare&&navigator.share))document.getElementById('btn-pdf').style.display='none';" +
+      "function compartirPdf(){var b=document.getElementById('btn-pdf');if(typeof html2pdf==='undefined'){alert('No se pudo cargar el generador de PDF. Revise la conexión.');return;}" +
+      "b.disabled=true;b.textContent='Preparando PDF…';" +
+      "var N=" + JSON.stringify(nombreArchivo).replace(/</g, "\\u003c") + ",M=" + JSON.stringify(msgPdf).replace(/</g, "\\u003c") + ";" +
+      "html2pdf().set({margin:8,filename:N,image:{type:'jpeg',quality:0.95},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'mm',format:'a4',orientation:'" + (opciones.horizontal ? "landscape" : "portrait") + "'},pagebreak:{mode:['css','legacy']}})" +
+      ".from(document.getElementById('doc-pdf')).outputPdf('blob').then(function(blob){var f=new File([blob],N,{type:'application/pdf'});" +
+      "if(navigator.canShare({files:[f]}))return navigator.share({files:[f],title:N,text:M});" +
+      "alert('Este dispositivo no permite compartir archivos desde el navegador. Use el botón de enlace o Imprimir / Guardar PDF.');})" +
+      ".catch(function(e){if(!e||e.name!=='AbortError')alert('No se pudo preparar el PDF: '+(e&&e.message||e));})" +
+      ".then(function(){b.disabled=false;b.textContent='Compartir PDF';});}" +
+      "<\/script>";
     var html = "<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"utf-8\"><title>" + titulo + "</title><style>" +
       (opciones.horizontal ? "@page{size:landscape;}" : "") +
       "body{font-family:Arial,Helvetica,sans-serif;color:#111827;margin:0;padding:24px;font-size:13px;}" +
@@ -12396,9 +12466,8 @@ against the dark UI.
       ".aviso-wa{font-size:11px;color:#4b5563;margin:-8px 0 12px;}" +
       "@media print{.btn-imprimir,.btn-whatsapp,.aviso-wa{display:none;}body{padding:0;}}" +
       "</style></head><body>" +
-      "<button class=\"btn-imprimir\" onclick=\"window.print()\">Imprimir / Guardar PDF</button>" +
-      "<button class=\"btn-whatsapp\" onclick=\"window.open(" + JSON.stringify(urlWhatsAppDocumento(titulo, nombreTaller, urlConsultaQr, contenidoHtml, opciones.telefono)).replace(/</g, "\\u003c").replace(/\"/g, "&quot;") + ",'_blank')\">Compartir por WhatsApp</button>" +
-      "<div class=\"aviso-wa\">WhatsApp no adjunta archivos solo: primero «Imprimir / Guardar PDF», y luego adjunte el PDF en el chat que se abre.</div>" +
+      botonesHtml +
+      "<div id=\"doc-pdf\">" +
       "<div class=\"cabecera\">" + (LOGO_TALLER_BASE64 ? "<img src=\"" + LOGO_TALLER_BASE64 + "\" alt=\"Logo\">" : "") +
       "<div class=\"cabecera-texto\"><h1>" + nombreTaller + "</h1>" +
       "<div class=\"eslogan-taller\">Comprometidos con la Excelencia</div>" +
@@ -12409,8 +12478,10 @@ against the dark UI.
       "</div>" +
       "<h2>" + titulo + "</h2>" +
       contenidoHtml +
-      "</body></html>";
+      "</div>" + scriptPdf + "</body></html>";
+    var htmlPublico = html.replace(botonesHtml, "").replace(scriptPdf, "").replace(/<script src[^>]*html2pdf[^>]*><\/script>/, "");
 
+    if (opciones.compartirEnlace) window.__docsCompartir[window.__docsCompartir.length - 1].htmlPublico = htmlPublico;
     var ventana = (ventanaExistente && !ventanaExistente.closed) ? ventanaExistente : window.open("", "_blank");
     if (!ventana) {
       alert("Tu navegador bloqueó la ventana de impresión. Permite ventanas emergentes para este sitio e inténtalo de nuevo.");
@@ -12782,7 +12853,7 @@ against the dark UI.
           construirTablaExternosImpresion(itemsExternos) +
           construirTotalesFinalesImpresion(items, taller.pct_iva) +
           construirTextoLegalImpresion(modo, datosFirma);
-        abrirVentanaImpresion(titulo, contenido, taller, urlConsultaPublicaDeOrden(orden));
+        abrirVentanaImpresion(titulo, contenido, taller, urlConsultaPublicaDeOrden(orden), null, { compartirEnlace: true, telefono: (orden.clientes || {}).telefono, nombreCliente: (orden.clientes || {}).nombre });
       });
     }).catch(function (err) {
       mostrarError(idError, "No se pudo preparar la impresión: " + err.message);
@@ -12841,7 +12912,7 @@ against the dark UI.
         "<div class=\"total-final\">RESTA POR PAGAR: " + formatoMoneda(resta) + "</div>" +
         "</div>";
 
-      abrirVentanaImpresion("Recibo de pago — " + prefijoOT + orden.numero_ot, contenido, taller, null, ventanaExistente);
+      abrirVentanaImpresion("Recibo de pago — " + prefijoOT + orden.numero_ot, contenido, taller, null, ventanaExistente, { compartirEnlace: true, telefono: c.telefono, nombreCliente: c.nombre });
     });
   }
 
@@ -14438,7 +14509,7 @@ against the dark UI.
       construirTotalesFinalesImpresion(items, tallerCotizacion.pct_iva) +
       (c.notas ? "<h3>Notas</h3><div>" + textoSeguro(c.notas) + "</div>" : "") +
       "<div class=\"texto-legal\">Esta es una cotización y no constituye una orden de trabajo. El valor puede variar si al revisar el vehículo se encuentran daños adicionales, caso en el cual se le informará y se pedirá su autorización antes de realizarlos. Los precios son válidos hasta la fecha indicada y sujetos a disponibilidad de repuestos.</div>";
-    abrirVentanaImpresion("Cotización " + numeroCotizacionTexto(c.numero), contenido, tallerCotizacion, null, ventana, {});
+    abrirVentanaImpresion("Cotización " + numeroCotizacionTexto(c.numero), contenido, tallerCotizacion, null, ventana, { compartirEnlace: true, telefono: cli.telefono, nombreCliente: cli.nombre });
   }
 
   function enviarCotizacionPorWhatsApp() {
@@ -18462,6 +18533,33 @@ against the dark UI.
     });
   }
 
+  // Documento compartido por enlace (?doc=token). Se pide con fetch directo
+  // (no con restRequest) para que el HTML no sea alterado; se muestra dentro
+  // de un iframe SIN scripts, así que no puede ejecutar código.
+  function iniciarDocumentoPublico(token) {
+    $("contenedor-login").classList.add("oculto");
+    $("pantalla-documento-publico").classList.remove("oculto");
+    return fetch(SUPABASE_URL + "/rest/v1/rpc/obtener_documento_publico", {
+      method: "POST",
+      headers: { "apikey": SUPABASE_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_token: token })
+    }).then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (doc) {
+        $("dp-cargando").classList.add("oculto");
+        if (!doc || !doc.html) { $("dp-invalido").classList.remove("oculto"); return; }
+        document.title = doc.titulo || "Documento";
+        var m = /<h1>([^<]*)<\/h1>/.exec(doc.html);
+        if (m) $("dp-taller").textContent = m[1];
+        $("dp-marco").srcdoc = doc.html;
+        $("dp-contenido").classList.remove("oculto");
+        $("dp-imprimir").onclick = function () { try { $("dp-marco").contentWindow.print(); } catch (e) { window.print(); } };
+      })
+      .catch(function () {
+        $("dp-cargando").classList.add("oculto");
+        $("dp-invalido").classList.remove("oculto");
+      });
+  }
+
   function iniciarConsultaPublica(token) {
     $("contenedor-login").classList.add("oculto");
     $("pantalla-consulta-publica").classList.remove("oculto");
@@ -18625,6 +18723,10 @@ against the dark UI.
   var tokenConsultaEnUrl = parametrosUrl.get("consulta");
   if (tokenConsultaEnUrl) {
     iniciarConsultaPublica(tokenConsultaEnUrl);
+  }
+  var tokenDocumentoEnUrl = parametrosUrl.get("doc");
+  if (tokenDocumentoEnUrl && /^[0-9a-f-]{36}$/i.test(tokenDocumentoEnUrl)) {
+    iniciarDocumentoPublico(tokenDocumentoEnUrl);
   }
   var tokenHistorialEnUrl = parametrosUrl.get("historial");
   if (tokenHistorialEnUrl) {
