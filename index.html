@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-10-5">
+<meta name="app-build" content="2026-11-11-2">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -2616,17 +2616,14 @@ against the dark UI.
           <div id="cot-info" class="info-vehiculo"></div>
 
           <h3>Líneas de la cotización</h3>
-          <div class="tabla-scroll">
-            <table class="tabla-datos" id="tabla-cot-lineas">
-              <thead><tr><th>Tipo</th><th>Descripción</th><th>Cant.</th><th>Costo unit.</th><th>Valor unitario</th><th>Total</th><th></th></tr></thead>
-              <tbody id="cuerpo-cot-lineas"></tbody>
-            </table>
-          </div>
+          <div id="cot-areas"></div>
           <div id="cot-totales" class="info-vehiculo" style="text-align:right;"></div>
 
           <div id="cot-form-agregar">
             <h3>Agregar línea</h3>
-            <label for="cot-item-buscar">Servicio, repuesto o insumo (escribe y toca el resultado que aparece debajo)</label>
+            <div class="nota-ayuda">Elige el área y escribe: la lista muestra solo lo de esa área.</div>
+            <div id="cot-area-tabs" class="agenda-controles"></div>
+            <label id="cot-item-etiqueta" for="cot-item-buscar">Servicio (escribe y toca el resultado que aparece debajo)</label>
             <input id="cot-item-buscar" type="text" autocomplete="off" placeholder="Escribe 2 o 3 letras: amortig, aceite, pastillas…">
             <div id="cot-item-resultados" class="cot-resultados oculto"></div>
             <div id="cot-nuevo-item" class="oculto tarjeta" style="margin:6px 0;">
@@ -2649,7 +2646,7 @@ against the dark UI.
               <button type="button" class="secundario" id="btn-cot-cancelar-nuevo">Cancelar</button>
             </div>
             <div id="cot-item-vista-previa" class="nota-ayuda"></div>
-            <label for="cot-item-costo">Costo de UNA unidad del repuesto o insumo (opcional: si lo dejas vacío se usa el del catálogo). Si te cuesta $330.000 el par, escribe 165000 y cantidad 2.</label>
+            <label id="cot-item-costo-etiqueta" for="cot-item-costo">Costo de UNA unidad del repuesto o insumo (opcional: si lo dejas vacío se usa el del catálogo). Si te cuesta $330.000 el par, escribe 165000 y cantidad 2.</label>
             <input id="cot-item-costo" type="number" min="0" step="1" placeholder="Lo que te cuesta a ti, sin ganancia">
             <label for="cot-item-cantidad">Cantidad (en mano de obra, horas: 1.5 = 1 h 30 min)</label>
             <input id="cot-item-cantidad" type="number" min="0.01" step="0.01" value="1">
@@ -3603,6 +3600,10 @@ against the dark UI.
     .kpi-numero { font-size: 26px; }
     #pantalla-inicio .grid-graficos { grid-template-columns: 1fr 1fr; }
   }
+  .cot-area { border: 1px solid #d1d5db; border-radius: 10px; padding: 8px 10px; margin: 10px 0; }
+  .cot-area h3 { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; margin: 0 0 6px; }
+  .cot-area-sub { font-weight: 600; opacity: 0.85; }
+  .cot-tab-activa { background: #1d4ed8 !important; color: #fff !important; }
   .cot-resultados { max-height: 260px; overflow-y: auto; border: 1px solid #9ca3af; border-radius: 8px; background: var(--tarjeta-bg, #fff); margin: 2px 0 10px; -webkit-overflow-scrolling: touch; }
   .cot-resultado { display: block; width: 100%; text-align: left; background: transparent; color: inherit; border: none; border-bottom: 1px solid #e5e7eb; border-radius: 0; padding: 10px 12px; font-size: 14px; cursor: pointer; margin: 0; }
   .cot-resultado small { display: block; opacity: 0.75; font-size: 12px; }
@@ -12320,6 +12321,23 @@ against the dark UI.
     return it.cantidad * it.precio_aplicado_cliente * (1 - (it.pct_descuento || 0) / 100);
   }
 
+  // Arma el enlace wa.me para compartir cualquier documento impreso. El
+  // teléfono sale de opciones.telefono o, si no, del "Tel:" que aparezca en el
+  // propio documento; si no hay ninguno, WhatsApp deja elegir el contacto.
+  function urlWhatsAppDocumento(titulo, nombreTaller, urlConsulta, contenidoHtml, telefono) {
+    var tel = telefono;
+    if (!tel) {
+      var m = /Tel\.?:?\s*([+\d][\d\s()+-]{6,})/.exec(String(contenidoHtml || "").replace(/<[^>]*>/g, " "));
+      tel = m ? m[1] : "";
+    }
+    var tituloPlano = String(titulo || "").replace(/<[^>]*>/g, "");
+    var msg = "Hola, le compartimos desde " + nombreTaller + ": " + tituloPlano + "." +
+      (urlConsulta ? "\nPuede consultarlo en línea aquí: " + urlConsulta : "") +
+      "\nQuedamos atentos a cualquier inquietud. Gracias por confiar en nosotros.";
+    var numero = telefonoWhatsApp(tel);
+    return "https://wa.me/" + (numero || "") + "?text=" + encodeURIComponent(msg);
+  }
+
   function abrirVentanaImpresion(titulo, contenidoHtml, datosTaller, urlConsultaQr, ventanaExistente, opciones) {
     opciones = opciones || {};
     var t = datosTaller || {};
@@ -12374,9 +12392,13 @@ against the dark UI.
       ".firma-linea{font-size:12px;margin:22px 0 4px;}" +
       ".nota-periodo{color:#4b5563;margin-bottom:10px;}" +
       ".btn-imprimir{margin-bottom:16px;padding:10px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer;}" +
-      "@media print{.btn-imprimir{display:none;}body{padding:0;}}" +
+      ".btn-whatsapp{margin:0 0 16px 8px;padding:10px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer;}" +
+      ".aviso-wa{font-size:11px;color:#4b5563;margin:-8px 0 12px;}" +
+      "@media print{.btn-imprimir,.btn-whatsapp,.aviso-wa{display:none;}body{padding:0;}}" +
       "</style></head><body>" +
       "<button class=\"btn-imprimir\" onclick=\"window.print()\">Imprimir / Guardar PDF</button>" +
+      "<button class=\"btn-whatsapp\" onclick=\"window.open(" + JSON.stringify(urlWhatsAppDocumento(titulo, nombreTaller, urlConsultaQr, contenidoHtml, opciones.telefono)).replace(/</g, "\\u003c").replace(/\"/g, "&quot;") + ",'_blank')\">Compartir por WhatsApp</button>" +
+      "<div class=\"aviso-wa\">WhatsApp no adjunta archivos solo: primero «Imprimir / Guardar PDF», y luego adjunte el PDF en el chat que se abre.</div>" +
       "<div class=\"cabecera\">" + (LOGO_TALLER_BASE64 ? "<img src=\"" + LOGO_TALLER_BASE64 + "\" alt=\"Logo\">" : "") +
       "<div class=\"cabecera-texto\"><h1>" + nombreTaller + "</h1>" +
       "<div class=\"eslogan-taller\">Comprometidos con la Excelencia</div>" +
@@ -13910,6 +13932,52 @@ against the dark UI.
     return Math.round(c / (totalCosto <= 250000 ? 0.70 : 0.80) * 100) / 100;
   }
 
+  // Áreas de la cotización: mano de obra, repuestos (e insumos) y trabajo externo.
+  var AREAS_COT = [
+    { clave: "mano_obra", titulo: "Mano de obra", icono: "🔧", tipos: ["mano_obra"], etiqueta: "Servicio de mano de obra (escribe y toca el resultado que aparece debajo)", placeholder: "Ej. cambio de amortiguadores, alineación…" },
+    { clave: "repuestos", titulo: "Repuestos e insumos", icono: "⚙️", tipos: ["repuesto", "insumo"], etiqueta: "Repuesto o insumo (escribe y toca el resultado que aparece debajo)", placeholder: "Ej. pastillas, aceite, filtro…" },
+    { clave: "externo", titulo: "Trabajo externo", icono: "🏭", tipos: ["trabajo_externo"], etiqueta: "Trabajo externo (escribe y toca el resultado que aparece debajo)", placeholder: "Ej. latonería, rectificación, tapicería…" }
+  ];
+  var cotAreaActiva = "mano_obra";
+  function areaCotDeTipo(tipo) { return AREAS_COT.filter(function (a) { return a.tipos.indexOf(tipo) !== -1; })[0] || AREAS_COT[1]; }
+  function areaCotPorClave(clave) { return AREAS_COT.filter(function (a) { return a.clave === clave; })[0] || AREAS_COT[0]; }
+
+  function seleccionarAreaCotizacion(clave, enfocar) {
+    cotAreaActiva = clave;
+    var area = areaCotPorClave(clave);
+    var tabs = $("cot-area-tabs");
+    tabs.innerHTML = "";
+    AREAS_COT.forEach(function (a) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "secundario" + (a.clave === clave ? " cot-tab-activa" : "");
+      b.textContent = a.icono + " " + a.titulo;
+      b.addEventListener("click", function () { seleccionarAreaCotizacion(a.clave, true); });
+      tabs.appendChild(b);
+    });
+    $("cot-item-etiqueta").textContent = area.etiqueta;
+    $("cot-item-buscar").placeholder = area.placeholder;
+    var esMO = clave === "mano_obra";
+    $("cot-item-costo-etiqueta").classList.toggle("oculto", esMO);
+    $("cot-item-costo").classList.toggle("oculto", esMO);
+    // tipos que se pueden crear en esta área
+    $("cot-nuevo-tipo").innerHTML = area.tipos.map(function (t) { return "<option value=\"" + t + "\">" + ETIQUETAS_TIPO_LINEA_COT[t] + "</option>"; }).join("");
+    $("cot-nuevo-tipo").dispatchEvent(new Event("change"));
+    // al cambiar de área se limpia lo escrito
+    cotItemElegido = null;
+    $("cot-item-buscar").value = "";
+    $("cot-item-costo").value = "";
+    $("cot-item-vista-previa").textContent = "";
+    $("cot-item-resultados").classList.add("oculto");
+    $("cot-nuevo-item").classList.add("oculto");
+    if (enfocar) {
+      $("cot-form-agregar").scrollIntoView({ behavior: "smooth", block: "center" });
+      $("cot-item-buscar").focus();
+    }
+  }
+
+  function cotizacion_lineas_vacias(cot) { return !cot.lineas || !cot.lineas.length; }
+
   function numeroCotizacionTexto(n) { return "COT-" + String(n).padStart(3, "0"); }
 
   function estadoVisibleCotizacion(c) {
@@ -14030,7 +14098,10 @@ against the dark UI.
       $("cot-vista-lista").classList.add("oculto");
       $("cot-vista-editor").classList.remove("oculto");
       renderizarEditorCotizacion();
-      if (!yaEstabaAbierto) window.scrollTo({ top: 0, behavior: "smooth" }); // al refrescar tras agregar/editar una línea no se salta al inicio
+      if (!yaEstabaAbierto) {
+        seleccionarAreaCotizacion(cotizacion_lineas_vacias(cot) ? "mano_obra" : cotAreaActiva, false);
+        window.scrollTo({ top: 0, behavior: "smooth" }); // al refrescar tras agregar/editar una línea no se salta al inicio
+      }
     });
   }
 
@@ -14044,25 +14115,40 @@ against the dark UI.
       "<b>" + textoSeguro(cli.nombre || "—") + "</b> · Tel. " + textoSeguro(cli.telefono || "—") + "<br>" +
       textoSeguro((veh.placa || "—") + " · " + [veh.marca, veh.modelo, veh.anio].filter(Boolean).join(" "));
 
-    var cuerpo = $("cuerpo-cot-lineas");
-    cuerpo.innerHTML = c.lineas.length ? c.lineas.map(function (l) {
-      var tipo = l.items ? l.items.tipo : "";
-      var aviso = (tipo === "repuesto" || tipo === "insumo") ? textoAdvertenciaMargen(l.precio_sugerido, l.precio_aplicado_cliente, 0) : "";
-      var acciones = editable
-        ? "<button type=\"button\" class=\"secundario btn-cot-linea\" data-accion=\"cantidad\" data-id=\"" + l.id_detalle + "\">Cant.</button> " +
-          (tipo === "mano_obra" ? "" : "<button type=\"button\" class=\"secundario btn-cot-linea\" data-accion=\"costo\" data-id=\"" + l.id_detalle + "\">Costo</button> <button type=\"button\" class=\"secundario btn-cot-linea\" data-accion=\"precio\" data-id=\"" + l.id_detalle + "\">Precio</button> ") +
-          "<button type=\"button\" class=\"secundario btn-cot-linea\" data-accion=\"quitar\" data-id=\"" + l.id_detalle + "\">Quitar</button>"
-        : "";
-      return "<tr><td>" + (ETIQUETAS_TIPO_LINEA_COT[tipo] || tipo) + "</td><td>" + textoSeguro(l.items ? l.items.nombre : "—") +
-        (aviso ? "<br><span class=\"aviso-margen\">⚠ " + aviso + "</span>" : "") + "</td>" +
-        "<td>" + Number(l.cantidad) + "</td><td class=\"celda-numero\">" + ((tipo === "mano_obra" || l.costo_interno === null) ? "—" : formatoMoneda(l.costo_interno)) + "</td><td class=\"celda-numero\">" + formatoMoneda(l.precio_aplicado_cliente) + "</td>" +
-        "<td class=\"celda-numero\">" + formatoMoneda(Number(l.cantidad) * Number(l.precio_aplicado_cliente)) + "</td><td>" + acciones + "</td></tr>";
-    }).join("") : "<tr><td colspan=\"7\" class=\"tabla-vacia\">Todavía no hay líneas. Agrega servicios, repuestos o insumos.</td></tr>";
-
     var subtotal = totalLineasCotizacion(c.lineas);
+    var htmlAreas = "";
+    var resumenAreas = [];
+    AREAS_COT.forEach(function (area) {
+      var lineasArea = c.lineas.filter(function (l) { return area.tipos.indexOf(l.items ? l.items.tipo : "") !== -1; });
+      var subArea = totalLineasCotizacion(lineasArea);
+      resumenAreas.push(area.icono + " " + area.titulo + ": " + formatoMoneda(subArea));
+      var esMO = area.clave === "mano_obra";
+      var filas = lineasArea.length ? lineasArea.map(function (l) {
+        var tipo = l.items ? l.items.tipo : "";
+        var aviso = (tipo === "repuesto" || tipo === "insumo") ? textoAdvertenciaMargen(l.precio_sugerido, l.precio_aplicado_cliente, 0) : "";
+        var acciones = editable
+          ? "<button type=\"button\" class=\"secundario btn-cot-linea\" data-accion=\"cantidad\" data-id=\"" + l.id_detalle + "\">" + (esMO ? "Horas" : "Cant.") + "</button> " +
+            (esMO ? "" : "<button type=\"button\" class=\"secundario btn-cot-linea\" data-accion=\"costo\" data-id=\"" + l.id_detalle + "\">Costo</button> <button type=\"button\" class=\"secundario btn-cot-linea\" data-accion=\"precio\" data-id=\"" + l.id_detalle + "\">Precio</button> ") +
+            "<button type=\"button\" class=\"secundario btn-cot-linea\" data-accion=\"quitar\" data-id=\"" + l.id_detalle + "\">Quitar</button>"
+          : "";
+        return "<tr><td>" + textoSeguro(l.items ? l.items.nombre : "—") +
+          (tipo === "insumo" ? "<br><span class=\"fila-detalle\">Insumo</span>" : "") +
+          (aviso ? "<br><span class=\"aviso-margen\">⚠ " + aviso + "</span>" : "") + "</td>" +
+          "<td>" + Number(l.cantidad) + "</td>" +
+          (esMO ? "" : "<td class=\"celda-numero\">" + (l.costo_interno === null ? "—" : formatoMoneda(l.costo_interno)) + "</td>") +
+          "<td class=\"celda-numero\">" + formatoMoneda(l.precio_aplicado_cliente) + "</td>" +
+          "<td class=\"celda-numero\">" + formatoMoneda(Number(l.cantidad) * Number(l.precio_aplicado_cliente)) + "</td><td>" + acciones + "</td></tr>";
+      }).join("") : "<tr><td colspan=\"" + (esMO ? 5 : 6) + "\" class=\"tabla-vacia\">Sin líneas en esta área todavía.</td></tr>";
+      htmlAreas += "<div class=\"cot-area\"><h3><span>" + area.icono + " " + area.titulo + "</span><span class=\"cot-area-sub\">Subtotal: " + formatoMoneda(subArea) + "</span></h3>" +
+        "<div class=\"tabla-scroll\"><table class=\"tabla-datos\"><thead><tr><th>Descripción</th><th>" + (esMO ? "Horas" : "Cant.") + "</th>" +
+        (esMO ? "" : "<th>Costo unit.</th>") + "<th>" + (esMO ? "Valor hora" : "Valor unitario") + "</th><th>Total</th><th></th></tr></thead><tbody>" + filas + "</tbody></table></div>" +
+        (editable ? "<button type=\"button\" class=\"secundario btn-cot-area-agregar\" data-area=\"" + area.clave + "\" style=\"width:auto;\">+ Agregar en " + area.titulo.toLowerCase() + "</button>" : "") + "</div>";
+    });
+    $("cot-areas").innerHTML = htmlAreas;
+
     var pctIva = Number(tallerCotizacion.pct_iva) || 0;
     var iva = subtotal * pctIva / 100;
-    $("cot-totales").innerHTML = "Subtotal: " + formatoMoneda(subtotal) + (pctIva > 0 ? "<br>IVA (" + pctIva + "%): " + formatoMoneda(iva) : "") +
+    $("cot-totales").innerHTML = resumenAreas.join("<br>") + "<br>Subtotal: " + formatoMoneda(subtotal) + (pctIva > 0 ? "<br>IVA (" + pctIva + "%): " + formatoMoneda(iva) : "") +
       "<br><strong>Total: " + formatoMoneda(subtotal + iva) + "</strong>";
 
     $("cot-form-agregar").classList.toggle("oculto", !editable);
@@ -14135,9 +14221,11 @@ against the dark UI.
   function buscarItemsCotizacion(texto, max) {
     var palabras = normalizarTextoFijo(texto).split(" ").filter(Boolean);
     if (!palabras.length) return [];
+    var tiposArea = areaCotPorClave(cotAreaActiva).tipos;
     var res = [];
     for (var i = 0; i < catalogoCotizacion.length && res.length < max; i++) {
       var it = catalogoCotizacion[i];
+      if (tiposArea.indexOf(it.tipo) === -1) continue;
       var ok = true;
       for (var j = 0; j < palabras.length; j++) { if (it._busqueda.indexOf(palabras[j]) === -1) { ok = false; break; } }
       if (ok) res.push(it);
@@ -14270,7 +14358,11 @@ against the dark UI.
     });
   }), "cotizaciones-error"));
 
-  $("cuerpo-cot-lineas").addEventListener("click", conManejoDeErrores(function (ev) {
+  $("cot-areas").addEventListener("click", function (ev) {
+    var ba = ev.target.closest(".btn-cot-area-agregar");
+    if (ba) seleccionarAreaCotizacion(ba.getAttribute("data-area"), true);
+  });
+  $("cot-areas").addEventListener("click", conManejoDeErrores(function (ev) {
     var b = ev.target.closest(".btn-cot-linea");
     if (!b || !cotizacionActual) return;
     ocultarError("cotizaciones-error");
@@ -14323,17 +14415,26 @@ against the dark UI.
     var ventana = abrirVentanaImpresionPendiente();
     var cli = c.clientes || {}, veh = c.vehiculos || {};
     var items = c.lineas.map(function (l) { return { cantidad: Number(l.cantidad), precio_aplicado_cliente: Number(l.precio_aplicado_cliente), pct_descuento: 0 }; });
-    var filas = c.lineas.map(function (l, i) {
-      return "<tr><td>" + (i + 1) + "</td><td>" + textoSeguro(l.items ? l.items.nombre : "—") + "</td><td>" + (ETIQUETAS_TIPO_LINEA_COT[l.items ? l.items.tipo : ""] || "") + "</td>" +
-        "<td>" + Number(l.cantidad) + "</td><td style=\"text-align:right;\">" + formatoMoneda(l.precio_aplicado_cliente) + "</td><td style=\"text-align:right;\">" + formatoMoneda(Number(l.cantidad) * Number(l.precio_aplicado_cliente)) + "</td></tr>";
-    }).join("");
+    var seccionesHtml = "";
+    AREAS_COT.forEach(function (area) {
+      var lineasArea = c.lineas.filter(function (l) { return area.tipos.indexOf(l.items ? l.items.tipo : "") !== -1; });
+      if (!lineasArea.length) return;
+      var esMO = area.clave === "mano_obra";
+      var filasArea = lineasArea.map(function (l, i) {
+        return "<tr><td>" + (i + 1) + "</td><td>" + textoSeguro(l.items ? l.items.nombre : "—") + "</td>" +
+          "<td>" + Number(l.cantidad) + "</td><td style=\"text-align:right;\">" + formatoMoneda(l.precio_aplicado_cliente) + "</td><td style=\"text-align:right;\">" + formatoMoneda(Number(l.cantidad) * Number(l.precio_aplicado_cliente)) + "</td></tr>";
+      }).join("");
+      seccionesHtml += "<h3>" + area.titulo + "</h3>" +
+        "<table><thead><tr><th>#</th><th>Descripción</th><th>" + (esMO ? "Horas" : "Cant.") + "</th><th>" + (esMO ? "Valor hora" : "Valor unitario") + "</th><th>Total</th></tr></thead><tbody>" + filasArea +
+        "<tr style=\"font-weight:700;background:#f3f4f6;\"><td colspan=\"4\">Subtotal " + area.titulo.toLowerCase() + "</td><td style=\"text-align:right;\">" + formatoMoneda(totalLineasCotizacion(lineasArea)) + "</td></tr></tbody></table>";
+    });
     var contenido =
       "<div class=\"datos-doc\">" +
       "<div class=\"bloque\"><b>Cliente</b>" + textoSeguro(cli.nombre || "—") + "<br>" + textoSeguro(cli.documento ? "Cédula/NIT: " + cli.documento : "") + "<br>Tel. " + textoSeguro(cli.telefono || "—") + "</div>" +
       "<div class=\"bloque\"><b>Vehículo</b>" + textoSeguro(veh.placa || "—") + "<br>" + textoSeguro([veh.marca, veh.modelo, veh.anio, veh.color].filter(Boolean).join(" · ")) + "</div>" +
       "<div class=\"bloque\"><b>Cotización</b>" + numeroCotizacionTexto(c.numero) + "<br>Fecha: " + formatoFechaCorta(new Date(c.creado_en)) +
       "<br>Válida hasta: " + (c.vigencia_hasta ? formatoFechaCorta(new Date(c.vigencia_hasta + "T00:00:00")) : "—") + "</div></div>" +
-      "<table><thead><tr><th>#</th><th>Descripción</th><th>Tipo</th><th>Cant.</th><th>Valor unitario</th><th>Total</th></tr></thead><tbody>" + filas + "</tbody></table>" +
+      seccionesHtml +
       construirTotalesFinalesImpresion(items, tallerCotizacion.pct_iva) +
       (c.notas ? "<h3>Notas</h3><div>" + textoSeguro(c.notas) + "</div>" : "") +
       "<div class=\"texto-legal\">Esta es una cotización y no constituye una orden de trabajo. El valor puede variar si al revisar el vehículo se encuentran daños adicionales, caso en el cual se le informará y se pedirá su autorización antes de realizarlos. Los precios son válidos hasta la fecha indicada y sujetos a disponibilidad de repuestos.</div>";
