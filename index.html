@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-11-11">
+<meta name="app-build" content="2026-11-11-12">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -4412,11 +4412,28 @@ against the dark UI.
       .then(function (res) { return res.text(); })
       .then(function (html) {
         var m = html.match(/<meta name="app-build" content="([^"]*)"/);
-        if (m && m[1] && m[1] !== VERSION_APP_ACTUAL) mostrarAvisoVersionNueva();
+        if (m && m[1] && m[1] !== VERSION_APP_ACTUAL) {
+          // Si la persona no está escribiendo en ningún campo ni tiene un cuadro abierto, se actualiza sola;
+          // si está llenando algo, solo se muestra el aviso para no perderle lo que escribe.
+          var ae = document.activeElement;
+          var escribiendo = ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName);
+          if (!escribiendo && sesionAutoRecargaPermitida()) location.reload();
+          else mostrarAvisoVersionNueva();
+        }
       })
       .catch(function () { /* sin señal ahora mismo: no molestar, se reintenta solo más tarde */ });
   }
-  setInterval(verificarVersionNueva, 10 * 60 * 1000);
+  // Evita bucles: máximo una recarga automática cada 2 minutos.
+  function sesionAutoRecargaPermitida() {
+    try {
+      var ult = Number(sessionStorage.getItem("ultima_autorecarga") || 0);
+      if (Date.now() - ult < 120000) return false;
+      sessionStorage.setItem("ultima_autorecarga", String(Date.now()));
+    } catch (e) {}
+    return true;
+  }
+  setInterval(verificarVersionNueva, 3 * 60 * 1000);
+  setTimeout(verificarVersionNueva, 20 * 1000);
   document.addEventListener("visibilitychange", function () { if (!document.hidden) verificarVersionNueva(); });
   window.addEventListener("focus", verificarVersionNueva);
 
