@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-11-7">
+<meta name="app-build" content="2026-11-11-8">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -3712,6 +3712,7 @@ against the dark UI.
   .tabla-toolbar label { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; margin: 0; }
   .tabla-toolbar select, .tabla-toolbar input { width: auto; padding: 6px 8px; font-size: 14px; margin: 0; }
   .tabla-scroll { overflow-x: auto; }
+  .miniatura-evidencia img { cursor: zoom-in; }
   .galeria-evidencias { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
   .miniatura-evidencia { position: relative; width: 84px; height: 84px; }
   .miniatura-evidencia img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; border: 1px solid var(--borde); }
@@ -18813,6 +18814,40 @@ against the dark UI.
       });
     }, "ag-error"));
   }
+
+  // Visor para ampliar fotos: toque una miniatura de evidencia para verla en pantalla completa.
+  // Toque la foto para alternar entre "ajustada" y "tamaño real" (con desplazamiento); toque fuera, ×, o Esc para cerrar.
+  (function iniciarVisorFotos() {
+    var visor = document.createElement("div");
+    visor.id = "visor-fotos";
+    visor.style.cssText = "display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.92);overflow:auto;text-align:center;";
+    var img = document.createElement("img");
+    img.alt = "Foto ampliada";
+    var cerrar = document.createElement("button");
+    cerrar.type = "button"; cerrar.textContent = "×"; cerrar.setAttribute("aria-label", "Cerrar");
+    cerrar.style.cssText = "position:fixed;top:10px;right:14px;z-index:100000;width:44px;height:44px;border-radius:50%;border:none;background:#fff;color:#111;font-size:28px;line-height:1;cursor:pointer;";
+    visor.appendChild(img); visor.appendChild(cerrar);
+    document.body.appendChild(visor);
+    var ajustada = true;
+    function estiloImg() {
+      img.style.cssText = ajustada
+        ? "max-width:96vw;max-height:94vh;margin:3vh auto;display:block;object-fit:contain;cursor:zoom-in;background:#fff;"
+        : "max-width:none;width:auto;margin:0;display:block;cursor:zoom-out;";
+    }
+    function cerrarVisor() { visor.style.display = "none"; img.removeAttribute("src"); document.body.style.overflow = ""; }
+    document.addEventListener("click", function (ev) {
+      var mini = ev.target.closest && ev.target.closest(".miniatura-evidencia img");
+      if (!mini || !mini.src) return;
+      ajustada = true; estiloImg();
+      img.src = mini.src;
+      visor.style.display = "block"; visor.scrollTop = 0; visor.scrollLeft = 0;
+      document.body.style.overflow = "hidden";
+    });
+    img.addEventListener("click", function (ev) { ev.stopPropagation(); ajustada = !ajustada; estiloImg(); });
+    visor.addEventListener("click", cerrarVisor);
+    cerrar.addEventListener("click", function (ev) { ev.stopPropagation(); cerrarVisor(); });
+    document.addEventListener("keydown", function (ev) { if (ev.key === "Escape" && visor.style.display !== "none") cerrarVisor(); });
+  })();
 
   var parametrosUrl = new URLSearchParams(location.search);
   var tokenEnUrl = parametrosUrl.get("firmar");
