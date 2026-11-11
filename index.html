@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-11-6">
+<meta name="app-build" content="2026-11-11-7">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -6616,9 +6616,13 @@ against the dark UI.
     var hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
     var avisos = [];
+    // Un documento vencido deja de mostrarse 3 días después de su fecha de vencimiento.
+    var limiteVencido = new Date(hoy.getTime());
+    limiteVencido.setDate(limiteVencido.getDate() - 3);
+    function aunVisible(fechaIso) { return new Date(fechaIso + "T00:00:00") >= limiteVencido; }
     filas.forEach(function (v) {
-      if (v.soat_vencimiento) avisos.push({ v: v, tipo: "SOAT", fecha: v.soat_vencimiento, clave: "soat_vencimiento" });
-      if (v.tecnomecanica_vencimiento) avisos.push({ v: v, tipo: "Tecnomecánica", fecha: v.tecnomecanica_vencimiento, clave: "tecnomecanica_vencimiento" });
+      if (v.soat_vencimiento && aunVisible(v.soat_vencimiento)) avisos.push({ v: v, tipo: "SOAT", fecha: v.soat_vencimiento, clave: "soat_vencimiento" });
+      if (v.tecnomecanica_vencimiento && aunVisible(v.tecnomecanica_vencimiento)) avisos.push({ v: v, tipo: "Tecnomecánica", fecha: v.tecnomecanica_vencimiento, clave: "tecnomecanica_vencimiento" });
     });
     if (!avisos.length) {
       cont.innerHTML = "<p class=\"nota-ayuda\">No hay documentos por vencer en los próximos 30 días.</p>";
