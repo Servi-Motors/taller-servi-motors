@@ -23,7 +23,7 @@ against the dark UI.
 <!-- Se cambia este valor cada vez que se sube una versión nueva de este
      archivo a GitHub Pages. La app lo usa para avisar (sin recargar sola)
      cuando alguien tiene abierta una versión vieja en el celular. -->
-<meta name="app-build" content="2026-11-11-4">
+<meta name="app-build" content="2026-11-11-5">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -14474,7 +14474,7 @@ against the dark UI.
       if (!(nuevoPrecio >= 0)) { mostrarError("cotizaciones-error", "Precio no válido."); return; }
       if (tipo === "repuesto" || tipo === "insumo") {
         var adv = textoAdvertenciaMargen(linea.precio_sugerido, nuevoPrecio, 0);
-        if (adv) { mostrarError("cotizaciones-error", adv + ". Debe quedar entre " + formatoMoneda(linea.precio_sugerido) + " y " + formatoMoneda(Number(linea.precio_sugerido) * (1 + TOPE_SOBRE_MARGEN_PCT / 100)) + " (calculado +" + TOPE_SOBRE_MARGEN_PCT + "%)."); return; }
+        if (adv) { mostrarError("cotizaciones-error", adv + ". El precio no puede quedar por debajo de " + formatoMoneda(linea.precio_sugerido) + "."); return; }
       }
       return restRequest("PATCH", "cotizacion_detalle", { query: "id_detalle=eq." + linea.id_detalle, body: { precio_aplicado_cliente: nuevoPrecio } }).then(function () { return abrirEditorCotizacion(id); });
     }
@@ -15701,12 +15701,9 @@ against the dark UI.
     if (!(sug > 0)) return "";
     var lista = Number(precioLista) || 0;
     var neto = lista * (1 - (Number(descuentoPct) || 0) / 100);
-    var maximo = sug * (1 + TOPE_SOBRE_MARGEN_PCT / 100);
+    // Tope máximo desactivado (el precio puede subir sin límite); solo se exige el mínimo.
     if (neto < sug - 0.5) {
       return "Precio por debajo del margen establecido (neto " + formatoMoneda(neto) + " · mínimo " + formatoMoneda(sug) + ")";
-    }
-    if (lista > maximo + 0.5) {
-      return "Precio supera en más de " + TOPE_SOBRE_MARGEN_PCT + "% el margen establecido (" + formatoMoneda(lista) + " · máximo " + formatoMoneda(maximo) + ")";
     }
     return "";
   }
@@ -17229,8 +17226,8 @@ against the dark UI.
     if (esParte) {
       var avisoMargen = textoAdvertenciaMargen(precioSugerido, nuevoPrecio, pctDescuento);
       if (avisoMargen) {
-        mostrarError("item-error", "No se guardó el precio. " + avisoMargen + ". Ajusta el valor para que quede entre el precio calculado y su +" + TOPE_SOBRE_MARGEN_PCT + "%.");
-        window.alert("⚠ " + avisoMargen + ".\n\nEl precio debe quedar entre el precio calculado y un máximo de +" + TOPE_SOBRE_MARGEN_PCT + "%.");
+        mostrarError("item-error", "No se guardó el precio. " + avisoMargen + ". Ajusta el valor para que no quede por debajo del precio calculado.");
+        window.alert("⚠ " + avisoMargen + ".\n\nEl precio no puede quedar por debajo del precio calculado.");
         return;
       }
     }
